@@ -29,7 +29,12 @@ echo "[INFO] Czyszczenie starych plików... ";
 AzadaWholesaler::performMaintenance();
 echo "OK.\n\n";
 
-$integrations = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE active = 1 AND b2b_login IS NOT NULL");
+$integrations = Db::getInstance()->executeS(
+    "SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration
+    WHERE active = 1
+    AND b2b_login IS NOT NULL AND b2b_login != ''
+    AND b2b_password IS NOT NULL AND b2b_password != ''"
+);
 
 if ($integrations) {
     foreach ($integrations as $wholesaler) {
@@ -73,7 +78,8 @@ if ($integrations) {
             if ($action != AzadaB2BComparator::ACTION_NONE) {
                 echo " > " . $row['number'] . " [POBIERANIE DO BAZY]... ";
                 
-                $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_bioplanet.txt';
+                $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $wholesaler['name']));
+                $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
                 
                 $res = AzadaWholesaler::processDownload(
                     $wholesaler['id_wholesaler'], $row['number'], $row['date'], $row['netto'], $row['status'], $url, $cookieFile

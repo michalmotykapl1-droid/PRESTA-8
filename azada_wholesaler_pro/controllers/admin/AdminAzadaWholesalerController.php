@@ -116,6 +116,23 @@ class AdminAzadaWholesalerController extends ModuleAdminController
 
         if (!$id) die(json_encode(['status'=>'error', 'msg'=>'Brak ID']));
 
+        $obj = new AzadaWholesaler($id);
+        if (!Validate::isLoadedObject($obj)) die(json_encode(['status'=>'error', 'msg'=>'Obiekt nie istnieje']));
+
+        if (empty($login) || empty($pass)) {
+            $obj->b2b_login = '';
+            $obj->b2b_password = '';
+            if ($obj->update()) {
+                $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $obj->name));
+                $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
+                if (file_exists($cookieFile)) {
+                    @unlink($cookieFile);
+                }
+                die(json_encode(['status'=>'success', 'msg'=>'Dane logowania B2B zostały usunięte.']));
+            }
+            die(json_encode(['status'=>'error', 'msg'=>'Błąd zapisu bazy danych.']));
+        }
+
         if (class_exists('AzadaBioPlanetB2B')) {
             $verifier = new AzadaBioPlanetB2B();
             $isLogged = $verifier->checkLogin($login, $pass);
@@ -124,9 +141,6 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 die(json_encode(['status'=>'error', 'msg'=>'BŁĄD LOGOWANIA! Hurtownia odrzuciła podany login lub hasło. Sprawdź dane.']));
             }
         }
-
-        $obj = new AzadaWholesaler($id);
-        if (!Validate::isLoadedObject($obj)) die(json_encode(['status'=>'error', 'msg'=>'Obiekt nie istnieje']));
 
         $obj->b2b_login = $login;
         $obj->b2b_password = !empty($pass) ? base64_encode($pass) : ''; 

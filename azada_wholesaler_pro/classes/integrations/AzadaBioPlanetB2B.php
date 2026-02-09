@@ -18,6 +18,9 @@ class AzadaBioPlanetB2B
 
     public function checkLogin($login, $password)
     {
+        if (empty($login) || empty($password)) {
+            return false;
+        }
         if (file_exists($this->cookieFile)) @unlink($this->cookieFile);
         $this->performLogin($login, $password);
         $html = $this->request($this->checkUrl);
@@ -30,6 +33,9 @@ class AzadaBioPlanetB2B
     // --- POBIERANIE ZAMÓWIEŃ ---
     public function scrapeOrders($login, $password)
     {
+        if (empty($login) || empty($password)) {
+            return ['status' => 'error', 'msg' => 'Brak danych logowania B2B.'];
+        }
         $check = $this->request($this->checkUrl);
         if (strpos($check, 'name="Uzytkownik"') !== false || strpos($check, 'login-form') !== false) {
             $this->performLogin($login, $password);
@@ -48,6 +54,9 @@ class AzadaBioPlanetB2B
     // --- POBIERANIE FAKTUR (POPRAWIONE) ---
     public function scrapeInvoices($login, $password)
     {
+        if (empty($login) || empty($password)) {
+            return ['status' => 'error', 'msg' => 'Brak danych logowania B2B.'];
+        }
         // 1. Logowanie
         $check = $this->request('https://bioplanet.pl/faktury');
         if (strpos($check, 'name="Uzytkownik"') !== false) {
@@ -72,6 +81,9 @@ class AzadaBioPlanetB2B
 
     public function downloadFile($remoteUrl, $localPath, $login, $password)
     {
+        if (empty($login) || empty($password)) {
+            return ['status' => 'error', 'msg' => 'Brak danych logowania B2B.'];
+        }
         $test = $this->request($this->checkUrl);
         if (strpos($test, 'name="Uzytkownik"') !== false) {
             $this->performLogin($login, $password);

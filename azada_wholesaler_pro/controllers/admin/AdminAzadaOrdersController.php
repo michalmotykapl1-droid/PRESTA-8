@@ -65,7 +65,12 @@ class AdminAzadaOrdersController extends ModuleAdminController
     {
         AzadaWholesaler::performMaintenance();
 
-        $integrations = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE active = 1 AND b2b_login IS NOT NULL");
+        $integrations = Db::getInstance()->executeS(
+            "SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration
+            WHERE active = 1
+            AND b2b_login IS NOT NULL AND b2b_login != ''
+            AND b2b_password IS NOT NULL AND b2b_password != ''"
+        );
 
         if (!$integrations) die(json_encode(['status' => 'error', 'msg' => 'Brak aktywnych hurtowni B2B.']));
 
@@ -149,7 +154,14 @@ class AdminAzadaOrdersController extends ModuleAdminController
         $docNetto = Tools::getValue('doc_netto');
         $docStatus = Tools::getValue('doc_status');
         if (!$idWholesaler) die(json_encode(['status' => 'error', 'msg' => 'Brak ID']));
-        $wholesalerName = Db::getInstance()->getValue("SELECT name FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = ".(int)$idWholesaler);
+        $wholesalerData = Db::getInstance()->getRow(
+            "SELECT name, b2b_login, b2b_password FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = ".(int)$idWholesaler
+        );
+        if (!$wholesalerData) die(json_encode(['status' => 'error', 'msg' => 'Brak konfiguracji.']));
+        if (empty($wholesalerData['b2b_login']) || empty($wholesalerData['b2b_password'])) {
+            die(json_encode(['status' => 'error', 'msg' => 'Brak danych logowania B2B.']));
+        }
+        $wholesalerName = $wholesalerData['name'];
         $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $wholesalerName));
         $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
         $res = AzadaWholesaler::processDownload($idWholesaler, $docNumber, $docDate, $docNetto, $docStatus, $url, $cookieFile);
@@ -166,6 +178,9 @@ class AdminAzadaOrdersController extends ModuleAdminController
         if (!$url || !$idWholesaler) die('Błąd: Brak danych.');
         $wholesalerData = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = ".(int)$idWholesaler);
         if (!$wholesalerData) die('Brak konfiguracji.');
+        if (empty($wholesalerData['b2b_login']) || empty($wholesalerData['b2b_password'])) {
+            die('Brak danych logowania B2B.');
+        }
         $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $wholesalerData['name']));
         $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
         if (!file_exists($cookieFile) && stripos($wholesalerData['name'], 'Bio Planet') !== false) {
