@@ -16,6 +16,9 @@ if (file_exists(dirname(__FILE__) . '/../../classes/services/AzadaVerificationEn
 if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaBioPlanetB2B.php')) {
     require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaBioPlanetB2B.php');
 }
+if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWitalB2B.php')) {
+    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWitalB2B.php');
+}
 if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWital.php')) {
     require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWital.php');
 }
@@ -133,10 +136,9 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             die(json_encode(['status'=>'error', 'msg'=>'Błąd zapisu bazy danych.']));
         }
 
-        if (class_exists('AzadaBioPlanetB2B')) {
-            $verifier = new AzadaBioPlanetB2B();
+        $verifier = $this->getB2BVerifier($obj->name);
+        if ($verifier) {
             $isLogged = $verifier->checkLogin($login, $pass);
-            
             if (!$isLogged) {
                 die(json_encode(['status'=>'error', 'msg'=>'BŁĄD LOGOWANIA! Hurtownia odrzuciła podany login lub hasło. Sprawdź dane.']));
             }
@@ -161,6 +163,17 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $result = $engine->runFullImport($id);
         header('Content-Type: application/json');
         die(json_encode($result));
+    }
+
+    private function getB2BVerifier($wholesalerName)
+    {
+        if (stripos($wholesalerName, 'Bio Planet') !== false && class_exists('AzadaBioPlanetB2B')) {
+            return new AzadaBioPlanetB2B();
+        }
+        if (stripos($wholesalerName, 'EkoWital') !== false && class_exists('AzadaEkoWitalB2B')) {
+            return new AzadaEkoWitalB2B();
+        }
+        return null;
     }
 
     public function ajaxProcessTestConnection()
