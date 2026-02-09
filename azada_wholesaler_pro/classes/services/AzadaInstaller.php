@@ -4,46 +4,12 @@ class AzadaInstaller
 {
     public static function installDatabase()
     {
-        $sql = [];
+                require_once(dirname(__FILE__) . '/AzadaRawSchema.php');
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return false;
+        }
 
-        // 1. Tabela Surowa (Bio Planet)
-        $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_raw_bioplanet` (
-            `id_raw` int(11) NOT NULL AUTO_INCREMENT,
-            `kod_kreskowy` varchar(64) DEFAULT NULL,
-            `produkt_id` varchar(64) DEFAULT NULL,
-            `kod` varchar(64) DEFAULT NULL,
-            `nazwa` text DEFAULT NULL,
-            `marka` text DEFAULT NULL,
-            `opis` text DEFAULT NULL,
-            `zdjecieglownelinkurl` text DEFAULT NULL,
-            `kategoria` text DEFAULT NULL,
-            `jednostkapodstawowa` text DEFAULT NULL,
-            `waga` decimal(20,6) DEFAULT 0.000000,
-            `ilosc_w_opakowaniu` text DEFAULT NULL,
-            `wymagane_oz` text DEFAULT NULL,
-            `ilosc` text DEFAULT NULL,
-            `cenaprzedrabatemnetto` decimal(20,6) DEFAULT 0.000000,
-            `cenaporabacienetto` decimal(20,6) DEFAULT 0.000000,
-            `vat` decimal(20,6) DEFAULT 0.000000,
-            `cenadetalicznabrutto` decimal(20,6) DEFAULT 0.000000,
-            `dostepnyod` text DEFAULT NULL,
-            `gwaranterminprzydatdni` text DEFAULT NULL,
-            `producentnazwaiadres` text DEFAULT NULL,
-            `nazamowienie` text DEFAULT NULL,
-            `krajpochodzeniaskladnikow` text DEFAULT NULL,
-            `masabrutto` decimal(20,6) DEFAULT 0.000000,
-            `cenastandardnetto` decimal(20,6) DEFAULT 0.000000,
-            `orientacyjny_termin_przydatnosci` text DEFAULT NULL,
-            `minimum_logistyczne` text DEFAULT NULL,
-            `stan_magazynowy_live` text DEFAULT NULL,
-            `cena_netto_live` decimal(20,6) DEFAULT 0.000000,
-            `glebokosc` decimal(20,6) DEFAULT 0.000000,
-            `szerokosc` decimal(20,6) DEFAULT 0.000000,
-            `wysokosc` decimal(20,6) DEFAULT 0.000000,
-            `data_aktualizacji` text DEFAULT NULL,
-            PRIMARY KEY (`id_raw`),
-            KEY `kod_kreskowy` (`kod_kreskowy`)
-        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
+$sql = [];
 
         // 2. Integracja (Konfiguracja)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_integration` (
