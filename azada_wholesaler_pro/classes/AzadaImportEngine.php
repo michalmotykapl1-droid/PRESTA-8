@@ -226,38 +226,24 @@ class AzadaImportEngine
             if ($ean === '') continue;
 
             $rowValues = [];
-            $kodWasSetFromSku = false;
-            $kodValue = '';
-
             foreach ($colIndexMap as $idx => $colName) {
                 $val = isset($row[$idx]) ? trim((string)$row[$idx]) : '';
 
-                // SKU -> kod z prefiksem EKOWIT_
-                if ($colName === 'kod') {
-                    if ($val !== '') {
-                        $kodWasSetFromSku = true;
-                        $kodValue = 'EKOWIT_' . $val;
-                        $val = $kodValue;
-                    }
+                // SKU -> produkt_id z prefiksem EKOWIT_
+                if ($colName === 'produkt_id' && $val !== '') {
+                    $val = 'EKOWIT_' . $val;
                 }
 
                 // liczby
-                if (in_array($colName, ['waga','ilosc','cenaprzedrabatemnetto','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
+                if (in_array($colName, ['waga','ilosc','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
                     $val = str_replace(',', '.', $val);
                     $val = preg_replace('/[^0-9.]/', '', $val);
-                    if ($val === '') $val = '0';
+                    if ($val === '') {
+                        $val = '0';
+                    }
                 }
 
                 $rowValues[] = pSQL($val);
-            }
-
-            // jeśli kod (SKU) pusty, to wypełnij kod wartością EAN (zgodnie z Twoją logiką "ean -> kod_kreskowy i kod")
-            if (!$kodWasSetFromSku) {
-                // znajdź pozycję kolumny 'kod' w insertCols
-                $kodPos = array_search('kod', $insertCols, true);
-                if ($kodPos !== false) {
-                    $rowValues[(int)$kodPos] = pSQL($ean);
-                }
             }
 
             $rowValues[] = date('Y-m-d H:i:s');

@@ -12,8 +12,8 @@ class AzadaEkoWital
     public static $columnMap = [
         // źródło
         'ean' => 'kod_kreskowy',
-        'id' => 'produkt_id',
-        'sku' => 'kod',
+        'id' => 'kod',
+        'sku' => 'produkt_id',
         'name' => 'nazwa',
         'brand' => 'marka',
         'desc' => 'opis',
