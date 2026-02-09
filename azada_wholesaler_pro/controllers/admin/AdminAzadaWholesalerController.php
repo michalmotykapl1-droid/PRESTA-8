@@ -337,6 +337,38 @@ class AdminAzadaWholesalerController extends ModuleAdminController
     }
     public function displayUrlShort($url) { return ''; } 
     public function initToolbar() { parent::initToolbar(); unset($this->toolbar_btn['new']); }
+
+    public function processDelete()
+    {
+        $id = (int)Tools::getValue('id_wholesaler');
+        if ($id) {
+            $obj = new AzadaWholesaler($id);
+            if (Validate::isLoadedObject($obj) && !empty($obj->raw_table_name)) {
+                $tableName = _DB_PREFIX_ . pSQL($obj->raw_table_name);
+                Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+            }
+        }
+        return parent::processDelete();
+    }
+
+    public function processBulkDelete()
+    {
+        $ids = Tools::getValue($this->table . 'Box');
+        if (!empty($ids) && is_array($ids)) {
+            foreach ($ids as $id) {
+                $id = (int)$id;
+                if (!$id) {
+                    continue;
+                }
+                $obj = new AzadaWholesaler($id);
+                if (Validate::isLoadedObject($obj) && !empty($obj->raw_table_name)) {
+                    $tableName = _DB_PREFIX_ . pSQL($obj->raw_table_name);
+                    Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+                }
+            }
+        }
+        return parent::processBulkDelete();
+    }
     
     public function postProcess() {
         if (Tools::isSubmit('submitAdd' . $this->table)) {

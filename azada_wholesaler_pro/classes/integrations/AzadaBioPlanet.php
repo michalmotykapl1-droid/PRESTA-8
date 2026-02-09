@@ -9,13 +9,11 @@ class AzadaBioPlanet
      * --- CZARNA LISTA KOLUMN (TE NIE ZOSTANĄ UTWORZONE) ---
      */
     public static $ignoredColumns = [
-        'nastanie',
         'masanetto',
         'terminprzydataktualnypromowyprzeprzece',
         'eanprzepismatka',
         'cenazakg',
         'cenazal',
-        'linkdoproduktu',    // Dodatkowo (standardowy śmieć)
         'kodyopzbiorczych',  // Dodatkowo
         'kod_cn',            // Dodatkowo
         'objetoscbrutto',    // Dodatkowo
