@@ -5,13 +5,10 @@ class AzadaInstaller
     public static function installDatabase()
     {
         require_once(dirname(__FILE__) . '/AzadaRawSchema.php');
-        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
-            return false;
-        }
 
         $sql = [];
 
-        // 1. Integracja (Konfiguracja)
+        // 2. Integracja (Konfiguracja)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_integration` (
             `id_wholesaler` int(11) NOT NULL AUTO_INCREMENT,
             `name` varchar(255) NOT NULL,
@@ -33,7 +30,7 @@ class AzadaInstaller
             PRIMARY KEY (`id_wholesaler`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 2. Mapowanie
+        // 3. Mapowanie
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_mapping` (
             `id_mapping` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
@@ -45,7 +42,7 @@ class AzadaInstaller
             PRIMARY KEY (`id_mapping`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 3. Cache Produktów
+        // 4. Cache Produktów
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_cache` (
             `id_product_cache` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
@@ -59,7 +56,7 @@ class AzadaInstaller
             KEY `id_wholesaler` (`id_wholesaler`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 4. Logi Systemowe
+        // 5. Logi Systemowe
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_logs` (
             `id_log` int(11) NOT NULL AUTO_INCREMENT,
             `severity` tinyint(1) NOT NULL DEFAULT 1,
@@ -71,7 +68,7 @@ class AzadaInstaller
             KEY `date_add` (`date_add`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 5. Pliki Zamówień (Nagłówki)
+        // 6. Pliki Zamówień (Nagłówki)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_order_files` (
             `id_file` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
@@ -89,7 +86,7 @@ class AzadaInstaller
             KEY `id_wholesaler` (`id_wholesaler`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 6. Detale Zamówień
+        // 7. Detale Zamówień
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_order_details` (
             `id_detail` int(11) NOT NULL AUTO_INCREMENT,
             `id_file` int(11) NOT NULL,
@@ -117,7 +114,7 @@ class AzadaInstaller
             KEY `id_file` (`id_file`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 7. Pliki Faktur (Nagłówki)
+        // 8. Pliki Faktur (Nagłówki)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_invoice_files` (
             `id_invoice` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
@@ -134,7 +131,7 @@ class AzadaInstaller
             KEY `doc_number` (`doc_number`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 8. Detale Faktur
+        // 9. Detale Faktur
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_invoice_details` (
             `id_detail` int(11) NOT NULL AUTO_INCREMENT,
             `id_invoice` int(11) NOT NULL,
@@ -148,7 +145,7 @@ class AzadaInstaller
             KEY `id_invoice` (`id_invoice`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 9. Analiza (Weryfikacja - Nagłówek)
+        // 10. Analiza (Weryfikacja - Nagłówek)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_analysis` (
             `id_analysis` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
@@ -166,7 +163,7 @@ class AzadaInstaller
             KEY `id_wholesaler` (`id_wholesaler`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 10. Analiza (Różnice - Diff)
+        // 11. Analiza (Różnice - Diff)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_analysis_diff` (
             `id_diff` int(11) NOT NULL AUTO_INCREMENT,
             `id_analysis` int(11) NOT NULL,
@@ -187,6 +184,14 @@ class AzadaInstaller
             if (!Db::getInstance()->execute($query)) {
                 return false;
             }
+        }
+
+        $bioplanetId = Db::getInstance()->getValue(
+            "SELECT id_wholesaler FROM " . _DB_PREFIX_ . "azada_wholesaler_pro_integration
+            WHERE raw_table_name = 'azada_raw_bioplanet' OR name LIKE '%Bio Planet%'"
+        );
+        if ($bioplanetId && !AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return false;
         }
         return true;
     }

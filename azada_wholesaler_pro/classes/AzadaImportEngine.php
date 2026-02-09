@@ -25,10 +25,14 @@ class AzadaImportEngine
 
         // --- ZMIANA KLUCZOWA: TWARDY RESET ---
         // Usuwamy tabelę całkowicie, żeby pozbyć się niechcianych kolumn
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+        // -------------------------------------
+
         // 1. TERAZ Budujemy tabelę od zera (wzorzec dla hurtowni)
-        if (!AzadaRawSchema::createTable('azada_raw_bioplanet', true)) {
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
             return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
         }
+
         $dbColumnsMap = AzadaBioPlanet::syncTableStructure($links['products']);
         if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków CSV.'];
 
@@ -72,9 +76,10 @@ class AzadaImportEngine
             $allowedColumns = array_flip(array_keys($dbColumnsMap));
             $colIndexMap = [];
             foreach ($csvHeaders as $index => $rawHeader) {
+                // Sprawdzamy czarną listę
                 $rawHeaderNormalized = strtolower(trim($rawHeader));
                 if (in_array($rawHeaderNormalized, AzadaBioPlanet::$ignoredColumns)) {
-                    continue;
+                    continue; // Skip - nie importujemy tego
                 }
 
                 $sanitized = AzadaBioPlanet::sanitizeColumnName($rawHeader);

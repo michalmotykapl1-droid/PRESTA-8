@@ -44,8 +44,11 @@ class AzadaBioPlanet
         fclose($handle);
 
         if (empty($headers) || !is_array($headers)) return false;
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return false;
+        }
 
-        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
+                $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
         $columns = [];
         foreach ($headers as $header) {
             $headerNormalized = strtolower(trim($header));
@@ -58,6 +61,9 @@ class AzadaBioPlanet
                 $columns[$colName] = $header;
             }
         }
+
+
+
         return $columns;
     }
 
