@@ -2,6 +2,7 @@
 
 require_once(dirname(__FILE__) . '/integrations/AzadaBioPlanet.php');
 require_once(dirname(__FILE__) . '/helpers/AzadaFileHelper.php');
+require_once(dirname(__FILE__) . '/services/AzadaRawSchema.php');
 
 class AzadaImportEngine
 {
@@ -27,7 +28,11 @@ class AzadaImportEngine
         Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
         // -------------------------------------
 
-        // 1. TERAZ Budujemy tabelę od zera (tylko dozwolone kolumny)
+        // 1. TERAZ Budujemy tabelę od zera (wzorzec dla hurtowni)
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
+        }
+
         $dbColumnsMap = AzadaBioPlanet::syncTableStructure($links['products']);
         if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków CSV.'];
 
@@ -68,16 +73,18 @@ class AzadaImportEngine
             $csvHeaders = fgetcsv($h, 0, ";");
             
             // Mapowanie tylko dozwolonych kolumn
+            $allowedColumns = array_flip(array_keys($dbColumnsMap));
             $colIndexMap = [];
             foreach ($csvHeaders as $index => $rawHeader) {
-                // Sprawdzamy czarną listę
                 $rawHeaderNormalized = strtolower(trim($rawHeader));
                 if (in_array($rawHeaderNormalized, AzadaBioPlanet::$ignoredColumns)) {
-                    continue; // Skip - nie importujemy tego
+                    continue;
                 }
 
                 $sanitized = AzadaBioPlanet::sanitizeColumnName($rawHeader);
-                if (!empty($sanitized)) $colIndexMap[$index] = $sanitized;
+                if (!empty($sanitized) && isset($allowedColumns[$sanitized])) {
+                    $colIndexMap[$index] = $sanitized;
+                }
             }
 
             $insertCols = array_values($colIndexMap);
