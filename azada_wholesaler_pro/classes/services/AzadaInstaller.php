@@ -4,12 +4,9 @@ class AzadaInstaller
 {
     public static function installDatabase()
     {
-                require_once(dirname(__FILE__) . '/AzadaRawSchema.php');
-        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
-            return false;
-        }
+        require_once(dirname(__FILE__) . '/AzadaRawSchema.php');
 
-$sql = [];
+        $sql = [];
 
         // 2. Integracja (Konfiguracja)
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_integration` (
@@ -187,6 +184,14 @@ $sql = [];
             if (!Db::getInstance()->execute($query)) {
                 return false;
             }
+        }
+
+        $bioplanetId = Db::getInstance()->getValue(
+            "SELECT id_wholesaler FROM " . _DB_PREFIX_ . "azada_wholesaler_pro_integration
+            WHERE raw_table_name = 'azada_raw_bioplanet' OR name LIKE '%Bio Planet%'"
+        );
+        if ($bioplanetId && !AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return false;
         }
         return true;
     }
