@@ -1,6 +1,7 @@
 <?php
 
 require_once(dirname(__FILE__) . '/../helpers/AzadaFileHelper.php');
+require_once(dirname(__FILE__) . '/../services/AzadaRawSchema.php');
 
 class AzadaBioPlanet
 {
@@ -43,78 +44,21 @@ class AzadaBioPlanet
         fclose($handle);
 
         if (empty($headers) || !is_array($headers)) return false;
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return false;
+        }
 
-        $tableName = _DB_PREFIX_ . 'azada_raw_bioplanet';
-        
-        // Budujemy mapę kolumn (FILTRUJEMY PRZEZ CZARNĄ LISTĘ)
+        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
         $columns = [];
         foreach ($headers as $header) {
-            // Normalizujemy nazwę do porównania (małe litery, bez spacji)
             $headerNormalized = strtolower(trim($header));
-
-            // SPRAWDZAMY CZY KOLUMNA JEST NA CZARNEJ LIŚCIE
             if (in_array($headerNormalized, self::$ignoredColumns)) {
-                continue; // Pomijamy!
+                continue;
             }
 
             $colName = self::sanitizeColumnName($header);
-            if (!empty($colName)) {
-                $columns[$colName] = $header; 
-            }
-        }
-
-        // Dodajemy kolumny techniczne
-        // USUNIĘTO: waga_kg_system (na Twoje życzenie)
-        $columns['stan_magazynowy_live'] = 'Stan (Live)';
-        $columns['cena_netto_live'] = 'Cena (Live)';
-        $columns['glebokosc'] = 'Głębokość';
-        $columns['szerokosc'] = 'Szerokość';
-        $columns['wysokosc'] = 'Wysokość';
-        $columns['data_aktualizacji'] = 'Data Pobrania';
-
-        $db = Db::getInstance();
-        $tableExists = $db->executeS("SHOW TABLES LIKE '$tableName'");
-
-        if (empty($tableExists)) {
-            // TWORZENIE NOWEJ TABELI (Już bez śmieci)
-            $sql = "CREATE TABLE `$tableName` (
-                `id_raw` int(11) NOT NULL AUTO_INCREMENT, ";
-            
-            foreach ($columns as $col => $origName) {
-                if (in_array($col, ['kod_kreskowy', 'ean', 'kod', 'sku', 'reference', 'produkt_id'])) {
-                    $sql .= "`$col` VARCHAR(64) DEFAULT NULL, ";
-                }
-                elseif (strpos($col, 'cena') !== false || strpos($col, 'waga') !== false || strpos($col, 'vat') !== false || strpos($col, 'koszt') !== false || strpos($col, 'netto') !== false || strpos($col, 'brutto') !== false || in_array($col, ['glebokosc', 'szerokosc', 'wysokosc'])) {
-                    $sql .= "`$col` DECIMAL(20,6) DEFAULT 0.000000, ";
-                }
-                else {
-                    $sql .= "`$col` TEXT DEFAULT NULL, ";
-                }
-            }
-
-            $sql .= "PRIMARY KEY (`id_raw`) ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
-            
-            if (isset($columns['kod_kreskowy'])) {
-                $sql = str_replace('PRIMARY KEY', "INDEX(`kod_kreskowy`), PRIMARY KEY", $sql);
-            } elseif (isset($columns['ean'])) {
-                $sql = str_replace('PRIMARY KEY', "INDEX(`ean`), PRIMARY KEY", $sql);
-            }
-            
-            $db->execute($sql);
-
-        } else {
-            // AKTUALIZACJA (Dodajemy tylko brakujące, nie usuwamy)
-            $existingColsQuery = $db->executeS("SHOW COLUMNS FROM `$tableName`");
-            $existingCols = array_column($existingColsQuery, 'Field');
-
-            foreach ($columns as $col => $origName) {
-                if (!in_array($col, $existingCols)) {
-                    if (strpos($col, 'cena') !== false || strpos($col, 'waga') !== false) {
-                        $db->execute("ALTER TABLE `$tableName` ADD COLUMN `$col` DECIMAL(20,6) DEFAULT 0.000000");
-                    } else {
-                        $db->execute("ALTER TABLE `$tableName` ADD COLUMN `$col` TEXT DEFAULT NULL");
-                    }
-                }
+            if (!empty($colName) && isset($allowedColumns[$colName])) {
+                $columns[$colName] = $header;
             }
         }
 
