@@ -25,11 +25,8 @@ class AzadaImportEngine
 
         // --- ZMIANA KLUCZOWA: TWARDY RESET ---
         // Usuwamy tabelę całkowicie, żeby pozbyć się niechcianych kolumn
-        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
-        // -------------------------------------
-
         // 1. TERAZ Budujemy tabelę od zera (wzorzec dla hurtowni)
-        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet', true)) {
             return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
         }
 
