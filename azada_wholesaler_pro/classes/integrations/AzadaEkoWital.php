@@ -61,6 +61,7 @@ class AzadaEkoWital
         $headerLine = fgets($handle);
         fclose($handle);
         if ($headerLine === false) return false;
+        $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
 
         $delimiter = self::detectDelimiter($headerLine);
         $headers = str_getcsv(trim($headerLine), $delimiter);
@@ -70,19 +71,11 @@ class AzadaEkoWital
             return false;
         }
 
-        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
-        $columns = [];
-        foreach ($headers as $header) {
-            $normalized = self::normalizeHeader($header);
-            if (isset(self::$columnMap[$normalized])) {
-                $colName = self::$columnMap[$normalized];
-                if (isset($allowedColumns[$colName])) {
-                    $columns[$colName] = $header;
-                }
-            }
+        $mapping = self::mapHeadersToColumns($headers);
+        if (empty($mapping['columns'])) {
+            return false;
         }
-
-        return $columns;
+        return $mapping['columns'];
     }
 
     public static function normalizeHeader($header)
@@ -91,6 +84,44 @@ class AzadaEkoWital
         $header = strtolower(trim($header));
         $header = preg_replace('/[^a-z0-9]/', '', $header);
         return $header;
+    }
+
+    public static function sanitizeColumnName($header)
+    {
+        $header = iconv('UTF-8', 'ASCII//TRANSLIT', $header);
+        $header = strtolower(trim($header));
+        $header = preg_replace('/[^a-z0-9]+/', '_', $header);
+        $header = trim($header, '_');
+        return $header;
+    }
+
+    public static function mapHeadersToColumns(array $headers)
+    {
+        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
+        $columns = [];
+        $colIndexMap = [];
+
+        foreach ($headers as $index => $header) {
+            $normalized = self::normalizeHeader($header);
+            $colName = isset(self::$columnMap[$normalized]) ? self::$columnMap[$normalized] : null;
+
+            if (!$colName) {
+                $sanitized = self::sanitizeColumnName($header);
+                if (isset($allowedColumns[$sanitized])) {
+                    $colName = $sanitized;
+                }
+            }
+
+            if ($colName && isset($allowedColumns[$colName])) {
+                $columns[$colName] = $header;
+                $colIndexMap[$index] = $colName;
+            }
+        }
+
+        return [
+            'columns' => $columns,
+            'colIndexMap' => $colIndexMap,
+        ];
     }
 
     public static function runDiagnostics($apiKey)

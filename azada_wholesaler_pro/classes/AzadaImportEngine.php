@@ -181,17 +181,15 @@ class AzadaImportEngine
                 fclose($h);
                 return ['status' => 'error', 'msg' => 'Pusty plik.'];
             }
+            $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
             $delimiter = AzadaEkoWital::detectDelimiter($headerLine);
             $csvHeaders = str_getcsv(trim($headerLine), $delimiter);
 
-            $allowedColumns = array_flip(array_keys($dbColumnsMap));
-            $colIndexMap = [];
-            foreach ($csvHeaders as $index => $rawHeader) {
-                $normalized = AzadaEkoWital::normalizeHeader($rawHeader);
-                $colName = isset(AzadaEkoWital::$columnMap[$normalized]) ? AzadaEkoWital::$columnMap[$normalized] : null;
-                if ($colName && isset($allowedColumns[$colName])) {
-                    $colIndexMap[$index] = $colName;
-                }
+            $mapping = AzadaEkoWital::mapHeadersToColumns($csvHeaders);
+            $colIndexMap = $mapping['colIndexMap'];
+            if (empty($colIndexMap)) {
+                fclose($h);
+                return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
             }
 
             $insertCols = array_values($colIndexMap);
