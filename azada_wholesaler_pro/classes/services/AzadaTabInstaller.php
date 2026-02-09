@@ -63,13 +63,13 @@ class AzadaTabInstaller
             'name' => 'Dokumenty CSV (B2B)',
             'class_name' => 'AdminAzadaOrders',
             'parent_class' => 'AdminAzadaParent',
-            'active' => false
+            'active' => true
         ],
         [
             'name' => 'Faktury Zakupu',
             'class_name' => 'AdminAzadaInvoices',
             'parent_class' => 'AdminAzadaParent',
-            'active' => false
+            'active' => true
         ],
         [
             'name' => 'Logi Systemowe',
@@ -93,7 +93,35 @@ class AzadaTabInstaller
     {
         $idTab = (int)Tab::getIdFromClassName($tabData['class_name']);
         if ($idTab) {
-            return true; // Już istnieje
+            $tab = new Tab($idTab);
+            $tab->active = $tabData['active'] ? 1 : 0;
+            foreach (Language::getLanguages(true) as $lang) {
+                $tab->name[$lang['id_lang']] = $tabData['name'];
+            }
+
+            if ($tabData['parent_class'] === 'SELL') {
+                $sql = new DbQuery();
+                $sql->select('id_tab')->from('tab')->where('class_name = "SELL"');
+                $parentId = (int)Db::getInstance()->getValue($sql);
+                if (!$parentId) {
+                    $parentId = (int)Tab::getIdFromClassName('AdminParentOrders');
+                }
+                if (!$parentId) {
+                    $parentId = 0;
+                }
+            } else {
+                $parentId = (int)Tab::getIdFromClassName($tabData['parent_class']);
+            }
+
+            if ($parentId) {
+                $tab->id_parent = $parentId;
+            }
+            if (isset($tabData['icon']) && $tabData['icon']) {
+                $tab->icon = $tabData['icon'];
+            }
+            $tab->module = $moduleName;
+
+            return $tab->update();
         }
 
         $tab = new Tab();
