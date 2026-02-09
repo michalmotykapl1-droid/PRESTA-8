@@ -58,7 +58,6 @@ class AzadaBioPlanet
                 $columns[$colName] = $header;
             }
         }
-
         return $columns;
     }
 

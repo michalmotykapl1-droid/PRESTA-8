@@ -29,7 +29,6 @@ class AzadaImportEngine
         if (!AzadaRawSchema::createTable('azada_raw_bioplanet', true)) {
             return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
         }
-
         $dbColumnsMap = AzadaBioPlanet::syncTableStructure($links['products']);
         if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków CSV.'];
 
