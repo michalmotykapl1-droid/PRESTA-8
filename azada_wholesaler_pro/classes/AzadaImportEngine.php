@@ -4,6 +4,7 @@ require_once(dirname(__FILE__) . '/integrations/AzadaBioPlanet.php');
 require_once(dirname(__FILE__) . '/integrations/AzadaEkoWital.php');
 require_once(dirname(__FILE__) . '/helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/services/AzadaRawSchema.php');
+require_once(dirname(__FILE__) . '/services/AzadaLogger.php');
 
 class AzadaImportEngine
 {
@@ -162,6 +163,7 @@ class AzadaImportEngine
 
     private function processEkoWital($wholesaler)
     {
+        $debug = (bool)Tools::getValue('ekowital_debug');
         $links = AzadaEkoWital::generateLinks($wholesaler->api_key);
         $tableName = _DB_PREFIX_ . 'azada_raw_ekowital';
 
@@ -171,8 +173,18 @@ class AzadaImportEngine
             return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
         }
 
-        $dbColumnsMap = AzadaEkoWital::syncTableStructure($links['products']);
-        if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+        $debugData = [];
+        $dbColumnsMap = AzadaEkoWital::syncTableStructure($links['products'], $debug, $debugData);
+        if (!$dbColumnsMap) {
+            if ($debug) {
+                AzadaLogger::addLog('EKOWITAL', 'Brak mapowania nagłówków', 'syncTableStructure zwrócił false', AzadaLogger::SEVERITY_ERROR);
+            }
+            $payload = ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+            if ($debug) {
+                $payload['debug'] = $debugData;
+            }
+            return $payload;
+        }
 
         $count = 0;
         if (($h = fopen($links['products'], "r")) !== FALSE) {
@@ -188,8 +200,24 @@ class AzadaImportEngine
             $mapping = AzadaEkoWital::mapHeadersToColumns($csvHeaders);
             $colIndexMap = $mapping['colIndexMap'];
             if (empty($colIndexMap)) {
+                if ($debug) {
+                    AzadaLogger::addLog(
+                        'EKOWITAL',
+                        'Puste mapowanie kolumn',
+                        json_encode(['headers' => $csvHeaders, 'delimiter' => $delimiter], JSON_UNESCAPED_UNICODE),
+                        AzadaLogger::SEVERITY_ERROR
+                    );
+                }
                 fclose($h);
-                return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+                $payload = ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+                if ($debug) {
+                    $payload['debug'] = [
+                        'headers' => $csvHeaders,
+                        'delimiter' => $delimiter,
+                        'mapping' => $mapping,
+                    ];
+                }
+                return $payload;
             }
 
             $insertCols = array_values($colIndexMap);

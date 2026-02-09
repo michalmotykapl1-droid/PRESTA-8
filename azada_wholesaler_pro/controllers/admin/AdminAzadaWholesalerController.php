@@ -244,7 +244,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 });
             });
 
-            function runImport(btn, url) {
+function runImport(btn, url) {
                 if(event) event.stopPropagation();
                 Swal.fire({
                     title: 'Potwierdzenie importu',
@@ -262,6 +262,11 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                             type: 'GET', url: url, dataType: 'json',
                             success: function(data) {
                                 $(btn).html(originalHtml).removeClass('disabled');
+                                if (data.debug) {
+                                    console.group('EkoWital import debug');
+                                    console.log(data.debug);
+                                    console.groupEnd();
+                                }
                                 if (data.status == 'success') Swal.fire('Sukces!', data.msg, 'success');
                                 else Swal.fire('Wystąpił błąd', data.msg, 'error');
                             },
@@ -274,7 +279,6 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 });
                 return false;
             }
-
             function testConnection(btn, url) { location.reload(); return false; }
         </script>
         ";

@@ -2,6 +2,7 @@
 
 require_once(dirname(__FILE__) . '/../helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/../services/AzadaRawSchema.php');
+require_once(dirname(__FILE__) . '/../services/AzadaLogger.php');
 
 class AzadaEkoWital
 {
@@ -55,28 +56,69 @@ class AzadaEkoWital
         return "\t";
     }
 
-    public static function syncTableStructure($csvUrl)
+    public static function syncTableStructure($csvUrl, $debug = false, &$debugData = [])
     {
         $handle = fopen($csvUrl, "r");
-        if (!$handle) return false;
+        if (!$handle) {
+            if ($debug) {
+                AzadaLogger::addLog('EKOWITAL', 'Nie można otworzyć pliku', $csvUrl, AzadaLogger::SEVERITY_ERROR);
+            }
+            $debugData['error'] = 'open_failed';
+            $debugData['url'] = $csvUrl;
+            return false;
+        }
 
         $headerLine = fgets($handle);
         fclose($handle);
-        if ($headerLine === false) return false;
+        if ($headerLine === false) {
+            if ($debug) {
+                AzadaLogger::addLog('EKOWITAL', 'Brak nagłówka', 'Pusty plik lub brak pierwszej linii', AzadaLogger::SEVERITY_ERROR);
+            }
+            $debugData['error'] = 'missing_header';
+            return false;
+        }
         $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
 
         $delimiter = self::detectDelimiter($headerLine);
         $headers = str_getcsv(trim($headerLine), $delimiter);
-        if (empty($headers) || !is_array($headers)) return false;
+        if (empty($headers) || !is_array($headers)) {
+            if ($debug) {
+                AzadaLogger::addLog(
+                    'EKOWITAL',
+                    'Nieprawidłowe nagłówki',
+                    json_encode(['headerLine' => $headerLine, 'delimiter' => $delimiter], JSON_UNESCAPED_UNICODE),
+                    AzadaLogger::SEVERITY_ERROR
+                );
+            }
+            $debugData['error'] = 'invalid_headers';
+            $debugData['headerLine'] = $headerLine;
+            $debugData['delimiter'] = $delimiter;
+            return false;
+        }
+        $debugData['headerLine'] = $headerLine;
+        $debugData['delimiter'] = $delimiter;
+        $debugData['headers'] = $headers;
 
         if (!AzadaRawSchema::createTable('azada_raw_ekowital')) {
+            $debugData['error'] = 'create_table_failed';
             return false;
         }
 
         $mapping = self::mapHeadersToColumns($headers);
         if (empty($mapping['columns'])) {
+            if ($debug) {
+                AzadaLogger::addLog(
+                    'EKOWITAL',
+                    'Nie znaleziono mapowania kolumn',
+                    json_encode(['headers' => $headers], JSON_UNESCAPED_UNICODE),
+                    AzadaLogger::SEVERITY_ERROR
+                );
+            }
+            $debugData['error'] = 'mapping_empty';
+            $debugData['mapping'] = $mapping;
             return false;
         }
+        $debugData['mapping'] = $mapping;
         return $mapping['columns'];
     }
 
