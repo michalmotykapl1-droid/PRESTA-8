@@ -86,9 +86,12 @@ class AzadaEkoWitalB2B
         if (!$this->isLoggedIn($html)) {
             $this->performLogin($login, $password);
             $html = $this->request($this->invoicesUrl);
+            if (!$this->isLoggedIn($html)) {
+                return ['status' => 'error', 'msg' => 'Brak dostępu do listy faktur (logowanie nieudane lub sesja wygasła).'];
+            }
         }
 
-        $rows = $this->parseTableRows($html, ['DATA WYSTAWIENIA', 'NUMER', 'WARTOŚĆ']);
+        $rows = $this->parseTableRows($html, ['DATA WYSTAWIENIA', 'NUMER']);
         $documents = [];
 
         foreach ($rows as $row) {
@@ -96,7 +99,7 @@ class AzadaEkoWitalB2B
             $number = $this->getCellText($row, 1);
             $netto = $this->extractNetto($this->getCellText($row, 2));
             $deadline = $this->getCellText($row, 3);
-            $isPaid = $this->rowIndicatesPaid($row);
+            $isPaid = false;
 
             if (empty($number)) {
                 continue;
@@ -298,7 +301,11 @@ class AzadaEkoWitalB2B
 
     private function extractNetto($text)
     {
+        $text = trim(preg_replace('/\s+/', ' ', $text));
         if (preg_match('/netto\s*([\d\s,\.]+)/iu', $text, $matches)) {
+            return trim($matches[1]);
+        }
+        if (preg_match('/([\d\s,\.]+)\s*PLN/i', $text, $matches)) {
             return trim($matches[1]);
         }
         return trim($text);
@@ -384,6 +391,23 @@ class AzadaEkoWitalB2B
                 }
                 $options[] = ['name' => $name, 'url' => $href];
             }
+        }
+
+        $buttons = $xpath->query('//button[@data-s-document-download-url]|//button[@data-s-document-download]');
+        foreach ($buttons as $button) {
+            $href = $button->getAttribute('data-s-document-download-url');
+            if (empty($href)) {
+                $href = $button->getAttribute('data-s-document-download');
+            }
+            if (empty($href)) {
+                continue;
+            }
+            $href = $this->normalizeUrl($href);
+            $name = trim($button->nodeValue);
+            if (empty($name)) {
+                $name = $this->guessNameFromUrl($href);
+            }
+            $options[] = ['name' => $name, 'url' => $href];
         }
 
         return $options;
