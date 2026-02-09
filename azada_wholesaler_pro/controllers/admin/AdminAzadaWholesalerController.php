@@ -4,6 +4,7 @@ require_once(dirname(__FILE__) . '/../../classes/AzadaWholesaler.php');
 require_once(dirname(__FILE__) . '/../../classes/AzadaMapping.php');
 require_once(dirname(__FILE__) . '/../../classes/AzadaImportEngine.php');
 require_once(dirname(__FILE__) . '/../../classes/helpers/AzadaFileHelper.php');
+require_once(dirname(__FILE__) . '/../../classes/services/AzadaRawSchema.php');
 
 // Załączamy plik główny modułu (dla funkcji naprawczej)
 require_once(dirname(__FILE__) . '/../../azada_wholesaler_pro.php');
@@ -353,6 +354,13 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             }
         }
         parent::postProcess();
+
+        if (Tools::isSubmit('submitAdd' . $this->table) || Tools::isSubmit('submitUpdate' . $this->table)) {
+            $rawTableName = Tools::getValue('raw_table_name');
+            if ($rawTableName === 'azada_raw_bioplanet') {
+                AzadaRawSchema::createTable('azada_raw_bioplanet');
+            }
+        }
     }
 
     public function renderForm() {
