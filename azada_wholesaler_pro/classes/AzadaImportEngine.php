@@ -204,6 +204,8 @@ class AzadaImportEngine
                 if (empty($ean)) continue;
 
                 $rowValues = [];
+                $rowValuesMap = [];
+                $skuValue = '';
                 foreach ($colIndexMap as $index => $colName) {
                     $val = isset($row[$index]) ? $row[$index] : '';
 
@@ -211,13 +213,28 @@ class AzadaImportEngine
                         $val = 'EW_' . trim($val);
                     }
 
-                    if (in_array($colName, ['waga', 'ilosc', 'cenaporabacienetto', 'cenadetalicznabrutto', 'vat'], true)) {
+                    if ($colName === 'kod') {
+                        $skuValue = trim($val);
+                        if ($skuValue !== '') {
+                            $val = 'EKOWIT_' . $skuValue;
+                        }
+                    }
+
+                    if (in_array($colName, ['waga', 'ilosc', 'cenaprzedrabatemnetto', 'cenaporabacienetto', 'cenadetalicznabrutto', 'vat'], true)) {
                         $val = str_replace(',', '.', $val);
                         $val = preg_replace('/[^0-9.]/', '', $val);
                         if ($val === '') $val = '0';
                     }
 
-                    $rowValues[] = pSQL(trim($val));
+                    $rowValuesMap[$colName] = pSQL(trim($val));
+                }
+
+                if (isset($rowValuesMap['kod']) && $skuValue === '' && $ean !== '') {
+                    $rowValuesMap['kod'] = pSQL(trim($ean));
+                }
+
+                foreach ($colIndexMap as $colName) {
+                    $rowValues[] = isset($rowValuesMap[$colName]) ? $rowValuesMap[$colName] : '';
                 }
 
                 $rowValues[] = date('Y-m-d H:i:s');

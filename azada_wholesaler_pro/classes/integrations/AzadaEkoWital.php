@@ -12,6 +12,7 @@ class AzadaEkoWital
         'name' => 'nazwa',
         'brand' => 'marka',
         'desc' => 'opis',
+        'url' => 'linkdoproduktu',
         'photo' => 'zdjecieglownelinkurl',
         'kategoria' => 'kategoria',
         'categories' => 'kategoria',
@@ -19,8 +20,9 @@ class AzadaEkoWital
         'weight' => 'waga',
         'quantityperbox' => 'ilosc_w_opakowaniu',
         'requiredbox' => 'wymagane_oz',
+        'instock' => 'nastanie',
         'qty' => 'ilosc',
-        'priceafterdiscountnet' => 'cenaporabacienetto',
+        'priceafterdiscountnet' => 'cenaprzedrabatemnetto',
         'vat' => 'vat',
         'retailpricegross' => 'cenadetalicznabrutto',
         'availability' => 'dostepnyod'
