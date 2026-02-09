@@ -2,170 +2,133 @@
 
 require_once(dirname(__FILE__) . '/../helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/../services/AzadaRawSchema.php');
-require_once(dirname(__FILE__) . '/../services/AzadaLogger.php');
 
 class AzadaEkoWital
 {
+    /**
+     * Map normalized CSV headers -> DB column names (AzadaRawSchema)
+     * normalizeHeader() lowercases and strips non-alnum.
+     */
     public static $columnMap = [
+        // źródło
         'ean' => 'kod_kreskowy',
         'id' => 'produkt_id',
         'sku' => 'kod',
         'name' => 'nazwa',
         'brand' => 'marka',
         'desc' => 'opis',
-        'url' => 'linkdoproduktu',
+        'url' => 'LinkDoProduktu',
         'photo' => 'zdjecieglownelinkurl',
         'kategoria' => 'kategoria',
         'categories' => 'kategoria',
         'unit' => 'jednostkapodstawowa',
         'weight' => 'waga',
-        'quantityperbox' => 'ilosc_w_opakowaniu',
-        'requiredbox' => 'wymagane_oz',
-        'instock' => 'nastanie',
+        'instock' => 'NaStanie',
         'qty' => 'ilosc',
-        'priceafterdiscountnet' => 'cenaprzedrabatemnetto',
+        'availability' => 'dostepnyod',
+        'requiredbox' => 'wymagane_oz',
+        'quantityperbox' => 'ilosc_w_opakowaniu',
+        'priceafterdiscountnet' => 'cenaporabacienetto',
         'vat' => 'vat',
-        'retailpricegross' => 'cenadetalicznabrutto',
-        'availability' => 'dostepnyod'
+        // retailPriceGross - nie używamy
     ];
 
     public static function generateLinks($apiKey)
     {
         $key = trim($apiKey);
         return [
-            'products' => 'https://eko-wital.pl/xmlapi/2/2/UTF8/' . $key
+            'products' => 'https://eko-wital.pl/xmlapi/2/2/UTF8/' . $key,
         ];
     }
 
     public static function getSettings()
     {
-        return ['file_format' => 'csv', 'delimiter' => "\t", 'skip_header' => 1, 'encoding' => 'UTF-8'];
+        // W praktyce EkoWital wystawia CSV (często ; i BOM)
+        return [
+            'file_format' => 'csv',
+            'delimiter' => ';',
+            'skip_header' => 1,
+            'encoding' => 'UTF-8',
+        ];
     }
 
     public static function detectDelimiter($line)
     {
-        if (strpos($line, "\t") !== false) {
-            return "\t";
-        }
-        if (strpos($line, ';') !== false) {
-            return ';';
-        }
-        if (strpos($line, ',') !== false) {
-            return ',';
-        }
-        return "\t";
-    }
-
-    public static function syncTableStructure($csvUrl, $debug = false, &$debugData = [])
-    {
-        $handle = fopen($csvUrl, "r");
-        if (!$handle) {
-            if ($debug) {
-                AzadaLogger::addLog('EKOWITAL', 'Nie można otworzyć pliku', $csvUrl, AzadaLogger::SEVERITY_ERROR);
-            }
-            $debugData['error'] = 'open_failed';
-            $debugData['url'] = $csvUrl;
-            return false;
-        }
-
-        $headerLine = fgets($handle);
-        fclose($handle);
-        if ($headerLine === false) {
-            if ($debug) {
-                AzadaLogger::addLog('EKOWITAL', 'Brak nagłówka', 'Pusty plik lub brak pierwszej linii', AzadaLogger::SEVERITY_ERROR);
-            }
-            $debugData['error'] = 'missing_header';
-            return false;
-        }
-        $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
-
-        $delimiter = self::detectDelimiter($headerLine);
-        $headers = str_getcsv(trim($headerLine), $delimiter);
-        if (empty($headers) || !is_array($headers)) {
-            if ($debug) {
-                AzadaLogger::addLog(
-                    'EKOWITAL',
-                    'Nieprawidłowe nagłówki',
-                    json_encode(['headerLine' => $headerLine, 'delimiter' => $delimiter], JSON_UNESCAPED_UNICODE),
-                    AzadaLogger::SEVERITY_ERROR
-                );
-            }
-            $debugData['error'] = 'invalid_headers';
-            $debugData['headerLine'] = $headerLine;
-            $debugData['delimiter'] = $delimiter;
-            return false;
-        }
-        $debugData['headerLine'] = $headerLine;
-        $debugData['delimiter'] = $delimiter;
-        $debugData['headers'] = $headers;
-
-        if (!AzadaRawSchema::createTable('azada_raw_ekowital')) {
-            $debugData['error'] = 'create_table_failed';
-            return false;
-        }
-
-        $mapping = self::mapHeadersToColumns($headers);
-        if (empty($mapping['columns'])) {
-            if ($debug) {
-                AzadaLogger::addLog(
-                    'EKOWITAL',
-                    'Nie znaleziono mapowania kolumn',
-                    json_encode(['headers' => $headers], JSON_UNESCAPED_UNICODE),
-                    AzadaLogger::SEVERITY_ERROR
-                );
-            }
-            $debugData['error'] = 'mapping_empty';
-            $debugData['mapping'] = $mapping;
-            return false;
-        }
-        $debugData['mapping'] = $mapping;
-        return $mapping['columns'];
+        if (strpos($line, ';') !== false) return ';';
+        if (strpos($line, "\t") !== false) return "\t";
+        if (strpos($line, ',') !== false) return ',';
+        return ';';
     }
 
     public static function normalizeHeader($header)
     {
-        $header = iconv('UTF-8', 'ASCII//TRANSLIT', $header);
-        $header = strtolower(trim($header));
+        $header = trim((string)$header);
+        // usuń BOM
+        $header = preg_replace('/^\xEF\xBB\xBF/', '', $header);
+        $header = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $header);
+        $header = strtolower(trim((string)$header));
         $header = preg_replace('/[^a-z0-9]/', '', $header);
         return $header;
     }
 
-    public static function sanitizeColumnName($header)
+    /**
+     * Czyta pierwszą niepustą linię (obsługa plików z pustą linią na początku).
+     */
+    public static function readFirstNonEmptyLine($handle, $maxLines = 50)
     {
-        $header = iconv('UTF-8', 'ASCII//TRANSLIT', $header);
-        $header = strtolower(trim($header));
-        $header = preg_replace('/[^a-z0-9]+/', '_', $header);
-        $header = trim($header, '_');
-        return $header;
+        $i = 0;
+        while (!feof($handle) && $i < $maxLines) {
+            $line = fgets($handle);
+            if ($line === false) return false;
+            $i++;
+            // usuń BOM i białe znaki
+            $clean = preg_replace('/^\xEF\xBB\xBF/', '', $line);
+            if (trim($clean) === '') continue;
+            return $clean;
+        }
+        return false;
     }
 
-    public static function mapHeadersToColumns(array $headers)
+    /**
+     * Sprawdza nagłówki i zwraca mapę dozwolonych kolumn (dbCol => originalHeader)
+     * — wykorzystywane tylko do walidacji.
+     */
+    public static function syncTableStructure($csvUrl)
     {
+        $handle = @fopen($csvUrl, 'r');
+        if (!$handle) return false;
+
+        $headerLine = self::readFirstNonEmptyLine($handle);
+        fclose($handle);
+        if ($headerLine === false) return false;
+
+        $delimiter = self::detectDelimiter($headerLine);
+        $headers = str_getcsv(trim($headerLine), $delimiter);
+        if (empty($headers) || !is_array($headers)) return false;
+
+        // upewnij się, że tabela istnieje (wzorzec)
+        if (!AzadaRawSchema::createTable('azada_raw_ekowital')) {
+            return false;
+        }
+
         $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
         $columns = [];
-        $colIndexMap = [];
-
-        foreach ($headers as $index => $header) {
+        foreach ($headers as $header) {
             $normalized = self::normalizeHeader($header);
-            $colName = isset(self::$columnMap[$normalized]) ? self::$columnMap[$normalized] : null;
-
-            if (!$colName) {
-                $sanitized = self::sanitizeColumnName($header);
-                if (isset($allowedColumns[$sanitized])) {
-                    $colName = $sanitized;
+            if (isset(self::$columnMap[$normalized])) {
+                $colName = self::$columnMap[$normalized];
+                if (isset($allowedColumns[$colName])) {
+                    $columns[$colName] = $header;
                 }
-            }
-
-            if ($colName && isset($allowedColumns[$colName])) {
-                $columns[$colName] = $header;
-                $colIndexMap[$index] = $colName;
             }
         }
 
-        return [
-            'columns' => $columns,
-            'colIndexMap' => $colIndexMap,
-        ];
+        // wymagamy minimum: EAN + ID + SKU + NAME
+        if (!isset($columns['kod_kreskowy']) || !isset($columns['produkt_id']) || !isset($columns['kod']) || !isset($columns['nazwa'])) {
+            return false;
+        }
+
+        return $columns;
     }
 
     public static function runDiagnostics($apiKey)
@@ -173,9 +136,10 @@ class AzadaEkoWital
         if (empty($apiKey)) return ['success' => false, 'details' => []];
         $links = self::generateLinks($apiKey);
         $check = AzadaFileHelper::checkUrl($links['products']);
+
         $details = [
             'products' => ['status' => $check],
-            'api' => ['status' => $check]
+            'api' => ['status' => $check],
         ];
 
         return ['success' => $check, 'details' => $details];

@@ -4,7 +4,6 @@ require_once(dirname(__FILE__) . '/integrations/AzadaBioPlanet.php');
 require_once(dirname(__FILE__) . '/integrations/AzadaEkoWital.php');
 require_once(dirname(__FILE__) . '/helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/services/AzadaRawSchema.php');
-require_once(dirname(__FILE__) . '/services/AzadaLogger.php');
 
 class AzadaImportEngine
 {
@@ -17,7 +16,7 @@ class AzadaImportEngine
         if (stripos($wholesaler->name, 'Bio Planet') !== false) {
             return $this->processDynamicBioPlanet($wholesaler);
         }
-        if (stripos($wholesaler->name, 'EkoWital') !== false) {
+        if (stripos($wholesaler->name, 'EkoWital') !== false || stripos($wholesaler->name, 'Eko Wital') !== false) {
             return $this->processEkoWital($wholesaler);
         }
         return ['status' => 'error', 'msg' => 'Brak obsługi.'];
@@ -163,120 +162,119 @@ class AzadaImportEngine
 
     private function processEkoWital($wholesaler)
     {
-        $debug = (bool)Tools::getValue('ekowital_debug');
         $links = AzadaEkoWital::generateLinks($wholesaler->api_key);
         $tableName = _DB_PREFIX_ . 'azada_raw_ekowital';
 
+        // twardy reset tabeli
         Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
 
+        // tabela wzorcowa (kolumny z AzadaRawSchema)
         if (!AzadaRawSchema::createTable('azada_raw_ekowital')) {
             return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
         }
 
-        $debugData = [];
-        $dbColumnsMap = AzadaEkoWital::syncTableStructure($links['products'], $debug, $debugData);
-        if (!$dbColumnsMap) {
-            if ($debug) {
-                AzadaLogger::addLog('EKOWITAL', 'Brak mapowania nagłówków', 'syncTableStructure zwrócił false', AzadaLogger::SEVERITY_ERROR);
-            }
-            $payload = ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
-            if ($debug) {
-                $payload['debug'] = $debugData;
-            }
-            return $payload;
-        }
+        // walidacja nagłówków
+        $dbColumnsMap = AzadaEkoWital::syncTableStructure($links['products']);
+        if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
 
         $count = 0;
-        if (($h = fopen($links['products'], "r")) !== FALSE) {
-            $headerLine = fgets($h);
-            if ($headerLine === false) {
-                fclose($h);
-                return ['status' => 'error', 'msg' => 'Pusty plik.'];
-            }
-            $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine);
-            $delimiter = AzadaEkoWital::detectDelimiter($headerLine);
-            $csvHeaders = str_getcsv(trim($headerLine), $delimiter);
 
-            $mapping = AzadaEkoWital::mapHeadersToColumns($csvHeaders);
-            $colIndexMap = $mapping['colIndexMap'];
-            if (empty($colIndexMap)) {
-                if ($debug) {
-                    AzadaLogger::addLog(
-                        'EKOWITAL',
-                        'Puste mapowanie kolumn',
-                        json_encode(['headers' => $csvHeaders, 'delimiter' => $delimiter], JSON_UNESCAPED_UNICODE),
-                        AzadaLogger::SEVERITY_ERROR
-                    );
-                }
-                fclose($h);
-                $payload = ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
-                if ($debug) {
-                    $payload['debug'] = [
-                        'headers' => $csvHeaders,
-                        'delimiter' => $delimiter,
-                        'mapping' => $mapping,
-                    ];
-                }
-                return $payload;
-            }
+        $h = @fopen($links['products'], 'r');
+        if (!$h) {
+            return ['status' => 'error', 'msg' => 'Nie można otworzyć pliku.'];
+        }
 
-            $insertCols = array_values($colIndexMap);
-            $insertCols[] = 'data_aktualizacji';
-
-            $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
-            $batchValues = [];
-
-            while (($row = fgetcsv($h, 8192, $delimiter)) !== FALSE) {
-                $eanIndex = array_search('kod_kreskowy', $colIndexMap);
-                $ean = ($eanIndex !== false && isset($row[$eanIndex])) ? $row[$eanIndex] : '';
-                if (empty($ean)) continue;
-
-                $rowValues = [];
-                $rowValuesMap = [];
-                $skuValue = '';
-                foreach ($colIndexMap as $index => $colName) {
-                    $val = isset($row[$index]) ? $row[$index] : '';
-
-                    if ($colName === 'produkt_id') {
-                        $val = 'EW_' . trim($val);
-                    }
-
-                    if ($colName === 'kod') {
-                        $skuValue = trim($val);
-                        if ($skuValue !== '') {
-                            $val = 'EKOWIT_' . $skuValue;
-                        }
-                    }
-
-                    if (in_array($colName, ['waga', 'ilosc', 'cenaprzedrabatemnetto', 'cenaporabacienetto', 'cenadetalicznabrutto', 'vat'], true)) {
-                        $val = str_replace(',', '.', $val);
-                        $val = preg_replace('/[^0-9.]/', '', $val);
-                        if ($val === '') $val = '0';
-                    }
-
-                    $rowValuesMap[$colName] = pSQL(trim($val));
-                }
-
-                if (isset($rowValuesMap['kod']) && $skuValue === '' && $ean !== '') {
-                    $rowValuesMap['kod'] = pSQL(trim($ean));
-                }
-
-                foreach ($colIndexMap as $colName) {
-                    $rowValues[] = isset($rowValuesMap[$colName]) ? $rowValuesMap[$colName] : '';
-                }
-
-                $rowValues[] = date('Y-m-d H:i:s');
-
-                $batchValues[] = "('" . implode("','", $rowValues) . "')";
-                $count++;
-
-                if (count($batchValues) >= 150) {
-                    Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
-                    $batchValues = [];
-                }
-            }
+        // nagłówek (pierwsza niepusta linia)
+        $headerLine = AzadaEkoWital::readFirstNonEmptyLine($h);
+        if ($headerLine === false) {
             fclose($h);
-            if (!empty($batchValues)) Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+            return ['status' => 'error', 'msg' => 'Pusty plik.'];
+        }
+
+        $delimiter = AzadaEkoWital::detectDelimiter($headerLine);
+        $csvHeaders = str_getcsv(trim($headerLine), $delimiter);
+
+        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
+
+        // index => colName
+        $colIndexMap = [];
+        foreach ($csvHeaders as $index => $rawHeader) {
+            $normalized = AzadaEkoWital::normalizeHeader($rawHeader);
+            if (isset(AzadaEkoWital::$columnMap[$normalized])) {
+                $colName = AzadaEkoWital::$columnMap[$normalized];
+                if (isset($allowedColumns[$colName])) {
+                    $colIndexMap[(int)$index] = $colName;
+                }
+            }
+        }
+
+        // budujemy listę kolumn do INSERT
+        $insertCols = array_values($colIndexMap);
+        $insertCols[] = 'data_aktualizacji';
+
+        $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
+        $batchValues = [];
+
+        while (($row = fgetcsv($h, 0, $delimiter)) !== false) {
+            if (!is_array($row) || count($row) < 3) continue;
+
+            // ean wymagany
+            $ean = '';
+            foreach ($colIndexMap as $idx => $colName) {
+                if ($colName === 'kod_kreskowy' && isset($row[$idx])) { $ean = trim((string)$row[$idx]); break; }
+            }
+            if ($ean === '') continue;
+
+            $rowValues = [];
+            $kodWasSetFromSku = false;
+            $kodValue = '';
+
+            foreach ($colIndexMap as $idx => $colName) {
+                $val = isset($row[$idx]) ? trim((string)$row[$idx]) : '';
+
+                // SKU -> kod z prefiksem EKOWIT_
+                if ($colName === 'kod') {
+                    if ($val !== '') {
+                        $kodWasSetFromSku = true;
+                        $kodValue = 'EKOWIT_' . $val;
+                        $val = $kodValue;
+                    }
+                }
+
+                // liczby
+                if (in_array($colName, ['waga','ilosc','cenaprzedrabatemnetto','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
+                    $val = str_replace(',', '.', $val);
+                    $val = preg_replace('/[^0-9.]/', '', $val);
+                    if ($val === '') $val = '0';
+                }
+
+                $rowValues[] = pSQL($val);
+            }
+
+            // jeśli kod (SKU) pusty, to wypełnij kod wartością EAN (zgodnie z Twoją logiką "ean -> kod_kreskowy i kod")
+            if (!$kodWasSetFromSku) {
+                // znajdź pozycję kolumny 'kod' w insertCols
+                $kodPos = array_search('kod', $insertCols, true);
+                if ($kodPos !== false) {
+                    $rowValues[(int)$kodPos] = pSQL($ean);
+                }
+            }
+
+            $rowValues[] = date('Y-m-d H:i:s');
+
+            $batchValues[] = "('" . implode("','", $rowValues) . "')";
+            $count++;
+
+            if (count($batchValues) >= 150) {
+                Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+                $batchValues = [];
+            }
+        }
+
+        fclose($h);
+
+        if (!empty($batchValues)) {
+            Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
         }
 
         $wholesaler->last_import = date('Y-m-d H:i:s');
@@ -284,4 +282,5 @@ class AzadaImportEngine
 
         return ['status' => 'success', 'msg' => "Tabela zresetowana. Pobrano $count produktów."];
     }
+
 }
