@@ -24,8 +24,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
 
     public function initContent()
     {
-        // TO JEST KLUCZOWE: Akcja 'streamFile' tylko przesyła plik do przeglądarki.
-        // Nie zapisuje nic w bazie ani na serwerze sklepu.
         if (Tools::getValue('action') == 'streamFile') {
             $this->processStreamFile();
             exit;
@@ -107,12 +105,10 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         die(json_encode(['status' => 'success', 'html' => $html, 'debug' => $debugDetails]));
     }
 
-    // --- 2. POBIERANIE SYSTEMOWE (DO BAZY) ---
-    // Ta funkcja jest wywoływana TYLKO przez CRON lub kliknięcie "NA DYSKU" (odświeżenie)
     public function ajaxProcessDownloadSystemCsv()
     {
         $idWholesaler = (int)Tools::getValue('id_wholesaler');
-        $url = Tools::getValue('url'); // To jest link do CSV UTF-8
+        $url = Tools::getValue('url');
         $docNumber = Tools::getValue('doc_number');
         $docDate = Tools::getValue('doc_date');
         $docNetto = Tools::getValue('doc_netto');
@@ -132,7 +128,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $wholesalerName));
         $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
 
-        // Pobieramy i parsujemy do bazy
         $res = AzadaWholesaler::processInvoiceDownload($idWholesaler, $docNumber, $docDate, $docNetto, $docDeadline, $isPaid, $url, $cookieFile);
 
         if ($res['status'] == 'success') {
@@ -143,8 +138,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         die(json_encode($res));
     }
 
-    // --- 3. STREAMING PLIKU (BEZPOŚREDNIO NA DYSK LOKALNY) ---
-    // Ta funkcja obsługuje przycisk "Pobierz" z listy rozwijanej
     public function processStreamFile()
     {
         $url = Tools::getValue('url');
@@ -166,7 +159,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         $cookieSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $wholesalerData['name']));
         $cookieFile = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/cookies_' . $cookieSlug . '.txt';
         
-        // Logowanie w tle (jeśli cookie wygasło)
         if (!file_exists($cookieFile) && stripos($wholesalerData['name'], 'Bio Planet') !== false) {
             $pass = base64_decode($wholesalerData['b2b_password']);
             $ch = curl_init();
@@ -181,7 +173,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
             curl_close($ch);
         }
 
-        // Pobieranie treści do RAMu
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
@@ -193,7 +184,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         curl_close($ch);
 
         if ($httpCode == 200 && !empty($fileContent)) {
-            // Zgadywanie rozszerzenia dla pliku lokalnego
             $ext = 'csv';
             if (stripos($formatName, 'pdf') !== false) $ext = 'pdf';
             elseif (stripos($formatName, 'xml') !== false) $ext = 'xml';
@@ -201,7 +191,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
             
             $filename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $docNumber) . '.' . $ext;
             
-            // Wysyłamy plik do przeglądarki
             header('Content-Description: File Transfer');
             header('Content-Type: application/octet-stream');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -238,9 +227,8 @@ class AdminAzadaInvoicesController extends ModuleAdminController
             .pill-danger { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
             .pill-correction { background-color: #fce4ec; color: #ad1457; border: 1px solid #f8bbd0; margin-right:5px; }
             
-            /* PRZYCISKI - STYL WZOROWANY NA BIO PLANET */
             .btn-bp-status { border: 1px solid #ccc; background: #f9f9f9; color: #999; padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 3px; cursor: default; display: inline-block; min-width: 110px; text-align: center; }
-            .btn-bp-status.active { border-color: #4caf50; background: #e8f5e9; color: #2e7d32; cursor: pointer; } /* Aktywny = można kliknąć */
+            .btn-bp-status.active { border-color: #4caf50; background: #e8f5e9; color: #2e7d32; cursor: pointer; } 
             .btn-bp-status:hover { opacity: 0.9; }
             
             .btn-bp-download { border: 1px solid #333; background: #fff; color: #333; padding: 5px 10px; font-size: 14px; border-radius: 3px; cursor: pointer; margin-left: 5px; transition: all 0.2s; }
@@ -271,15 +259,9 @@ class AdminAzadaInvoicesController extends ModuleAdminController
             $(document).ready(function(){ 
                 loadInvoicesList(); 
                 
-                // Obsługa kliknięcia w status "NA DYSKU" (odświeżenie systemowego pliku)
                 $(document).on("click", ".btn-bp-status.active, .btn-bp-status.error", function(){
-                    // Symulujemy auto-download dla tego jednego wiersza
                     var $marker = $(this).closest("tr").find(".js-auto-sys-download");
                     if ($marker.length > 0) {
-                        // Jeśli jest marker (czyli system ma dane), wywołujemy pobranie
-                        // W tym przypadku musimy ręcznie zbudować obiekt, bo marker jest do automatyzacji
-                        // Ale prościej: po prostu przeładujmy stronę lub dodajmy logikę ręczną. 
-                        // Zróbmy to prosto:
                         alert("Funkcja odświeżania pliku systemowego.");
                     }
                 });
@@ -312,7 +294,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
                 });
             }
             
-            // AUTOMAT POBIERAJĄCY CSV DO BAZY
             function initBulkDownload() {
                 downloadQueue = []; $(".js-auto-sys-download").each(function(){ downloadQueue.push($(this)); });
                 totalItems = downloadQueue.length; processedItems = 0;
@@ -370,18 +351,30 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         foreach ($groupedData as $wholesalerName => $rows) {
             $html .= '<div class="wholesaler-wrapper">';
             $html .= '  <div class="wholesaler-header-row"><h4 class="wholesaler-title"><i class="icon-building"></i> ' . $wholesalerName . '</h4><span class="badge" style="background:#eee; color:#666;">' . count($rows) . '</span></div>';
-            $html .= '  <table class="table table-hover table-modern" style="margin-bottom:0;"><thead><tr class="active"><th>Data</th><th>Numer Dokumentu</th><th>Kwota Netto</th><th>Termin</th><th>Status</th><th class="text-right">Akcje</th></tr></thead><tbody>';
+            
+            // NOWOŚĆ: Dodano kolumnę Kwota Brutto
+            $html .= '  <table class="table table-hover table-modern" style="margin-bottom:0;"><thead><tr class="active"><th>Data</th><th>Numer Dokumentu</th><th>Kwota Netto</th><th>Kwota Brutto</th><th>Termin</th><th>Status</th><th class="text-right">Akcje</th></tr></thead><tbody>';
 
             foreach ($rows as $row) {
                 $isPaid = $row['is_paid'];
                 $dbInfo = AzadaDbRepository::getInvoiceByNumber($row['number']);
                 $action = AzadaInvoiceComparator::compare($row['number'], $row['netto'], $row['is_paid'], $dbInfo);
-                $isCorrection = (stripos($row['number'], 'KFS') !== false);
+                
+                // NOWOŚĆ: Wykrywanie KOREKTY po minusie (lub przedrostku KFS/KOREKTA)
+                $floatNetto = (float) str_replace([' ', ',', 'PLN', 'zł'], ['', '.', '', ''], $row['netto']);
+                $isCorrection = ($floatNetto < 0 || stripos($row['number'], 'KFS') !== false || stripos($row['number'], 'KOREKTA') !== false);
+                
                 $rowClass = $isCorrection ? 'correction-row' : ''; 
                 $numberPrefix = $isCorrection ? '<span class="status-pill pill-correction">KOREKTA</span>' : '';
                 $statusLabel = $isCorrection ? ($isPaid ? '<span class="status-pill pill-success">ROZLICZONO</span>' : '<span class="status-pill pill-danger">DO ROZLICZENIA</span>') : ($isPaid ? '<span class="status-pill pill-success">ZAPŁACONO</span>' : '<span class="status-pill pill-danger">DO ZAPŁATY</span>');
 
-                // 1. URL SYSTEMOWY (Do bazy)
+                // NOWOŚĆ: Automatyczne dodawanie PLN do kwoty netto i brutto
+                $displayNetto = trim($row['netto']);
+                if ($displayNetto !== '' && stripos($displayNetto, 'PLN') === false) $displayNetto .= ' PLN';
+
+                $displayBrutto = (isset($row['brutto']) && trim($row['brutto']) !== '') ? trim($row['brutto']) : '---';
+                if ($displayBrutto !== '---' && stripos($displayBrutto, 'PLN') === false) $displayBrutto .= ' PLN';
+
                 $systemCsvUrl = '';
                 if (!empty($row['options'])) {
                     foreach ($row['options'] as $opt) {
@@ -397,7 +390,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
                 $cleanNumber = preg_replace('/[^a-zA-Z0-9]/', '', $row['number']);
                 $idWholesaler = isset($row['id_wholesaler']) ? (int)$row['id_wholesaler'] : 0;
 
-                // 2. PRZYCISK STATUSU (Lewy)
                 $statusBtnClass = 'btn-bp-status';
                 $statusBtnText = 'NIE POBRANO';
                 if ($action == AzadaInvoiceComparator::ACTION_NONE) {
@@ -406,7 +398,6 @@ class AdminAzadaInvoicesController extends ModuleAdminController
 
                 $statusBtn = '<span id="status-btn-'.$cleanNumber.'" class="'.$statusBtnClass.'">'.$statusBtnText.'</span>';
 
-                // 3. PRZYCISK POBIERANIA (Prawy - Dropdown)
                 $downloadBtn = '';
                 if (!empty($row['options'])) {
                     $downloadBtn = '<div class="btn-group" style="display:inline-block;">';
@@ -419,17 +410,17 @@ class AdminAzadaInvoicesController extends ModuleAdminController
                     $downloadBtn .= '</ul></div>';
                 }
 
-                // 4. AUTOMATYZACJA (Znacznik dla JS)
                 $autoDownloadMarker = '';
-                // Jeśli włączony automat i pliku nie ma na dysku -> dodajemy znacznik
                 if ($autoDownload && $action != AzadaInvoiceComparator::ACTION_NONE) {
                     $autoDownloadMarker = '<span class="js-auto-sys-download" style="display:none;" data-id-wholesaler="'.$idWholesaler.'" data-url="'.$systemCsvUrl.'" data-number="'.$row['number'].'" data-date="'.$row['date'].'" data-netto="'.$row['netto'].'" data-deadline="'.$row['deadline'].'" data-paid="'.($isPaid?1:0).'" data-clean-number="'.$cleanNumber.'"></span>';
                 }
 
+                // Dodane wiersze uwzględniające nową kolumnę brutto
                 $html .= '<tr class="'.$rowClass.'">
                     <td style="width:100px;">'.$row['date'].'</td>
                     <td>'.$numberPrefix.'<span style="font-weight:600; color:#333;">'.$row['number'].'</span>'.$autoDownloadMarker.'</td>
-                    <td style="font-family:monospace; font-size:13px;">'.$row['netto'].'</td>
+                    <td style="font-family:monospace; font-size:13px; white-space:nowrap;">'.$displayNetto.'</td>
+                    <td style="font-family:monospace; font-size:13px; white-space:nowrap;">'.$displayBrutto.'</td>
                     <td>'.$row['deadline'].'</td>
                     <td>'.$statusLabel.'</td>
                     <td class="text-right" style="white-space:nowrap;">'.$statusBtn.$downloadBtn.'</td>

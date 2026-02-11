@@ -93,9 +93,11 @@ class AdminAzadaOrdersController extends ModuleAdminController
 
                         $statusLower = mb_strtolower($row['status'], 'UTF-8');
                         $row['pill_class'] = 'pill-default';
+                        
+                        // ZMIANA: Skróciłem szukane słowo do "przekazan" aby wyłapał i "przekazane" (BioPlanet) i "Przekazano" (EkoWital)
                         if (stripos($statusLower, 'zrealizowane') !== false) $row['pill_class'] = 'pill-success';
                         elseif (stripos($statusLower, 'brak') !== false || stripos($statusLower, 'anulowane') !== false) $row['pill_class'] = 'pill-danger';
-                        elseif (stripos($statusLower, 'oczekuje') !== false || stripos($statusLower, 'przekazane') !== false) $row['pill_class'] = 'pill-warning';
+                        elseif (stripos($statusLower, 'oczekuje') !== false || stripos($statusLower, 'przekazan') !== false) $row['pill_class'] = 'pill-warning';
 
                         $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number']);
                         $action = AzadaB2BComparator::compare($row['number'], $row['netto'], $row['status'], $dbInfo);
@@ -240,8 +242,6 @@ class AdminAzadaOrdersController extends ModuleAdminController
         $html .= '<table class="table table-hover" style="font-size:11px; margin:0;"><thead><tr style="background:#f9f9f9;"><th>SKU Hurtowni</th><th>EAN</th><th>Produkt</th><th class="text-center">Ilość</th><th class="text-right">Netto</th><th class="text-right">Wartość</th></tr></thead><tbody>';
         $total = 0;
         foreach ($rows as $row) {
-            // === ZMIANA: Używamy nowej kolumny fv_value_net jeśli istnieje (czyli po pobraniu)
-            // Jeśli jest 0.00 (stare dane), używamy value_net
             $valNet = (float)$row['fv_value_net'];
             if ($valNet <= 0.001) $valNet = (float)$row['value_net'];
             

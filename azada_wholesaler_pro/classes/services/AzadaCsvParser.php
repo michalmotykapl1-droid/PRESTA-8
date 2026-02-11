@@ -9,46 +9,124 @@ class AzadaCsvParser
     {
         if (!file_exists($filePath)) return [];
 
-        $handle = fopen($filePath, 'r');
-        if (!$handle) return [];
+        $content = file_get_contents($filePath);
+        if (empty($content)) return [];
 
-        // Wykrywanie separatora
+        // Ujednolicenie znaków nowej linii i usunięcie BOM
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        $content = preg_replace('/^[\xef\xbb\xbf]+/', '', $content);
+        $lines = explode("\n", $content);
+
+        if (empty($lines)) return [];
+
         $separator = ';';
-        $line = fgets($handle);
-        if (substr_count($line, ',') > substr_count($line, ';')) {
-            $separator = ',';
-        }
-        rewind($handle);
+        $headerRowIndex = -1;
+        $headerLine = '';
 
-        $header = fgetcsv($handle, 0, $separator);
-        // Walidacja nagłówka (czy to w ogóle sensowny plik)
-        if (!$header || count($header) < 5) {
-            fclose($handle);
-            return [];
+        // SKANER: Przeszukujemy pierwsze 30 wierszy, aby ominąć metryczkę i znaleźć prawdziwe nagłówki tabeli
+        for ($i = 0; $i < min(30, count($lines)); $i++) {
+            $line = trim($lines[$i]);
+            if (empty($line)) continue;
+
+            $sep = (substr_count($line, ';') >= substr_count($line, ',')) ? ';' : ',';
+            $cols = str_getcsv($line, $sep);
+            
+            $lineLower = mb_strtolower($line, 'UTF-8');
+            
+            // Jeśli wiersz ma minimum 4 kolumny i zawiera słowa kluczowe tabeli produktów:
+            if (count($cols) >= 4 && (strpos($lineLower, 'nazwa') !== false || strpos($lineLower, 'cena') !== false || strpos($lineLower, 'towar') !== false || strpos($lineLower, 'kod') !== false || strpos($lineLower, 'ean') !== false)) {
+                $headerRowIndex = $i;
+                $separator = $sep;
+                $headerLine = $line;
+                break;
+            }
+        }
+
+        // Fallback dla BioPlanet
+        if ($headerRowIndex === -1) {
+            $headerRowIndex = 0;
+            $headerLine = $lines[0];
+            $separator = (substr_count($headerLine, ';') >= substr_count($headerLine, ',')) ? ';' : ',';
+        }
+
+        $header = str_getcsv($headerLine, $separator);
+
+        // Domyślne mapowanie dla Bio Planet (twarde indeksy)
+        $map = [
+            'product_id'  => 1,
+            'ean'         => 2,
+            'name'        => 3,
+            'quantity'    => 4,
+            'unit'        => 5,
+            'price_net'   => 6,
+            'value_net'   => 7,
+            'vat_rate'    => 8,
+            'price_gross' => 9,
+            'value_gross' => 10
+        ];
+
+        // DYNAMICZNE MAPOWANIE (Dla EkoWitala i innych formatek)
+        $detected = false;
+        foreach ($header as $i => $col) {
+            $colClean = mb_strtolower(preg_replace('/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/u', '', $col), 'UTF-8');
+            if (empty($colClean)) continue;
+
+            if (in_array($colClean, ['kodkreskowy', 'kod', 'symbol']) || strpos($colClean, 'ean') !== false) { $map['ean'] = $i; $detected = true; }
+            // ZMIANA TUTAJ: Wyszukujemy 'produktnazwa' lub po prostu części słowa 'nazwa'
+            elseif (in_array($colClean, ['nazwa', 'nazwatowaru', 'towar', 'produkt', 'produktnazwa']) || strpos($colClean, 'nazwa') !== false) { $map['name'] = $i; $detected = true; }
+            elseif (in_array($colClean, ['ilosc', 'ilość', 'sztuk', 'il'])) { $map['quantity'] = $i; $detected = true; }
+            elseif (in_array($colClean, ['jm', 'jednostka', 'miara'])) { $map['unit'] = $i; $detected = true; }
+            elseif (strpos($colClean, 'cenanetto') !== false) { $map['price_net'] = $i; $detected = true; }
+            elseif (strpos($colClean, 'wartoscnetto') !== false || strpos($colClean, 'wartośćnetto') !== false) { $map['value_net'] = $i; $detected = true; }
+            elseif (strpos($colClean, 'vat') !== false || strpos($colClean, 'stawkavat') !== false || $colClean === 'stawka') { $map['vat_rate'] = $i; $detected = true; }
+            elseif (strpos($colClean, 'cenabrutto') !== false) { $map['price_gross'] = $i; $detected = true; }
+            elseif (strpos($colClean, 'wartoscbrutto') !== false || strpos($colClean, 'wartośćbrutto') !== false) { $map['value_gross'] = $i; $detected = true; }
+            elseif (in_array($colClean, ['id', 'indeks', 'index'])) { $map['product_id'] = $i; $detected = true; }
+        }
+
+        // Dopasowanie awaryjne dla "Ceny", jeśli nie było wprost napisane "Cena netto"
+        if ($detected && $map['price_net'] === 6) { 
+            foreach ($header as $i => $col) {
+                $colClean = mb_strtolower(preg_replace('/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/u', '', $col), 'UTF-8');
+                if (strpos($colClean, 'cena') !== false && strpos($colClean, 'brutto') === false) {
+                    $map['price_net'] = $i;
+                    break;
+                }
+            }
         }
 
         $parsedRows = [];
 
-        while (($row = fgetcsv($handle, 0, $separator)) !== false) {
-            if (count($row) < 10) continue;
+        // Przetwarzanie od wiersza poniżej nagłówków!
+        for ($i = $headerRowIndex + 1; $i < count($lines); $i++) {
+            $line = trim($lines[$i]);
+            if (empty($line)) continue;
 
-            // MAPOWANIE BIO PLANET (Indeksy kolumn)
-            // 1: ID, 2: EAN, 3: Nazwa, 4: Ilość, 5: Jedn, 6: CenaNetto ...
+            $row = str_getcsv($line, $separator);
+            if (count($row) < 4) continue;
             
+            $name = isset($row[$map['name']]) ? trim($row[$map['name']]) : '';
+            $ean = isset($row[$map['ean']]) ? trim($row[$map['ean']]) : '';
+
+            // Pomijamy puste linie, śmieci i wiersze z podsumowaniem stopki EkoWitala
+            if (empty($name) || stripos($name, 'podsumowanie') !== false || stripos($name, 'razem') !== false || stripos($name, 'do zapłaty') !== false) {
+                continue;
+            }
+
             $parsedRows[] = [
-                'product_id'  => isset($row[1]) ? trim($row[1]) : '',
-                'ean'         => isset($row[2]) ? trim($row[2]) : '',
-                'name'        => isset($row[3]) ? trim($row[3]) : '',
-                'quantity'    => isset($row[4]) ? self::sanitizeFloat($row[4]) : 0,
-                'unit'        => isset($row[5]) ? trim($row[5]) : '',
-                'price_net'   => isset($row[6]) ? self::sanitizeFloat($row[6]) : 0.0,
-                'value_net'   => isset($row[7]) ? self::sanitizeFloat($row[7]) : 0.0,
-                'vat_rate'    => isset($row[8]) ? self::sanitizeFloat($row[8]) : 0,
-                'price_gross' => isset($row[9]) ? self::sanitizeFloat($row[9]) : 0.0,
-                'value_gross' => isset($row[10]) ? self::sanitizeFloat($row[10]) : 0.0,
+                'product_id'  => isset($row[$map['product_id']]) ? trim($row[$map['product_id']]) : '',
+                'ean'         => $ean,
+                'name'        => $name,
+                'quantity'    => isset($row[$map['quantity']]) ? self::sanitizeFloat($row[$map['quantity']]) : 0,
+                'unit'        => isset($row[$map['unit']]) ? trim($row[$map['unit']]) : '',
+                'price_net'   => isset($row[$map['price_net']]) ? self::sanitizeFloat($row[$map['price_net']]) : 0.0,
+                'value_net'   => isset($row[$map['value_net']]) ? self::sanitizeFloat($row[$map['value_net']]) : 0.0,
+                'vat_rate'    => isset($row[$map['vat_rate']]) ? self::sanitizeFloat($row[$map['vat_rate']]) : 0,
+                'price_gross' => isset($row[$map['price_gross']]) ? self::sanitizeFloat($row[$map['price_gross']]) : 0.0,
+                'value_gross' => isset($row[$map['value_gross']]) ? self::sanitizeFloat($row[$map['value_gross']]) : 0.0,
             ];
         }
-        fclose($handle);
+
         return $parsedRows;
     }
 
@@ -58,25 +136,33 @@ class AzadaCsvParser
     public static function sanitizePrice($priceString)
     {
         if (empty($priceString)) return '0.00';
-        // Usuń PLN, spacje zwykłe, spacje twarde (UTF-8 i ASCII)
-        $clean = str_replace(['PLN', ' ', '&nbsp;', "\xc2\xa0", "\xa0"], '', $priceString);
-        // Zamień przecinek na kropkę
+        $clean = str_replace(['PLN', 'zł', ' ', '&nbsp;', "\xc2\xa0", "\xa0"], '', $priceString);
+        
+        if (preg_match('/^\d{1,3}(\.\d{3})*,\d+$/', $clean)) {
+            $clean = str_replace('.', '', $clean);
+        }
+        
         $clean = str_replace(',', '.', $clean);
         return number_format((float)$clean, 2, '.', '');
     }
 
     /**
-     * Pomocnicza do parsowania liczb z CSV (np. ilość)
+     * Pomocnicza do parsowania liczb z CSV
      */
     public static function sanitizeFloat($string)
     {
-        $clean = str_replace([' ', '&nbsp;'], '', $string);
+        $clean = str_replace(['PLN', 'zł', ' ', '&nbsp;', "\xc2\xa0", "\xa0", '%'], '', $string);
+        
+        if (preg_match('/^\d{1,3}(\.\d{3})*,\d+$/', $clean)) {
+            $clean = str_replace('.', '', $clean);
+        }
+        
         $clean = str_replace(',', '.', $clean);
         return (float)$clean;
     }
 
     /**
-     * Konwertuje datę PL (22.01.2026) na SQL (2026-01-22)
+     * Konwertuje datę PL na SQL
      */
     public static function sanitizeDate($dateString)
     {

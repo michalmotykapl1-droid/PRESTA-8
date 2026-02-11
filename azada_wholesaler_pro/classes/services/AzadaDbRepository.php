@@ -137,7 +137,20 @@ class AzadaDbRepository
 
     public static function getInvoiceByNumber($docNumber)
     {
-        return Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE doc_number = '".pSQL($docNumber)."'");
+        $invoice = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE doc_number = '".pSQL($docNumber)."'");
+        
+        // AUTO-CZYSZCZENIE "W LOCIE": Weryfikacja istnienia fizycznego pliku na serwerze
+        if ($invoice && !empty($invoice['file_name']) && (int)$invoice['is_downloaded'] == 1) {
+            $filePath = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/fv/' . $invoice['file_name'];
+            
+            // Jeśli usunąłeś plik z folderu downloads/fv, skrypt wyczyści wpisy w obu tabelach bazy danych
+            if (!file_exists($filePath)) {
+                self::deleteInvoiceById($invoice['id_invoice']);
+                return false; // Skasowane, więc zwracamy false - panel od razu zobaczy "NIE POBRANO"
+            }
+        }
+        
+        return $invoice;
     }
 
     public static function saveInvoiceHeader($idWholesaler, $docNumber, $date, $netto, $deadline, $isPaid, $fileName)
@@ -145,6 +158,7 @@ class AzadaDbRepository
         $db = Db::getInstance();
         $table = 'azada_wholesaler_pro_invoice_files';
         $existing = self::getInvoiceByNumber($docNumber);
+        
         $data = [
             'doc_number' => pSQL($docNumber),
             'doc_date' => pSQL($date),
@@ -155,6 +169,7 @@ class AzadaDbRepository
             'is_downloaded' => 1,
             'date_upd' => date('Y-m-d H:i:s')
         ];
+        
         if ($existing) {
             $db->update($table, $data, "id_invoice = " . (int)$existing['id_invoice']);
             return (int)$existing['id_invoice'];
@@ -170,7 +185,10 @@ class AzadaDbRepository
     {
         $db = Db::getInstance();
         $table = 'azada_wholesaler_pro_invoice_details';
+        
+        // Zawsze czyścimy starą zawartość faktury przed dodaniem nowych pozycji
         $db->delete($table, 'id_invoice = ' . (int)$idInvoice);
+        
         foreach ($rows as $row) {
             $db->insert($table, [
                 'id_invoice' => (int)$idInvoice,
@@ -186,12 +204,29 @@ class AzadaDbRepository
 
     public static function getAllDownloadedInvoices()
     {
-        return Db::getInstance()->executeS("SELECT id_invoice, file_name FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE is_downloaded = 1");
+        $invoices = Db::getInstance()->executeS("SELECT id_invoice, file_name FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE is_downloaded = 1");
+        $validInvoices = [];
+        
+        if ($invoices) {
+            foreach ($invoices as $inv) {
+                $filePath = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/fv/' . $inv['file_name'];
+                
+                // Zabezpieczenie także tutaj przy pobieraniu list
+                if (!empty($inv['file_name']) && !file_exists($filePath)) {
+                    self::deleteInvoiceById($inv['id_invoice']);
+                } else {
+                    $validInvoices[] = $inv;
+                }
+            }
+        }
+        
+        return $validInvoices;
     }
 
     public static function deleteInvoiceById($idInvoice)
     {
         $db = Db::getInstance();
+        // Kasujemy z tabeli nagłówkowej oraz (najważniejsze) z tabeli ze szczegółami faktury
         $db->delete('azada_wholesaler_pro_invoice_files', 'id_invoice = ' . (int)$idInvoice);
         $db->delete('azada_wholesaler_pro_invoice_details', 'id_invoice = ' . (int)$idInvoice);
     }

@@ -51,7 +51,7 @@ class AzadaBioPlanetB2B
         return $this->parseHtmlTable($html);
     }
 
-    // --- POBIERANIE FAKTUR (POPRAWIONE) ---
+    // --- POBIERANIE FAKTUR ---
     public function scrapeInvoices($login, $password)
     {
         if (empty($login) || empty($password)) {
@@ -70,9 +70,6 @@ class AzadaBioPlanetB2B
         $dateFrom = date('Y-m-d', strtotime("-$daysBack days"));
         $dateTo = date('Y-m-d'); 
 
-        // ZMIANA TUTAJ: Zmieniłem "True" na "False" w trzecim parametrze.
-        // Było: .../Faktura/$dateFrom/$dateTo/True/False... (Tylko niezapłacone)
-        // Jest: .../Faktura/$dateFrom/$dateTo/False/False... (Wszystkie)
         $ajaxUrl = "https://bioplanet.pl/dokumenty/PobierzListe/Faktura/$dateFrom/$dateTo/False/False?mozliwaPlatnosc=False&czysadane=False&szukanieFraza=";
 
         $html = $this->request($ajaxUrl);
@@ -168,6 +165,8 @@ class AzadaBioPlanetB2B
                     'date' => trim($cols->item(0)->nodeValue),
                     'number' => $docNumber,
                     'netto' => trim($cols->item(2)->nodeValue),
+                    // DODANO: Pobieranie z następnej kolumny (indeks 3)
+                    'brutto' => trim($cols->item(3)->nodeValue),
                     'status' => $docStatus,
                     'options' => $options
                 ];
@@ -193,6 +192,10 @@ class AzadaBioPlanetB2B
                 $date = trim($cols->item(0)->nodeValue);
                 $docNumber = trim($cols->item(1)->nodeValue);
                 $netto = trim($cols->item(3)->nodeValue);
+                
+                // DODANO: W widoku faktur Brutto znajduje się zaraz za Netto (czyli kolumna o indeksie 4)
+                $brutto = trim($cols->item(4)->nodeValue);
+                
                 $deadline = trim($cols->item(7)->nodeValue);
                 $isPaidTxt = trim($cols->item(8)->nodeValue);
                 $isPaid = (stripos($isPaidTxt, 'TAK') !== false);
@@ -207,6 +210,7 @@ class AzadaBioPlanetB2B
                     'date' => $date,
                     'number' => $docNumber,
                     'netto' => $netto,
+                    'brutto' => $brutto, // Podpinamy do panelu!
                     'deadline' => $deadline,
                     'is_paid' => $isPaid,
                     'options' => $options
