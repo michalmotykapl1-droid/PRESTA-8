@@ -25,6 +25,9 @@ if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWital.p
 if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMed.php')) {
     require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMed.php');
 }
+if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMedB2B.php')) {
+    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMedB2B.php');
+}
 
 class AdminAzadaWholesalerController extends ModuleAdminController
 {
@@ -94,12 +97,19 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $icon = $hasCreds ? 'icon-check' : 'icon-key';
         $text = $hasCreds ? 'Zalogowany' : 'Logowanie';
         
-        $login = isset($row['b2b_login']) ? $row['b2b_login'] : '';
-        $pass = isset($row['b2b_password']) ? base64_decode($row['b2b_password']) : '';
+        $login = isset($row['b2b_login']) ? (string)$row['b2b_login'] : '';
+        $pass = '';
+        if (isset($row['b2b_password']) && $row['b2b_password'] !== '') {
+            $decodedPass = base64_decode($row['b2b_password'], true);
+            $pass = ($decodedPass !== false) ? $decodedPass : '';
+        }
+
+        $loginJs = Tools::jsonEncode($login);
+        $passJs = Tools::jsonEncode($pass);
         $idElem = $row['id_wholesaler'];
 
         return '<a href="javascript:void(0);" class="btn btn-sm '.$btnClass.'" 
-                onclick="openB2BModal(event, '.$idElem.', \''.$login.'\', \''.$pass.'\'); return false;"
+                onclick="openB2BModal(event, '.$idElem.', '.$loginJs.', '.$passJs.'); return false;"
                 title="Skonfiguruj dostęp do panelu zamowienia"
                 style="display:inline-block; margin-top:2px; position:relative; z-index:999;">
                 <i class="'.$icon.'"></i> '.$text.'
@@ -109,7 +119,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
     public function displayImportLink($token = null, $id = null, $name = null)
     {
         $href = self::$currentIndex . '&action=importData&ajax=1&id_wholesaler=' . $id . '&token=' . ($token != null ? $token : $this->token);
-        return '<a href="' . $href . '" class="btn btn-default" title="Pobierz dane 1:1" onclick="return runImport(this, \'' . $href . '\');" style="margin-right:5px; border-color:#ddd;">
+        return '<a href="' . $href . '" class="btn btn-default" title="Pobierz dane 1:1" onclick="return runImport(event, this, \'' . $href . '\');" style="margin-right:5px; border-color:#ddd;">
             <i class="icon-cloud-download"></i> POBIERZ DANE
         </a>';
     }
@@ -175,6 +185,9 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         }
         if (stripos($wholesalerName, 'EkoWital') !== false && class_exists('AzadaEkoWitalB2B')) {
             return new AzadaEkoWitalB2B();
+        }
+        if ((stripos($wholesalerName, 'NaturaMed') !== false || stripos($wholesalerName, 'Natura Med') !== false) && class_exists('AzadaNaturaMedB2B')) {
+            return new AzadaNaturaMedB2B();
         }
         return null;
     }
@@ -434,8 +447,11 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 });
             });
 
-function runImport(btn, url) {
-                if(event) event.stopPropagation();
+function runImport(event, btn, url) {
+                if(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
                 Swal.fire({
                     title: 'Potwierdzenie importu',
                     text: 'Czy na pewno chcesz pobrać PEŁNE dane 1:1 z tej hurtowni?',

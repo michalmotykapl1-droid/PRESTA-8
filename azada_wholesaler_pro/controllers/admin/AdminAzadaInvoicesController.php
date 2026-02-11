@@ -34,9 +34,26 @@ class AdminAzadaInvoicesController extends ModuleAdminController
 
     private function getWorkerClass($wholesalerName)
     {
-        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '', ucwords($wholesalerName));
+        $name = (string)$wholesalerName;
+
+        // Priorytetowe mapowanie dla krytycznych integracji (BioPlanet).
+        if (stripos($name, 'Bio Planet') !== false && class_exists('AzadaBioPlanetB2B')) {
+            return new AzadaBioPlanetB2B();
+        }
+        if (stripos($name, 'EkoWital') !== false && class_exists('AzadaEkoWitalB2B')) {
+            return new AzadaEkoWitalB2B();
+        }
+        if ((stripos($name, 'NaturaMed') !== false || stripos($name, 'Natura Med') !== false) && class_exists('AzadaNaturaMedB2B')) {
+            return new AzadaNaturaMedB2B();
+        }
+
+        // Fallback dla niestandardowych nazw, np. "Moja Integracja" -> AzadaMojaIntegracjaB2B.
+        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '', ucwords($name));
         $className = 'Azada' . $cleanName . 'B2B';
-        if (class_exists($className)) return new $className();
+        if (class_exists($className)) {
+            return new $className();
+        }
+
         return null;
     }
 
@@ -60,7 +77,8 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         foreach ($integrations as $wholesaler) {
             $worker = $this->getWorkerClass($wholesaler['name']);
             if ($worker && method_exists($worker, 'scrapeInvoices')) {
-                $pass = base64_decode($wholesaler['b2b_password']);
+                $decodedPass = base64_decode($wholesaler['b2b_password'], true);
+                $pass = ($decodedPass !== false) ? $decodedPass : (string)$wholesaler['b2b_password'];
                 $result = $worker->scrapeInvoices($wholesaler['b2b_login'], $pass);
 
                 if (isset($result['status']) && $result['status'] == 'success') {
@@ -73,7 +91,12 @@ class AdminAzadaInvoicesController extends ModuleAdminController
                     $debugDetails[] = [
                         'wholesaler' => $wholesaler['name'],
                         'status' => 'success',
-                        'lines' => isset($result['debug']) && is_array($result['debug']) ? $result['debug'] : ['Pobrano faktury: ' . count($result['data'])],
+                        'lines' => isset($result['debug']) && is_array($result['debug'])
+                            ? $result['debug']
+                            : [
+                                'Klasa integracji: ' . get_class($worker),
+                                'Pobrano faktury: ' . count($result['data']),
+                            ],
                     ];
                 } else {
                     $msg = isset($result['msg']) ? $result['msg'] : 'Błąd połączenia';

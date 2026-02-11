@@ -70,10 +70,49 @@ class AzadaBioPlanetB2B
         $dateFrom = date('Y-m-d', strtotime("-$daysBack days"));
         $dateTo = date('Y-m-d'); 
 
-        $ajaxUrl = "https://bioplanet.pl/dokumenty/PobierzListe/Faktura/$dateFrom/$dateTo/False/False?mozliwaPlatnosc=False&czysadane=False&szukanieFraza=";
+        // BioPlanet w zależności od zmian po stronie B2B potrafi zwrócić niepełną listę
+        // dla jednej kombinacji flag (True/False lub False/False).
+        // Pobieramy oba warianty i łączymy bez duplikatów.
+        $variants = [
+            'True/False' => "https://bioplanet.pl/dokumenty/PobierzListe/Faktura/$dateFrom/$dateTo/True/False?mozliwaPlatnosc=False&czysadane=False&szukanieFraza=",
+            'False/False' => "https://bioplanet.pl/dokumenty/PobierzListe/Faktura/$dateFrom/$dateTo/False/False?mozliwaPlatnosc=False&czysadane=False&szukanieFraza=",
+        ];
 
-        $html = $this->request($ajaxUrl);
-        return $this->parseInvoicesTable($html);
+        $merged = [];
+        $seen = [];
+        $debug = [];
+
+        foreach ($variants as $variantName => $ajaxUrl) {
+            $html = $this->request($ajaxUrl);
+            $parsed = $this->parseInvoicesTable($html);
+
+            if (!isset($parsed['status']) || $parsed['status'] !== 'success') {
+                $debug[] = 'Wariant ' . $variantName . ': błąd parsowania';
+                continue;
+            }
+
+            $debug[] = 'Wariant ' . $variantName . ': ' . count($parsed['data']) . ' pozycji';
+
+            foreach ($parsed['data'] as $row) {
+                $key = mb_strtoupper(trim($row['number'])) . '|' . trim($row['date']);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $merged[] = $row;
+            }
+        }
+
+        usort($merged, function ($a, $b) {
+            $ta = strtotime(str_replace('.', '-', $a['date']));
+            $tb = strtotime(str_replace('.', '-', $b['date']));
+            if ($ta === $tb) {
+                return strcmp($b['number'], $a['number']);
+            }
+            return $tb <=> $ta;
+        });
+
+        return ['status' => 'success', 'data' => $merged, 'debug' => $debug];
     }
 
     public function downloadFile($remoteUrl, $localPath, $login, $password)
@@ -196,8 +235,8 @@ class AzadaBioPlanetB2B
                 // DODANO: W widoku faktur Brutto znajduje się zaraz za Netto (czyli kolumna o indeksie 4)
                 $brutto = trim($cols->item(4)->nodeValue);
                 
-                $deadline = trim($cols->item(7)->nodeValue);
-                $isPaidTxt = trim($cols->item(8)->nodeValue);
+                $deadline = $cols->item(7) ? trim($cols->item(7)->nodeValue) : '';
+                $isPaidTxt = $cols->item(8) ? trim($cols->item(8)->nodeValue) : '';
                 $isPaid = (stripos($isPaidTxt, 'TAK') !== false);
 
                 if (stripos($docNumber, 'FS') === false && stripos($docNumber, 'KFS') === false) {
