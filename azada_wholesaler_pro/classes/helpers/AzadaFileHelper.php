@@ -3,32 +3,82 @@
 class AzadaFileHelper
 {
     /**
-     * Nowa metoda: Sprawdza czy URL istnieje i odpowiada (Ping)
-     * Zwraca TRUE jeśli serwer odpowie kodem 200 (OK).
+     * Kompatybilna metoda bool (używana w wielu miejscach).
      */
     public static function checkUrl($url)
     {
-        if (empty($url)) return false;
+        $result = self::checkUrlDetailed($url);
+        return !empty($result['status']);
+    }
 
+    /**
+     * Szczegółowa diagnostyka połączenia URL.
+     * Zwraca: status(bool), http_code(int), msg(string)
+     */
+    public static function checkUrlDetailed($url)
+    {
+        if (empty($url)) {
+            return ['status' => false, 'http_code' => 0, 'msg' => 'Brak URL API.'];
+        }
+
+        $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36';
+
+        // 1) HEAD
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_NOBODY, true); // Nie pobieraj ciała, tylko nagłówki
+        curl_setopt($ch, CURLOPT_NOBODY, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Czekaj max 10 sekund
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Ignoruj problemy z certyfikatem SSL
+        curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        // Udajemy przeglądarkę, żeby hurtownia nas nie zablokowała
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'); 
-        
+        curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
         curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headErrNo = (int)curl_errno($ch);
+        $headErr = (string)curl_error($ch);
         curl_close($ch);
 
-        // Akceptujemy kody 200 (OK) oraz 301/302 (Przekierowania)
-        if ($httpCode >= 200 && $httpCode < 400) {
-            return true;
+        if ($headCode >= 200 && $headCode < 400) {
+            return ['status' => true, 'http_code' => $headCode, 'msg' => 'Połączenie OK (HEAD).'];
         }
-        
-        return false;
+
+        if (in_array($headCode, [401, 403, 405], true) && $headErrNo === 0) {
+            return ['status' => true, 'http_code' => $headCode, 'msg' => 'Endpoint odpowiada, ale ogranicza metodę HEAD.'];
+        }
+
+        // 2) GET (bez pobierania całego pliku)
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_NOBODY, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_RANGE, '0-256');
+
+        $body = curl_exec($ch);
+        $getCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $getErrNo = (int)curl_errno($ch);
+        $getErr = (string)curl_error($ch);
+        curl_close($ch);
+
+        if ($getCode >= 200 && $getCode < 400) {
+            return ['status' => true, 'http_code' => $getCode, 'msg' => 'Połączenie OK (GET fallback).'];
+        }
+
+        if (in_array($getCode, [401, 403, 405], true) && $getErrNo === 0) {
+            return ['status' => true, 'http_code' => $getCode, 'msg' => 'Endpoint API odpowiada (dostęp ograniczony przez serwer).'];
+        }
+
+        $err = $getErrNo ? $getErr : ($headErrNo ? $headErr : 'Nieznany błąd połączenia.');
+        $code = $getCode ?: $headCode;
+        return [
+            'status' => false,
+            'http_code' => (int)$code,
+            'msg' => 'Brak połączenia z API. HTTP: ' . (int)$code . '. ' . $err,
+        ];
     }
 
     /**

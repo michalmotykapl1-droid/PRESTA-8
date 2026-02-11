@@ -3,14 +3,12 @@
 require_once(dirname(__FILE__) . '/../helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/../services/AzadaRawSchema.php');
 
-class AzadaEkoWital
+class AzadaNaturaMed
 {
     /**
-     * Map normalized CSV headers -> DB column names (AzadaRawSchema)
-     * normalizeHeader() lowercases and strips non-alnum.
+     * Mapowanie nagłówków CSV NaturaMed -> kolumny w AzadaRawSchema.
      */
     public static $columnMap = [
-        // źródło
         'ean' => 'kod_kreskowy',
         'id' => 'kod',
         'sku' => 'produkt_id',
@@ -22,13 +20,10 @@ class AzadaEkoWital
         'photo1' => 'zdjecie1linkurl',
         'photo2' => 'zdjecie2linkurl',
         'photo3' => 'zdjecie3linkurl',
-        'zdjecie1linkurl' => 'zdjecie1linkurl',
-        'zdjecie2linkurl' => 'zdjecie2linkurl',
-        'zdjecie3linkurl' => 'zdjecie3linkurl',
         'kategoria' => 'kategoria',
-        'categories' => 'kategoria',
         'unit' => 'jednostkapodstawowa',
         'weight' => 'waga',
+        'pkwiu' => 'pkwiu',
         'instock' => 'NaStanie',
         'qty' => 'ilosc',
         'availability' => 'dostepnyod',
@@ -36,20 +31,69 @@ class AzadaEkoWital
         'quantityperbox' => 'ilosc_w_opakowaniu',
         'priceafterdiscountnet' => 'cenaporabacienetto',
         'vat' => 'vat',
-        // retailPriceGross - nie używamy
+        'retailpricegross' => 'cenadetalicznabrutto',
     ];
+
+    /**
+     * NaturaMed w różnych wdrożeniach wystawia feed pod różnymi wariantami endpointów.
+     */
+    public static function buildCandidateLinks($apiKey)
+    {
+        $key = trim((string)$apiKey);
+        $candidates = [
+            // Priorytet: poprawna domena NaturaMed przekazana przez użytkownika
+            'https://naturamed.com.pl/xmlapi/2/2/UTF8/' . $key,
+
+            // Dodatkowe warianty kompatybilności
+            'https://naturamed.com.pl/xmlapi/2/2/UTF-8/' . $key,
+            'http://naturamed.com.pl/xmlapi/2/2/UTF8/' . $key,
+            'http://naturamed.com.pl/xmlapi/2/2/UTF-8/' . $key,
+            'https://naturamed.com.pl/xmlapi/2/1/UTF8/' . $key,
+            'https://naturamed.com.pl/xmlapi/2/1/UTF-8/' . $key,
+            'https://naturamed.com.pl/xmlapi/2/999/UTF8/' . $key,
+            'https://naturamed.com.pl/xmlapi/2/999/UTF-8/' . $key,
+
+            // Legacy fallback (stara domena)
+            'https://naturamed.pl/xmlapi/2/2/UTF8/' . $key,
+            'https://naturamed.pl/xmlapi/2/2/UTF-8/' . $key,
+            'https://naturamed.pl/xmlapi/2/1/UTF8/' . $key,
+            'https://naturamed.pl/xmlapi/2/1/UTF-8/' . $key,
+            'https://naturamed.pl/xmlapi/2/999/UTF8/' . $key,
+            'https://naturamed.pl/xmlapi/2/999/UTF-8/' . $key,
+        ];
+
+        return array_values(array_unique($candidates));
+    }
+
+    /**
+     * Zwraca pierwszy działający endpoint produktów (albo pierwszy kandydat jako fallback).
+     */
+    public static function resolveProductsUrl($apiKey)
+    {
+        $candidates = self::buildCandidateLinks($apiKey);
+        if (empty($candidates)) {
+            return '';
+        }
+
+        foreach ($candidates as $url) {
+            $check = AzadaFileHelper::checkUrlDetailed($url);
+            if (!empty($check['status'])) {
+                return $url;
+            }
+        }
+
+        return $candidates[0];
+    }
 
     public static function generateLinks($apiKey)
     {
-        $key = trim($apiKey);
         return [
-            'products' => 'https://eko-wital.pl/xmlapi/2/2/UTF8/' . $key,
+            'products' => self::resolveProductsUrl($apiKey),
         ];
     }
 
     public static function getSettings()
     {
-        // W praktyce EkoWital wystawia CSV (często ; i BOM)
         return [
             'file_format' => 'csv',
             'delimiter' => ';',
@@ -60,7 +104,7 @@ class AzadaEkoWital
 
     public static function getBaseUrl()
     {
-        return 'https://eko-wital.pl';
+        return 'https://naturamed.com.pl';
     }
 
     public static function normalizeToAbsoluteUrl($url)
@@ -98,7 +142,6 @@ class AzadaEkoWital
     public static function normalizeHeader($header)
     {
         $header = trim((string)$header);
-        // usuń BOM
         $header = preg_replace('/^\xEF\xBB\xBF/', '', $header);
         $header = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $header);
         $header = strtolower(trim((string)$header));
@@ -106,9 +149,6 @@ class AzadaEkoWital
         return $header;
     }
 
-    /**
-     * Czyta pierwszą niepustą linię (obsługa plików z pustą linią na początku).
-     */
     public static function readFirstNonEmptyLine($handle, $maxLines = 50)
     {
         $i = 0;
@@ -116,7 +156,7 @@ class AzadaEkoWital
             $line = fgets($handle);
             if ($line === false) return false;
             $i++;
-            // usuń BOM i białe znaki
+
             $clean = preg_replace('/^\xEF\xBB\xBF/', '', $line);
             if (trim($clean) === '') continue;
             return $clean;
@@ -124,10 +164,6 @@ class AzadaEkoWital
         return false;
     }
 
-    /**
-     * Sprawdza nagłówki i zwraca mapę dozwolonych kolumn (dbCol => originalHeader)
-     * — wykorzystywane tylko do walidacji.
-     */
     public static function syncTableStructure($csvUrl)
     {
         $handle = @fopen($csvUrl, 'r');
@@ -135,14 +171,14 @@ class AzadaEkoWital
 
         $headerLine = self::readFirstNonEmptyLine($handle);
         fclose($handle);
+
         if ($headerLine === false) return false;
 
         $delimiter = self::detectDelimiter($headerLine);
         $headers = str_getcsv(trim($headerLine), $delimiter);
         if (empty($headers) || !is_array($headers)) return false;
 
-        // upewnij się, że tabela istnieje (wzorzec)
-        if (!AzadaRawSchema::createTable('azada_raw_ekowital')) {
+        if (!AzadaRawSchema::createTable('azada_raw_naturamed')) {
             return false;
         }
 
@@ -158,7 +194,6 @@ class AzadaEkoWital
             }
         }
 
-        // wymagamy minimum: EAN + ID + SKU + NAME
         if (!isset($columns['kod_kreskowy']) || !isset($columns['produkt_id']) || !isset($columns['kod']) || !isset($columns['nazwa'])) {
             return false;
         }
@@ -168,15 +203,50 @@ class AzadaEkoWital
 
     public static function runDiagnostics($apiKey)
     {
-        if (empty($apiKey)) return ['success' => false, 'details' => []];
-        $links = self::generateLinks($apiKey);
-        $check = AzadaFileHelper::checkUrl($links['products']);
+        if (empty($apiKey)) {
+            return [
+                'success' => false,
+                'details' => [
+                    'api' => ['status' => false, 'msg' => 'Brak klucza API.'],
+                    'products' => ['status' => false, 'msg' => 'Brak klucza API.'],
+                ],
+            ];
+        }
+
+        $candidates = self::buildCandidateLinks($apiKey);
+        $messages = [];
+        $best = ['status' => false, 'http_code' => 0, 'msg' => 'Brak połączenia z API.'];
+
+        foreach ($candidates as $url) {
+            $check = AzadaFileHelper::checkUrlDetailed($url);
+            $messages[] = $url . ' => ' . (isset($check['msg']) ? $check['msg'] : 'brak odpowiedzi');
+
+            if (!empty($check['status'])) {
+                $best = $check;
+                $best['msg'] = 'Połączenie OK: ' . $url;
+                break;
+            }
+
+            $best = $check; // zapamiętujemy ostatni błąd jako najbardziej aktualny
+        }
+
+        if (empty($best['status'])) {
+            $best['msg'] = 'Sprawdzono endpointy NaturaMed: ' . implode(' | ', $messages);
+        }
 
         $details = [
-            'products' => ['status' => $check],
-            'api' => ['status' => $check],
+            'products' => [
+                'status' => !empty($best['status']),
+                'msg' => isset($best['msg']) ? $best['msg'] : '',
+                'http_code' => isset($best['http_code']) ? (int)$best['http_code'] : 0,
+            ],
+            'api' => [
+                'status' => !empty($best['status']),
+                'msg' => isset($best['msg']) ? $best['msg'] : '',
+                'http_code' => isset($best['http_code']) ? (int)$best['http_code'] : 0,
+            ],
         ];
 
-        return ['success' => $check, 'details' => $details];
+        return ['success' => !empty($best['status']), 'details' => $details];
     }
 }

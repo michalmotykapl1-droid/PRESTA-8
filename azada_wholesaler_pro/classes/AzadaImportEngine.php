@@ -2,6 +2,7 @@
 
 require_once(dirname(__FILE__) . '/integrations/AzadaBioPlanet.php');
 require_once(dirname(__FILE__) . '/integrations/AzadaEkoWital.php');
+require_once(dirname(__FILE__) . '/integrations/AzadaNaturaMed.php');
 require_once(dirname(__FILE__) . '/helpers/AzadaFileHelper.php');
 require_once(dirname(__FILE__) . '/services/AzadaRawSchema.php');
 
@@ -18,6 +19,9 @@ class AzadaImportEngine
         }
         if (stripos($wholesaler->name, 'EkoWital') !== false || stripos($wholesaler->name, 'Eko Wital') !== false) {
             return $this->processEkoWital($wholesaler);
+        }
+        if (stripos($wholesaler->name, 'NaturaMed') !== false || stripos($wholesaler->name, 'Natura Med') !== false) {
+            return $this->processNaturaMed($wholesaler);
         }
         return ['status' => 'error', 'msg' => 'Brak obsługi.'];
     }
@@ -121,6 +125,10 @@ class AzadaImportEngine
                     
                     if ($colName === 'produkt_id') {
                         $val = 'BP_' . trim($val);
+                    }
+
+                    if (in_array($colName, ['LinkDoProduktu','zdjecieglownelinkurl','zdjecie1linkurl','zdjecie2linkurl','zdjecie3linkurl'], true) && trim((string)$val) !== '') {
+                        $val = AzadaBioPlanet::normalizeToAbsoluteUrl($val);
                     }
 
                     if (strpos($colName, 'cena') !== false || strpos($colName, 'waga') !== false || strpos($colName, 'vat') !== false || strpos($colName, 'koszt') !== false || strpos($colName, 'netto') !== false || strpos($colName, 'brutto') !== false) {
@@ -234,7 +242,118 @@ class AzadaImportEngine
                     $val = 'EKOWIT_' . $val;
                 }
 
+                if (in_array($colName, ['LinkDoProduktu','zdjecieglownelinkurl','zdjecie1linkurl','zdjecie2linkurl','zdjecie3linkurl'], true) && $val !== '') {
+                    $val = AzadaEkoWital::normalizeToAbsoluteUrl($val);
+                }
+
                 // liczby
+                if (in_array($colName, ['waga','ilosc','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
+                    $val = str_replace(',', '.', $val);
+                    $val = preg_replace('/[^0-9.]/', '', $val);
+                    if ($val === '') {
+                        $val = '0';
+                    }
+                }
+
+                $rowValues[] = pSQL($val);
+            }
+
+            $rowValues[] = date('Y-m-d H:i:s');
+
+            $batchValues[] = "('" . implode("','", $rowValues) . "')";
+            $count++;
+
+            if (count($batchValues) >= 150) {
+                Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+                $batchValues = [];
+            }
+        }
+
+        fclose($h);
+
+        if (!empty($batchValues)) {
+            Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+        }
+
+        $wholesaler->last_import = date('Y-m-d H:i:s');
+        $wholesaler->update();
+
+        return ['status' => 'success', 'msg' => "Tabela zresetowana. Pobrano $count produktów."];
+    }
+
+    private function processNaturaMed($wholesaler)
+    {
+        $links = AzadaNaturaMed::generateLinks($wholesaler->api_key);
+        $tableName = _DB_PREFIX_ . 'azada_raw_naturamed';
+
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+
+        if (!AzadaRawSchema::createTable('azada_raw_naturamed')) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
+        }
+
+        $dbColumnsMap = AzadaNaturaMed::syncTableStructure($links['products']);
+        if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+
+        $count = 0;
+
+        $h = @fopen($links['products'], 'r');
+        if (!$h) {
+            return ['status' => 'error', 'msg' => 'Nie można otworzyć pliku.'];
+        }
+
+        $headerLine = AzadaNaturaMed::readFirstNonEmptyLine($h);
+        if ($headerLine === false) {
+            fclose($h);
+            return ['status' => 'error', 'msg' => 'Pusty plik.'];
+        }
+
+        $delimiter = AzadaNaturaMed::detectDelimiter($headerLine);
+        $csvHeaders = str_getcsv(trim($headerLine), $delimiter);
+
+        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
+        $colIndexMap = [];
+
+        foreach ($csvHeaders as $index => $rawHeader) {
+            $normalized = AzadaNaturaMed::normalizeHeader($rawHeader);
+            if (isset(AzadaNaturaMed::$columnMap[$normalized])) {
+                $colName = AzadaNaturaMed::$columnMap[$normalized];
+                if (isset($allowedColumns[$colName])) {
+                    $colIndexMap[(int)$index] = $colName;
+                }
+            }
+        }
+
+        $insertCols = array_values($colIndexMap);
+        $insertCols[] = 'data_aktualizacji';
+
+        $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
+        $batchValues = [];
+
+        while (($row = fgetcsv($h, 0, $delimiter)) !== false) {
+            if (!is_array($row) || count($row) < 3) continue;
+
+            $ean = '';
+            foreach ($colIndexMap as $idx => $colName) {
+                if ($colName === 'kod_kreskowy' && isset($row[$idx])) {
+                    $ean = trim((string)$row[$idx]);
+                    break;
+                }
+            }
+            if ($ean === '') continue;
+
+            $rowValues = [];
+            foreach ($colIndexMap as $idx => $colName) {
+                $val = isset($row[$idx]) ? trim((string)$row[$idx]) : '';
+
+                if ($colName === 'produkt_id' && $val !== '') {
+                    $val = 'NAT_' . $val;
+                }
+
+                if (in_array($colName, ['LinkDoProduktu','zdjecieglownelinkurl','zdjecie1linkurl','zdjecie2linkurl','zdjecie3linkurl'], true) && $val !== '') {
+                    $val = AzadaNaturaMed::normalizeToAbsoluteUrl($val);
+                }
+
                 if (in_array($colName, ['waga','ilosc','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
                     $val = str_replace(',', '.', $val);
                     $val = preg_replace('/[^0-9.]/', '', $val);

@@ -9,15 +9,7 @@ class AzadaBioPlanet
      * --- CZARNA LISTA KOLUMN (TE NIE ZOSTANĄ UTWORZONE) ---
      */
     public static $ignoredColumns = [
-        'masanetto',
-        'terminprzydataktualnypromowyprzeprzece',
-        'eanprzepismatka',
-        'cenazakg',
-        'cenazal',
-        'kodyopzbiorczych',  // Dodatkowo
-        'kod_cn',            // Dodatkowo
-        'objetoscbrutto',    // Dodatkowo
-        'objetoscnetto'      // Dodatkowo
+        // Zostawiamy pustą listę: mapujemy pełny feed BioPlanet 1:1 do kolumn RAW.
     ];
 
     public static function generateLinks($apiKey)
@@ -65,10 +57,61 @@ class AzadaBioPlanet
         return $columns;
     }
 
+    public static function getBaseUrl()
+    {
+        return 'https://bioplanet.pl';
+    }
+
+    public static function normalizeToAbsoluteUrl($url)
+    {
+        $url = trim((string)$url);
+        if ($url === '') {
+            return '';
+        }
+
+        if (preg_match('#^https?://#i', $url)) {
+            return $url;
+        }
+
+        if (strpos($url, '//') === 0) {
+            return 'https:' . $url;
+        }
+
+        $base = rtrim(self::getBaseUrl(), '/');
+
+        if (strpos($url, '/') === 0) {
+            return $base . $url;
+        }
+
+        return $base . '/' . ltrim($url, '/');
+    }
+
     public static function sanitizeColumnName($str)
     {
-        $str = iconv('UTF-8', 'ASCII//TRANSLIT', $str); 
-        $str = strtolower($str);
+        $str = trim((string)$str);
+        $normalized = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $str);
+        $normalized = strtolower((string)$normalized);
+        $normalized = preg_replace('/[^a-z0-9]/', '', $normalized);
+
+        $aliases = [
+            'url' => 'LinkDoProduktu',
+            'linkdoproduktu' => 'LinkDoProduktu',
+            'photo' => 'zdjecieglownelinkurl',
+            'nastanie' => 'NaStanie',
+            'photo1' => 'zdjecie1linkurl',
+            'photo2' => 'zdjecie2linkurl',
+            'photo3' => 'zdjecie3linkurl',
+            'zdjecie1linkurl' => 'zdjecie1linkurl',
+            'zdjecie2linkurl' => 'zdjecie2linkurl',
+            'zdjecie3linkurl' => 'zdjecie3linkurl',
+        ];
+
+        if (isset($aliases[$normalized])) {
+            return $aliases[$normalized];
+        }
+
+        $str = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $str);
+        $str = strtolower((string)$str);
         $str = preg_replace('/[^a-z0-9_]/', '_', $str);
         return trim($str, '_');
     }

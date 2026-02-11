@@ -220,6 +220,7 @@ class AzadaWholesaler extends ObjectModel
                  $db->execute("UPDATE `$tableInt` SET `raw_table_name` = 'azada_raw_bioplanet' WHERE `name` LIKE '%Bio Planet%'");
                  $db->execute("UPDATE `$tableInt` SET `raw_table_name` = 'azada_raw_ekowital' WHERE `name` LIKE '%EkoWital%' OR `name` LIKE '%Eko Wital%'");
              }
+             $db->execute("UPDATE `$tableInt` SET `raw_table_name` = 'azada_raw_naturamed' WHERE (`name` LIKE '%NaturaMed%' OR `name` LIKE '%Natura Med%') AND (`raw_table_name` IS NULL OR `raw_table_name` = '')");
              $colLogin = $db->executeS("SHOW COLUMNS FROM `$tableInt` LIKE 'b2b_login'");
              if (empty($colLogin)) $db->execute("ALTER TABLE `$tableInt` ADD COLUMN `b2b_login` VARCHAR(255) DEFAULT NULL AFTER `api_key`");
              $colPass = $db->executeS("SHOW COLUMNS FROM `$tableInt` LIKE 'b2b_password'");

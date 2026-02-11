@@ -192,6 +192,7 @@ class AzadaInstaller
         $tables = [
             'azada_raw_bioplanet',
             'azada_raw_ekowital',
+            'azada_raw_naturamed',
             'azada_wholesaler_pro_integration',
             'azada_wholesaler_pro_mapping',
             'azada_wholesaler_pro_cache',
