@@ -14,6 +14,8 @@ class AzadaNaturaMedB2B
         'https://www.naturamed.com.pl',
         'https://naturamed.pl',
         'https://www.naturamed.pl',
+        'https://b2b.natura-med.pl',
+        'https://b2b.naturamed.com.pl',
     ];
 
     public function __construct()
@@ -291,7 +293,8 @@ class AzadaNaturaMedB2B
         $documents = [];
         foreach ($rows as $row) {
             $cols = $row->getElementsByTagName('td');
-            if ($cols->length < 4) continue;
+            $minColsRequired = ($docType === 'invoice') ? 3 : 4;
+            if ($cols->length < $minColsRequired) continue;
 
             $date = trim($cols->item(0)->nodeValue);
             
@@ -325,7 +328,7 @@ class AzadaNaturaMedB2B
             }
 
             if ($docType === 'invoice') {
-                if ($modeType === 0) { 
+                if ($modeType === 0 && $cols->length >= 4) {
                     $deadline = trim($cols->item(3)->nodeValue);
                     $deadline = preg_replace('/Dni po terminie.*/is', '', $deadline);
                     $deadline = trim($deadline);

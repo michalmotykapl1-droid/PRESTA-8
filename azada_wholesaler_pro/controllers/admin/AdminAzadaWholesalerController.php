@@ -104,8 +104,8 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             $pass = ($decodedPass !== false) ? $decodedPass : '';
         }
 
-        $loginJs = Tools::jsonEncode($login);
-        $passJs = Tools::jsonEncode($pass);
+        $loginJs = $this->encodeJsValue($login);
+        $passJs = $this->encodeJsValue($pass);
         $idElem = $row['id_wholesaler'];
 
         return '<a href="javascript:void(0);" class="btn btn-sm '.$btnClass.'" 
@@ -114,6 +114,17 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 style="display:inline-block; margin-top:2px; position:relative; z-index:999;">
                 <i class="'.$icon.'"></i> '.$text.'
                 </a>';
+    }
+
+
+    private function encodeJsValue($value)
+    {
+        $encoded = json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        if ($encoded === false) {
+            return '&quot;&quot;';
+        }
+
+        return htmlspecialchars($encoded, ENT_QUOTES, 'UTF-8');
     }
 
     public function displayImportLink($token = null, $id = null, $name = null)
