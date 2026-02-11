@@ -205,6 +205,30 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $b2bStatus = (!empty($wholesaler->b2b_login) && !empty($wholesaler->b2b_password));
         $result['details']['b2b'] = ['status' => $b2bStatus];
 
+        try {
+            $stockCheck = $this->checkStockStatusFromRawTable($wholesaler);
+            if ($stockCheck !== null) {
+                $result['details']['stocks'] = $stockCheck;
+            }
+        } catch (Exception $e) {
+            $result['details']['stocks'] = [
+                'status' => false,
+                'msg' => 'Błąd weryfikacji stanów: ' . $e->getMessage(),
+            ];
+        }
+
+        try {
+            $dimensionsCheck = $this->checkDimensionsStatusFromRawTable($wholesaler);
+            if ($dimensionsCheck !== null) {
+                $result['details']['weights'] = $dimensionsCheck;
+            }
+        } catch (Exception $e) {
+            $result['details']['weights'] = [
+                'status' => false,
+                'msg' => 'Błąd weryfikacji wymiarów: ' . $e->getMessage(),
+            ];
+        }
+
         $wholesaler->diagnostic_result = json_encode($result);
         $wholesaler->connection_status = $result['success'] ? 1 : 2;
         try { $wholesaler->update(); } catch (Exception $e) {}
@@ -215,6 +239,138 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             'status' => 'success',
             'html' => $html
         ]));
+    }
+
+    private function checkStockStatusFromRawTable($wholesaler)
+    {
+        if (!Validate::isLoadedObject($wholesaler) || empty($wholesaler->raw_table_name)) {
+            return null;
+        }
+
+        $db = Db::getInstance();
+        $rawTable = (string)$wholesaler->raw_table_name;
+        $fullTableName = _DB_PREFIX_ . pSQL($rawTable);
+        $fullTableNameSql = bqSQL($fullTableName);
+
+        $tableExists = (bool)$db->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = '" . pSQL($fullTableName) . "'"
+        );
+        if (!$tableExists) {
+            return [
+                'status' => false,
+                'msg' => 'Brak tabeli danych hurtowni.',
+            ];
+        }
+
+        $columnExists = (bool)$db->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = '" . pSQL($fullTableName) . "'
+             AND COLUMN_NAME = 'ilosc'"
+        );
+
+        if (!$columnExists) {
+            return [
+                'status' => false,
+                'msg' => 'Brak kolumny ilosc w tabeli danych.',
+            ];
+        }
+
+        $rowsWithStock = (int)$db->getValue(
+            "SELECT COUNT(*) FROM `" . $fullTableNameSql . "`
+             WHERE `ilosc` IS NOT NULL
+             AND TRIM(`ilosc`) <> ''"
+        );
+
+        if ($rowsWithStock > 0) {
+            return [
+                'status' => true,
+                'msg' => 'Stany potwierdzone na podstawie kolumny ilosc w tabeli hurtowni (rekordy: ' . $rowsWithStock . ').',
+            ];
+        }
+
+        return [
+            'status' => false,
+            'msg' => 'Brak wartości w kolumnie ilosc (stany nie zostały jeszcze zaimportowane).',
+        ];
+    }
+
+
+    private function checkDimensionsStatusFromRawTable($wholesaler)
+    {
+        if (!Validate::isLoadedObject($wholesaler) || empty($wholesaler->raw_table_name)) {
+            return null;
+        }
+
+        $db = Db::getInstance();
+        $rawTable = (string)$wholesaler->raw_table_name;
+        $fullTableName = _DB_PREFIX_ . pSQL($rawTable);
+        $fullTableNameSql = bqSQL($fullTableName);
+
+        $tableExists = (bool)$db->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = '" . pSQL($fullTableName) . "'"
+        );
+
+        if (!$tableExists) {
+            return [
+                'status' => false,
+                'msg' => 'Brak tabeli danych hurtowni.',
+            ];
+        }
+
+        $candidateColumns = ['glebokosc', 'szerokosc', 'wysokosc'];
+        $quotedColumns = array_map('pSQL', $candidateColumns);
+        $columnsSql = "'" . implode("','", $quotedColumns) . "'";
+
+        $rows = $db->executeS(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = '" . pSQL($fullTableName) . "'
+             AND COLUMN_NAME IN (" . $columnsSql . ")"
+        );
+
+        $existingColumns = [];
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                if (!empty($row['COLUMN_NAME'])) {
+                    $existingColumns[] = $row['COLUMN_NAME'];
+                }
+            }
+        }
+
+        if (empty($existingColumns)) {
+            return [
+                'status' => false,
+                'msg' => 'Brak kolumn wymiarów (glebokosc/szerokosc/wysokosc) w tabeli danych.',
+            ];
+        }
+
+        $conditions = [];
+        foreach ($existingColumns as $column) {
+            $columnSql = bqSQL($column);
+            $conditions[] = "`" . $columnSql . "` IS NOT NULL AND `" . $columnSql . "` > 0";
+        }
+
+        $rowsWithDimensions = (int)$db->getValue(
+            "SELECT COUNT(*) FROM `" . $fullTableNameSql . "`
+             WHERE (" . implode(' OR ', $conditions) . ")"
+        );
+
+        if ($rowsWithDimensions > 0) {
+            return [
+                'status' => true,
+                'msg' => 'Wymiary potwierdzone na podstawie danych > 0 (' . implode(', ', $existingColumns) . '), rekordy: ' . $rowsWithDimensions . '.',
+            ];
+        }
+
+        return [
+            'status' => false,
+            'msg' => 'Kolumny wymiarów istnieją, ale brak wartości > 0 (same 0 lub brak danych).',
+        ];
     }
 
     public function renderList()
