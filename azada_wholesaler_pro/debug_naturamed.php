@@ -2,99 +2,59 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<h2>Diagnostyka B2B Natura Med</h2>";
+require_once(dirname(__FILE__) . '/../../config/config.inc.php');
+$classFile = dirname(__FILE__) . '/classes/integrations/AzadaNaturaMedB2B.php';
+require_once($classFile);
 
-// DANE DO LOGOWANIA - WPISZ SWOJE
-$login = 'zamowienia@bigbio.pl';
+$login = 'zamowienia@bigbio.pl'; 
 $password = 'Big123456';
+$api = new AzadaNaturaMedB2B();
 
-$cookieFile = __DIR__ . '/debug_cookie_naturamed.txt';
-if (file_exists($cookieFile)) {
-    @unlink($cookieFile);
-}
+echo "<h2>1. Logowanie...</h2>";
+$loginCheck = $api->checkLogin($login, $password);
+echo "Status: " . ($loginCheck ? 'OK' : 'BŁĄD') . "<hr>";
 
-function debugRequest($url, $postData = null, $headers = [], $cookieFile) {
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
-    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/115.0.0.0 Safari/537.36');
+if ($loginCheck) {
+    echo "<h2>2. Przechwycenie surowego HTML z AJAX</h2>";
     
-    if ($postData !== null) {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($postData) ? http_build_query($postData) : $postData);
-    }
-    if (!empty($headers)) {
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    }
+    // Używamy refleksji, aby pobrać surowy HTML z prywatnej metody
+    $reflection = new ReflectionClass('AzadaNaturaMedB2B');
+    $method = $reflection->getMethod('request');
+    $method->setAccessible(true);
     
-    $body = curl_exec($ch);
-    $info = curl_getinfo($ch);
-    $error = curl_error($ch);
-    curl_close($ch);
+    $dateFrom = date('Y-m-d', strtotime("-30 days"));
+    $dateTo = date('Y-m-d');
+    $ajaxUrl = "https://naturamed.com.pl/dokumenty/PobierzListe/Faktura/$dateFrom/$dateTo/False/False";
     
-    return ['body' => $body, 'info' => $info, 'error' => $error];
-}
+    $response = $method->invoke($api, $ajaxUrl, [], ['X-Requested-With: XMLHttpRequest']);
+    $json = json_decode($response, true);
+    $html = isset($json['Html']) ? $json['Html'] : $response;
 
-// 1. Inicjalizacja formularza logowania (pobranie ukrytych tokenów)
-echo "<b>1. GET /logowanie</b><br>";
-$res1 = debugRequest('https://b2b.natura-med.pl/logowanie', null, [], $cookieFile);
-echo "HTTP Code: " . $res1['info']['http_code'] . "<br><br>";
+    echo "<h3>Analiza pierwszego wiersza tabeli:</h3>";
+    $dom = new DOMDocument();
+    @$dom->loadHTML('<?xml encoding="UTF-8"><html><body>' . $html . '</body></html>');
+    $xpath = new DOMXPath($dom);
+    $rows = $xpath->query('//tr[td]');
 
-// Wyszukujemy ukryte pola (CSRF token itp.)
-$hiddenFields = [];
-if (preg_match_all('/<input[^>]+type="hidden"[^>]+name="([^"]+)"[^>]+value="([^"]*)"/i', $res1['body'], $matches)) {
-    foreach ($matches[1] as $index => $name) {
-        $hiddenFields[$name] = $matches[2][$index];
+    if ($rows->length > 0) {
+        $firstRow = $rows->item(0);
+        echo "Liczba znalezionych kolumn: " . $firstRow->getElementsByTagName('td')->length . "<br>";
+        
+        // Zrzucamy cały HTML wiersza do podejrzenia atrybutów
+        echo "<h4>Surowy kod HTML wiersza (szukamy ID):</h4>";
+        echo "<textarea style='width:100%; height:300px; background:#222; color:#0f0;'>" . htmlspecialchars($dom->saveHTML($firstRow)) . "</textarea>";
+        
+        echo "<h4>Wszystkie znalezione atrybuty 'data-' w tym wierszu:</h4>";
+        $allElements = $xpath->query('.//*', $firstRow);
+        foreach ($allElements as $el) {
+            foreach ($el->attributes as $attr) {
+                if (stripos($attr->nodeName, 'data-') !== false || stripos($attr->nodeName, 'id') !== false) {
+                    echo "Element <b>&lt;" . $el->nodeName . "&gt;</b> ma atrybut <b>" . $attr->nodeName . "</b> = <code>" . $attr->nodeValue . "</code><br>";
+                }
+            }
+        }
+    } else {
+        echo "<b style='color:red;'>Nie znaleziono żadnych wierszy w odpowiedzi AJAX!</b>";
+        echo "Pełna odpowiedź serwera:<pre>" . htmlspecialchars($response) . "</pre>";
     }
 }
-
-// 2. Logowanie
-echo "<b>2. POST /logowanie</b><br>";
-$postData = array_merge($hiddenFields, [
-    'Uzytkownik' => $login,
-    'Haslo' => $password,
-    'login' => $login,
-    'password' => $password
-]);
-$res2 = debugRequest('https://b2b.natura-med.pl/logowanie', $postData, [], $cookieFile);
-echo "HTTP Code: " . $res2['info']['http_code'] . "<br><br>";
-
-// 3. Sprawdzenie, czy logowanie się udało
-echo "<b>3. GET /faktury</b><br>";
-$res3 = debugRequest('https://b2b.natura-med.pl/faktury', null, [], $cookieFile);
-echo "HTTP Code: " . $res3['info']['http_code'] . "<br>";
-$isLoggedIn = (strpos($res3['body'], 'Wyloguj') !== false || strpos($res3['body'], 'logout') !== false || strpos($res3['body'], 'Wylogowanie') !== false);
-echo "Czy poprawnie zalogowano? " . ($isLoggedIn ? '<span style="color:green;font-weight:bold;">TAK</span>' : '<span style="color:red;font-weight:bold;">NIE</span>') . "<br><br>";
-
-file_put_contents(__DIR__ . '/natura_01_faktury_baza.html', $res3['body']);
-
-// 4. Pobieranie danych faktur (symulacja tak, jak to robi moduł)
-echo "<b>4. Próba pobrania AJAX (Wszystkie faktury)</b><br>";
-$ajaxHeaders = [
-    'X-Requested-With: XMLHttpRequest',
-    'Referer: https://b2b.natura-med.pl/faktury'
-];
-$dateFrom = date('Y-m-d\T00:00:00', strtotime("-30 days"));
-$dateTo = date('Y-m-d\T23:59:59');
-
-$queryAll = http_build_query([
-    'dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'modeType' => 10, 'orderColumn' => 'CreationDate', 'isDescendingOrder' => 'true', 'page' => 1
-]);
-$res4 = debugRequest('https://b2b.natura-med.pl/faktury?' . $queryAll, null, $ajaxHeaders, $cookieFile);
-echo "HTTP Code: " . $res4['info']['http_code'] . " | Rozmiar: " . strlen($res4['body']) . " bajtów<br>";
-file_put_contents(__DIR__ . '/natura_02_wszystkie_faktury.txt', $res4['body']);
-
-// 5. Pobieranie nieopłaconych
-echo "<br><b>5. Próba pobrania AJAX (Do zapłaty)</b><br>";
-$queryUnpaid = http_build_query([
-    'dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'modeType' => 0, 'orderColumn' => 'CreationDate', 'isDescendingOrder' => 'true', 'page' => 1
-]);
-$res5 = debugRequest('https://b2b.natura-med.pl/faktury?' . $queryUnpaid, null, $ajaxHeaders, $cookieFile);
-echo "HTTP Code: " . $res5['info']['http_code'] . " | Rozmiar: " . strlen($res5['body']) . " bajtów<br>";
-file_put_contents(__DIR__ . '/natura_03_nieoplacone_faktury.txt', $res5['body']);
-
-echo "<h3>Wykonano!</h3>";
-?>
