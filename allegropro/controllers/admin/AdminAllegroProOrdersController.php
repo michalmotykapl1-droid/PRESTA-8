@@ -119,6 +119,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     public function displayAjaxImportProcessSingle() {
         $cfId = Tools::getValue('checkout_form_id');
         $step = Tools::getValue('step'); // 'create' lub 'fix'
+        $accId = (int)Tools::getValue('id_allegropro_account');
 
         if (!$cfId) $this->ajaxDie(json_encode(['success' => false, 'message' => 'No ID']));
         if (!$step) $this->ajaxDie(json_encode(['success' => false, 'message' => 'No Step']));
@@ -126,7 +127,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         list(, , $processor) = $this->getServices();
 
         try {
-            $result = $processor->processSingleOrder($cfId, $step);
+            $result = $processor->processSingleOrder($cfId, $step, $accId > 0 ? $accId : null);
             $this->ajaxDie(json_encode($result)); 
         } catch (Exception $e) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => $e->getMessage()]));

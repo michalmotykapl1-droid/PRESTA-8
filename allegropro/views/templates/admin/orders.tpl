@@ -206,12 +206,14 @@ var ImportManager = {
             return;
         }
 
-        var cfId = list[index];
+        var tokenParts = String(list[index] || '').split('|');
+        var accId = tokenParts.length > 1 ? parseInt(tokenParts[0], 10) : 0;
+        var cfId = tokenParts.length > 1 ? tokenParts.slice(1).join('|') : String(list[index] || '');
 
         $.ajax({
             url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
             type: 'POST',
-            data: { checkout_form_id: cfId, step: 'create' }, // STEP CREATE
+            data: { checkout_form_id: cfId, step: 'create', id_allegropro_account: accId }, // STEP CREATE
             dataType: 'json',
             success: (res) => {
                 if(res.success) {
@@ -250,12 +252,14 @@ var ImportManager = {
             return;
         }
 
-        var cfId = list[index];
+        var tokenParts = String(list[index] || '').split('|');
+        var accId = tokenParts.length > 1 ? parseInt(tokenParts[0], 10) : 0;
+        var cfId = tokenParts.length > 1 ? tokenParts.slice(1).join('|') : String(list[index] || '');
 
         $.ajax({
             url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
             type: 'POST',
-            data: { checkout_form_id: cfId, step: 'fix' }, // STEP FIX
+            data: { checkout_form_id: cfId, step: 'fix', id_allegropro_account: accId }, // STEP FIX
             dataType: 'json',
             success: (res) => {
                 if(res.success) {

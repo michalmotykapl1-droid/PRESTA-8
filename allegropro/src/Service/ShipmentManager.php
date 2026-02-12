@@ -55,7 +55,7 @@ class ShipmentManager
 
     public function detectCarrierMode(string $methodName): string
     {
-        $nameLower = mb_strtolower($methodName);
+        $nameLower = function_exists('mb_strtolower') ? mb_strtolower($methodName, 'UTF-8') : strtolower($methodName);
         $boxKeywords = ['paczkomat', 'one box', 'one punkt', 'odbiór w punkcie', 'automat'];
         foreach ($boxKeywords as $keyword) {
             if (strpos($nameLower, $keyword) !== false) {
@@ -263,7 +263,7 @@ class ShipmentManager
                 // Jeśli u Ciebie to działało jako string, to zostawiamy string.
                 // UWAGA: Standardowo API chce {id: "..."}. Jeśli to nie zadziała, to znaczy że Twój kod
                 // używa specyficznej wersji. Ale trzymam się wzorca:
-                $receiver['point'] = $cleanPoint; 
+                $receiver['point'] = ['id' => $cleanPoint];
             }
         }
 
@@ -287,15 +287,15 @@ class ShipmentManager
                 // Wymiary "Płaskie" ale obiektowe - TO JEST KLUCZ
                 'length' => [
                     'value' => (string)(int)($dims['length']??10), 
-                    'unit' => 'CENTIMETER' // Zgodnie z Twoim kodem (L.p.)
+                    'unit' => 'CENTIMETERS'
                 ],
                 'width' => [
                     'value' => (string)(int)($dims['width']??10), 
-                    'unit' => 'CENTIMETER'
+                    'unit' => 'CENTIMETERS'
                 ],
                 'height' => [
                     'value' => (string)(int)($dims['height']??10), 
-                    'unit' => 'CENTIMETER'
+                    'unit' => 'CENTIMETERS'
                 ],
                 'content' => 'Towary handlowe'
             ]]

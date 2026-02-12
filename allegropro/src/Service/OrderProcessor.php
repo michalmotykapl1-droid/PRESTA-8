@@ -29,9 +29,13 @@ class OrderProcessor
         $this->repo = $repo;
     }
 
-    public function processSingleOrder(string $cfId, string $step): array
+    public function processSingleOrder(string $cfId, string $step, ?int $accountId = null): array
     {
-        $row = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order WHERE checkout_form_id = '".pSQL($cfId)."'");
+        $where = "checkout_form_id = '" . pSQL($cfId) . "'";
+        if ($accountId !== null) {
+            $where .= ' AND id_allegropro_account = ' . (int)$accountId;
+        }
+        $row = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order WHERE " . $where . " ORDER BY id_allegropro_order DESC");
         
         if (!$row) {
             return ['success' => false, 'message' => 'Brak zamówienia w bazie lokalnej.'];
@@ -101,7 +105,7 @@ class OrderProcessor
                 }
 
                 // 2. Oznaczamy w bazie jako "Obsłużone"
-                $this->repo->markAsFinished($cfId);
+                $this->repo->markAsFinishedForAccount((int)$row['id_allegropro_account'], $cfId);
 
                 return ['success' => true, 'action' => $action, 'id_order' => $existingId];
             } else {
