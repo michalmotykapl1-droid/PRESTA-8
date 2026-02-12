@@ -34,6 +34,7 @@ class AdminAzadaVerificationController extends ModuleAdminController
         
         $invoices = Db::getInstance()->executeS($sql);
         $autoQueue = [];
+        $skipAutoRun = ((int)Tools::getValue('analyzed') === 1);
 
         if ($invoices) {
             foreach ($invoices as $key => &$inv) {
@@ -48,7 +49,9 @@ class AdminAzadaVerificationController extends ModuleAdminController
                     continue; 
                 }
 
-                if (empty($inv['id_analysis'])) {
+                // WYMUSZENIE PEŁNEGO PRZELICZENIA przy każdym wejściu w zakładkę,
+                // ale bez zapętlenia po wewnętrznym reloadzie (analyzed=1).
+                if (!$skipAutoRun) {
                     $autoQueue[] = (int)$inv['id_invoice'];
                 }
 
@@ -68,55 +71,48 @@ class AdminAzadaVerificationController extends ModuleAdminController
                     $inv['status_label'] = 'BRAK ZAMÓWIENIA';
                 }
 
-                $candidatesSql = "SELECT external_doc_number, amount_netto, status, doc_date
-                                  FROM "._DB_PREFIX_."azada_wholesaler_pro_order_files 
-                                  WHERE id_wholesaler = ".(int)$inv['id_wholesaler']." 
-                                  AND doc_date = '".pSQL($inv['doc_date'])."'";
-                
-                $candidates = Db::getInstance()->executeS($candidatesSql);
-                
-                if (empty($candidates)) {
-                    $allInvoices = Db::getInstance()->executeS("SELECT doc_date, amount_netto FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE id_wholesaler = ".(int)$inv['id_wholesaler']);
-                    $occupiedDates = [];
-                    foreach ($allInvoices as $tmpInv) {
-                        $amt = (float)str_replace([',', ' ', 'PLN'], ['.', '', ''], $tmpInv['amount_netto']);
-                        if ($amt >= 0) $occupiedDates[] = $tmpInv['doc_date'];
+                // Pokazujemy WYŁĄCZNIE dokumenty CSV, które realnie zostały użyte
+                // do obliczenia zgodności (na podstawie zapisanych analyzed_orders).
+                $candidates = [];
+
+                if (!empty($inv['analyzed_orders'])) {
+                    $docNumbersRaw = explode(',', $inv['analyzed_orders']);
+                    $docNumbers = [];
+                    foreach ($docNumbersRaw as $dn) {
+                        $dn = trim($dn);
+                        if ($dn !== '' && !in_array($dn, $docNumbers)) {
+                            $docNumbers[] = $dn;
+                        }
                     }
 
-                    $dateFrom = date('Y-m-d', strtotime($inv['doc_date'] . ' -7 days'));
-                    $dateTo = $inv['doc_date'];
-                    
-                    $rawCandidates = Db::getInstance()->executeS("SELECT external_doc_number, amount_netto, status, doc_date
-                                    FROM "._DB_PREFIX_."azada_wholesaler_pro_order_files 
-                                    WHERE id_wholesaler = ".(int)$inv['id_wholesaler']." 
-                                    AND doc_date BETWEEN '$dateFrom' AND '$dateTo'
-                                    ORDER BY doc_date DESC");
-                    
-                    if ($rawCandidates) {
-                        foreach ($rawCandidates as $rc) {
-                            if (!in_array($rc['doc_date'], $occupiedDates)) {
-                                $candidates[] = $rc;
-                            }
+                    foreach ($docNumbers as $docNumber) {
+                        $rowsDoc = Db::getInstance()->executeS("SELECT external_doc_number, amount_netto, status, doc_date
+                            FROM "._DB_PREFIX_."azada_wholesaler_pro_order_files
+                            WHERE id_wholesaler = ".(int)$inv['id_wholesaler']."
+                            AND external_doc_number = '".pSQL($docNumber)."'
+                            ORDER BY id_file DESC");
+
+                        if (!empty($rowsDoc)) {
+                            $candidates[] = $rowsDoc[0]; // najnowsza wersja dokumentu
                         }
                     }
                 }
 
                 $sumCandidates = 0.0;
-                $uniqueCandidates = []; // Przechowujemy unikalne kandydatury do wyświetlenia
+                $uniqueCandidates = []; // unikalne i użyte w analizie
                 $processedDocs = [];
 
                 if ($candidates) {
                     foreach ($candidates as $cand) {
-                        // --- UNIKALNOŚĆ ZAMÓWIEŃ (WIDOK) ---
                         if (in_array($cand['external_doc_number'], $processedDocs)) continue;
                         $processedDocs[] = $cand['external_doc_number'];
-                        
+
                         $st = mb_strtolower($cand['status'], 'UTF-8');
                         $cand['badge_class'] = 'default';
                         $isCancelled = false;
 
                         if (strpos($st, 'anulowane') !== false || strpos($st, 'brak') !== false) {
-                            $cand['badge_class'] = 'danger'; 
+                            $cand['badge_class'] = 'danger';
                             $isCancelled = true;
                         } elseif (strpos($st, 'zrealizowane') !== false) {
                             $cand['badge_class'] = 'success';
@@ -127,11 +123,11 @@ class AdminAzadaVerificationController extends ModuleAdminController
                             $cAmt = str_replace(',', '.', $cAmt);
                             $sumCandidates += (float)$cAmt;
                         }
-                        
+
                         $uniqueCandidates[] = $cand;
                     }
                 }
-                
+
                 $inv['candidate_orders'] = $uniqueCandidates;
                 $inv['candidate_sum_formatted'] = number_format($sumCandidates, 2, ',', ' ') . ' PLN';
             }
@@ -165,6 +161,47 @@ class AdminAzadaVerificationController extends ModuleAdminController
         
         if (!$rows) die('<div class="alert alert-info">Brak zarejestrowanych różnic.</div>');
 
+        // Grupowanie różnic po znaku wartości (na plus / na minus / zero)
+        // oraz przypisanie koloru w kolumnie "Różnica".
+        $plusRows = [];
+        $minusRows = [];
+        $zeroRows = [];
+
+        foreach ($rows as $row) {
+            $rawDiff = isset($row['diff_val']) ? (string)$row['diff_val'] : '';
+
+            // Wyciągamy ostatnią liczbę z tekstu, np. "Kwota: +12.06 PLN".
+            // Fallback: 0 gdy brak liczby.
+            $amount = 0.0;
+            if (preg_match('/([+-]?\d+(?:\.\d+)?)(?!.*[+-]?\d+(?:\.\d+)?)/', $rawDiff, $m)) {
+                $amount = (float)$m[1];
+            }
+
+            $row['_diff_amount'] = $amount;
+            if ($amount > 0) {
+                $row['_diff_sign'] = 'plus';
+                $plusRows[] = $row;
+            } elseif ($amount < 0) {
+                $row['_diff_sign'] = 'minus';
+                $minusRows[] = $row;
+            } else {
+                $row['_diff_sign'] = 'zero';
+                $zeroRows[] = $row;
+            }
+        }
+
+        // W ramach grup sortujemy po wartości bezwzględnej malejąco,
+        // żeby największe różnice były na górze.
+        $sortByAbsDesc = function ($a, $b) {
+            $aa = abs((float)$a['_diff_amount']);
+            $bb = abs((float)$b['_diff_amount']);
+            if ($aa == $bb) return 0;
+            return ($aa < $bb) ? 1 : -1;
+        };
+        usort($plusRows, $sortByAbsDesc);
+        usort($minusRows, $sortByAbsDesc);
+        usort($zeroRows, $sortByAbsDesc);
+
         $html = '<table class="table table-bordered table-condensed" style="background:#fff; font-size:12px;">
             <thead>
                 <tr class="active" style="color:#c0392b;">
@@ -179,41 +216,68 @@ class AdminAzadaVerificationController extends ModuleAdminController
                 </tr>
             </thead>
             <tbody>';
-        
-        foreach ($rows as $r) {
-            $badge = '<span class="label label-danger">BŁĄD</span>';
-            $rowStyle = '';
-            $iconAlert = '';
 
-            if ($r['error_type'] == 'PRICE') $badge = '<span class="label label-warning">CENA</span>';
-            if ($r['error_type'] == 'QTY') $badge = '<span class="label label-primary">ILOŚĆ</span>';
-            if ($r['error_type'] == 'MISSING_IN_ORDER') $badge = '<span class="label label-danger" style="background:#d9534f;">BRAK W ZAMÓWIENIU</span>';
-            
-            if ($r['error_type'] == 'FOUND_IN_CANCELLED') {
-                $badge = '<span class="label label-danger" style="background:#000; border:1px solid red;">Z ANULOWANYCH</span>';
-                $rowStyle = 'background-color:#ffe6e6;';
-                $iconAlert = '<i class="icon-warning text-danger" style="font-size:14px; margin-right:5px;"></i> ';
+        $renderRows = function ($list, $sectionTitle, $sectionColor) {
+            $htmlPart = '';
+
+            if (!empty($list)) {
+                $htmlPart .= '<tr style="background:' . $sectionColor . '; font-weight:bold;">
+                    <td colspan="8" style="text-transform:uppercase; letter-spacing:0.3px;">' . $sectionTitle . '</td>
+                </tr>';
             }
 
-            if ($r['error_type'] == 'MISSING_IN_INVOICE') {
-                $badge = '<span class="label label-info" style="background:#999;">BRAK NA FV</span>';
-                $rowStyle = 'background-color:#f9f9f9; color:#777;';
+            foreach ($list as $r) {
+                $badge = '<span class="label label-danger">BŁĄD</span>';
+                $rowStyle = '';
+                $iconAlert = '';
+
+                if ($r['error_type'] == 'PRICE') $badge = '<span class="label label-warning">CENA</span>';
+                if ($r['error_type'] == 'QTY') $badge = '<span class="label label-primary">ILOŚĆ</span>';
+                if ($r['error_type'] == 'MISSING_IN_ORDER') $badge = '<span class="label label-danger" style="background:#d9534f;">BRAK W ZAMÓWIENIU</span>';
+                
+                if ($r['error_type'] == 'FOUND_IN_CANCELLED') {
+                    $badge = '<span class="label label-danger" style="background:#000; border:1px solid red;">Z ANULOWANYCH</span>';
+                    $rowStyle = 'background-color:#ffe6e6;';
+                    $iconAlert = '<i class="icon-warning text-danger" style="font-size:14px; margin-right:5px;"></i> ';
+                }
+
+                if ($r['error_type'] == 'MISSING_IN_INVOICE') {
+                    $badge = '<span class="label label-info" style="background:#999;">BRAK NA FV</span>';
+                    $rowStyle = 'background-color:#f9f9f9; color:#777;';
+                }
+
+                $invNum = isset($r['doc_number_invoice']) ? $r['doc_number_invoice'] : '-';
+                $srcOrd = isset($r['source_orders']) ? $r['source_orders'] : '-';
+                $sku = isset($r['wholesaler_sku']) ? $r['wholesaler_sku'] : '-';
+
+                $diffColor = '#c0392b';
+                if (isset($r['_diff_sign']) && $r['_diff_sign'] === 'minus') {
+                    $diffColor = '#1e8e3e';
+                } elseif (isset($r['_diff_sign']) && $r['_diff_sign'] === 'zero') {
+                    $diffColor = '#777';
+                }
+
+                $htmlPart .= '<tr style="'.$rowStyle.'">
+                    <td style="font-weight:bold;">'.$invNum.'</td>
+                    <td style="font-size:10px; color:#555;">'.$srcOrd.'</td>
+                    <td style="font-family:monospace; font-weight:bold;">'.$sku.'</td>
+                    <td>'.$iconAlert.'<strong>'.$r['product_name'].'</strong><br><small class="text-muted">'.$r['product_identifier'].'</small></td>
+                    <td>'.$badge.'</td>
+                    <td class="text-right">'.$r['val_invoice'].'</td>
+                    <td class="text-right">'.$r['val_order'].'</td>
+                    <td class="text-right" style="font-weight:bold; color:'.$diffColor.';">'.$r['diff_val'].'</td>
+                </tr>';
             }
 
-            $invNum = isset($r['doc_number_invoice']) ? $r['doc_number_invoice'] : '-';
-            $srcOrd = isset($r['source_orders']) ? $r['source_orders'] : '-';
-            $sku = isset($r['wholesaler_sku']) ? $r['wholesaler_sku'] : '-';
+            return $htmlPart;
+        };
 
-            $html .= '<tr style="'.$rowStyle.'">
-                <td style="font-weight:bold;">'.$invNum.'</td>
-                <td style="font-size:10px; color:#555;">'.$srcOrd.'</td>
-                <td style="font-family:monospace; font-weight:bold;">'.$sku.'</td>
-                <td>'.$iconAlert.'<strong>'.$r['product_name'].'</strong><br><small class="text-muted">'.$r['product_identifier'].'</small></td>
-                <td>'.$badge.'</td>
-                <td class="text-right">'.$r['val_invoice'].'</td>
-                <td class="text-right">'.$r['val_order'].'</td>
-                <td class="text-right" style="font-weight:bold; color:#c0392b;">'.$r['diff_val'].'</td>
-            </tr>';
+        $html .= $renderRows($plusRows, 'RÓŻNICE NA PLUS (+)', '#ffeaea');
+        $html .= $renderRows($minusRows, 'RÓŻNICE NA MINUS (-)', '#eaf7ec');
+        $html .= $renderRows($zeroRows, 'RÓŻNICE ZERO (0)', '#f3f3f3');
+
+        if (empty($plusRows) && empty($minusRows) && empty($zeroRows)) {
+            $html .= '<tr><td colspan="8" class="text-center text-muted">Brak danych do wyświetlenia.</td></tr>';
         }
 
         $html .= '</tbody></table>';

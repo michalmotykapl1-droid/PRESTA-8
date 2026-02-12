@@ -35,8 +35,9 @@
     </div>
     
     <div class="alert alert-info">
-        Moduł automatycznie paruje Faktury z Zamówieniami na podstawie <strong>DATY</strong> wystawienia dokumentu.<br>
-        System pobiera <strong>wszystkie</strong> zamówienia z dnia wystawienia faktury i sumuje ich zawartość do porównania.
+        Moduł automatycznie paruje Faktury z Zamówieniami na podstawie <strong>zawartości pozycji</strong> (EAN/SKU/ID),
+        analizując dokumenty z dnia faktury oraz z dnia poprzedniego (<strong>D-1</strong>).<br>
+        System wybiera najlepsze dopasowanie po pokryciu pozycji i ilości, a następnie liczy różnice.
     </div>
 
     <table class="table table-hover">
@@ -147,7 +148,9 @@
         function processNextItem() {
             if (processedItems >= totalItems) {
                 setTimeout(function(){ 
-                    location.reload(); // Przeładowanie po zakończeniu, aby pokazać wyniki
+                    // Jednorazowy reload po auto-analizie (bez ponownego auto-startu).
+                    var target = controllerUrl + '&analyzed=1';
+                    window.location.href = target;
                 }, 1000);
                 return;
             }

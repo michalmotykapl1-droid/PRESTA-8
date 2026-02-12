@@ -6,9 +6,24 @@ class AzadaDbRepository
     {
         $db = Db::getInstance();
         $sql1 = "CREATE TABLE IF NOT EXISTS `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_files` ( `id_invoice` int(11) NOT NULL AUTO_INCREMENT, `id_wholesaler` int(11) NOT NULL, `doc_number` varchar(100) DEFAULT NULL, `doc_date` varchar(50) DEFAULT NULL, `amount_netto` varchar(50) DEFAULT NULL, `payment_deadline` varchar(50) DEFAULT NULL, `is_paid` tinyint(1) DEFAULT 0, `file_name` varchar(255) DEFAULT NULL, `is_downloaded` tinyint(1) DEFAULT 0, `date_add` datetime NOT NULL, `date_upd` datetime NOT NULL, PRIMARY KEY (`id_invoice`), KEY `doc_number` (`doc_number`) ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
-        $sql2 = "CREATE TABLE IF NOT EXISTS `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_details` ( `id_detail` int(11) NOT NULL AUTO_INCREMENT, `id_invoice` int(11) NOT NULL, `doc_number` varchar(100) NOT NULL, `ean` varchar(50) DEFAULT NULL, `name` varchar(255) DEFAULT NULL, `quantity` int(11) DEFAULT 0, `price_net` decimal(20,2) DEFAULT 0.00, `vat_rate` int(11) DEFAULT 0, PRIMARY KEY (`id_detail`), KEY `id_invoice` (`id_invoice`) ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
+        $sql2 = "CREATE TABLE IF NOT EXISTS `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_details` ( `id_detail` int(11) NOT NULL AUTO_INCREMENT, `id_invoice` int(11) NOT NULL, `doc_number` varchar(100) NOT NULL, `product_id` varchar(64) DEFAULT NULL, `ean` varchar(50) DEFAULT NULL, `name` varchar(255) DEFAULT NULL, `quantity` int(11) DEFAULT 0, `price_net` decimal(20,2) DEFAULT 0.00, `vat_rate` int(11) DEFAULT 0, PRIMARY KEY (`id_detail`), KEY `id_invoice` (`id_invoice`) ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
         $db->execute($sql1);
         $db->execute($sql2);
+
+        // Migracje bezpieczeństwa dla starszych instalacji
+        try {
+            $idx = $db->executeS("SHOW INDEX FROM `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_files` WHERE Key_name = 'uniq_wholesaler_doc'");
+            if (empty($idx)) {
+                $db->execute("ALTER TABLE `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_files` ADD UNIQUE KEY `uniq_wholesaler_doc` (`id_wholesaler`, `doc_number`)");
+            }
+        } catch (Exception $e) {}
+
+        try {
+            $col = $db->executeS("SHOW COLUMNS FROM `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_details` LIKE 'product_id'");
+            if (empty($col)) {
+                $db->execute("ALTER TABLE `" . _DB_PREFIX_ . "azada_wholesaler_pro_invoice_details` ADD `product_id` VARCHAR(64) DEFAULT NULL AFTER `doc_number`");
+            }
+        } catch (Exception $e) {}
     }
 
     public static function getFileByDocNumber($docNumber, $idWholesaler = null)
@@ -141,9 +156,14 @@ class AzadaDbRepository
 
     // --- FAKTURY (Invoices) ---
 
-    public static function getInvoiceByNumber($docNumber)
+    public static function getInvoiceByNumber($docNumber, $idWholesaler = null)
     {
-        $invoice = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE doc_number = '".pSQL($docNumber)."'");
+        $sql = "SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_invoice_files WHERE doc_number = '".pSQL($docNumber)."'";
+        if ($idWholesaler !== null) {
+            $sql .= " AND id_wholesaler = " . (int)$idWholesaler;
+        }
+        $sql .= " ORDER BY id_invoice DESC";
+        $invoice = Db::getInstance()->getRow($sql);
         
         // AUTO-CZYSZCZENIE "W LOCIE": Weryfikacja istnienia fizycznego pliku na serwerze
         if ($invoice && !empty($invoice['file_name']) && (int)$invoice['is_downloaded'] == 1) {
@@ -163,7 +183,7 @@ class AzadaDbRepository
     {
         $db = Db::getInstance();
         $table = 'azada_wholesaler_pro_invoice_files';
-        $existing = self::getInvoiceByNumber($docNumber);
+        $existing = self::getInvoiceByNumber($docNumber, (int)$idWholesaler);
         
         $data = [
             'doc_number' => pSQL($docNumber),
@@ -199,6 +219,7 @@ class AzadaDbRepository
             $db->insert($table, [
                 'id_invoice' => (int)$idInvoice,
                 'doc_number' => pSQL($docNumber),
+                'product_id' => isset($row['product_id']) ? pSQL($row['product_id']) : null,
                 'ean' => pSQL($row['ean']),
                 'name' => pSQL($row['name']),
                 'quantity' => (int)$row['quantity'],
