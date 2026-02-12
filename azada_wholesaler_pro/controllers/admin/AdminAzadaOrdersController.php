@@ -16,6 +16,16 @@ foreach (glob(_PS_MODULE_DIR_ . 'azada_wholesaler_pro/classes/integrations/*.php
 
 class AdminAzadaOrdersController extends ModuleAdminController
 {
+    private function normalizeAmount($value)
+    {
+        $value = trim((string)$value);
+        if ($value === '') {
+            return '-';
+        }
+
+        return preg_replace('/\s+/', ' ', $value);
+    }
+
     public function __construct()
     {
         $this->bootstrap = true;
@@ -61,6 +71,46 @@ class AdminAzadaOrdersController extends ModuleAdminController
         return class_exists($className) ? new $className() : null;
     }
 
+
+    private function normalizeStatusToBioPlanet($status)
+    {
+        $raw = trim((string)$status);
+        if ($raw === '') {
+            return '';
+        }
+
+        $statusLower = mb_strtolower($raw, 'UTF-8');
+
+        if (strpos($statusLower, 'różnic') !== false || strpos($statusLower, 'roznic') !== false) {
+            return 'ZAMÓWIENIE RÓŻNICOWE';
+        }
+
+        if (strpos($statusLower, 'nowe') !== false) {
+            return 'NOWE ZAMÓWIENIE';
+        }
+
+        if (strpos($statusLower, 'anul') !== false || strpos($statusLower, 'brak towar') !== false) {
+            return 'ANULOWANE - BRAK TOWARU';
+        }
+
+        if (strpos($statusLower, 'zrealiz') !== false) {
+            return 'ZREALIZOWANE';
+        }
+
+        if (
+            strpos($statusLower, 'przekazan') !== false ||
+            strpos($statusLower, 'niezrealiz') !== false ||
+            strpos($statusLower, 'w realiz') !== false ||
+            strpos($statusLower, 'w trakcie') !== false ||
+            strpos($statusLower, 'realizacji') !== false ||
+            strpos($statusLower, 'oczek') !== false
+        ) {
+            return 'PRZEKAZANE DO MAGAZYNU';
+        }
+
+        return mb_strtoupper($raw, 'UTF-8');
+    }
+
     public function ajaxProcessFetchList()
     {
         AzadaWholesaler::performMaintenance();
@@ -88,16 +138,30 @@ class AdminAzadaOrdersController extends ModuleAdminController
                     usort($result['data'], function($a, $b) { return strtotime($b['date']) - strtotime($a['date']); });
 
                     foreach ($result['data'] as &$row) {
+                        $row['date'] = isset($row['date']) ? trim((string)$row['date']) : '';
+                        $row['number'] = isset($row['number']) ? trim((string)$row['number']) : '';
+                        $row['netto'] = $this->normalizeAmount(isset($row['netto']) ? $row['netto'] : '');
+                        $row['brutto'] = $this->normalizeAmount(isset($row['brutto']) ? $row['brutto'] : '');
+                        $row['options'] = (isset($row['options']) && is_array($row['options'])) ? $row['options'] : [];
+
+                        if ($row['number'] === '') {
+                            continue;
+                        }
+
                         $row['id_wholesaler'] = $wholesaler['id_wholesaler'];
                         $row['wholesaler_name'] = $wholesaler['name'];
 
+                        $row['status'] = $this->normalizeStatusToBioPlanet(isset($row['status']) ? $row['status'] : '');
                         $statusLower = mb_strtolower($row['status'], 'UTF-8');
                         $row['pill_class'] = 'pill-default';
-                        
-                        // ZMIANA: Skróciłem szukane słowo do "przekazan" aby wyłapał i "przekazane" (BioPlanet) i "Przekazano" (EkoWital)
-                        if (stripos($statusLower, 'zrealizowane') !== false) $row['pill_class'] = 'pill-success';
-                        elseif (stripos($statusLower, 'brak') !== false || stripos($statusLower, 'anulowane') !== false) $row['pill_class'] = 'pill-danger';
-                        elseif (stripos($statusLower, 'oczekuje') !== false || stripos($statusLower, 'przekazan') !== false) $row['pill_class'] = 'pill-warning';
+
+                        if (stripos($statusLower, 'zrealizowane') !== false) {
+                            $row['pill_class'] = 'pill-success';
+                        } elseif (stripos($statusLower, 'anulowane') !== false || stripos($statusLower, 'brak towaru') !== false) {
+                            $row['pill_class'] = 'pill-danger';
+                        } elseif (stripos($statusLower, 'przekazane do magazynu') !== false || stripos($statusLower, 'zamówienie różnicowe') !== false || stripos($statusLower, 'nowe zamówienie') !== false) {
+                            $row['pill_class'] = 'pill-warning';
+                        }
 
                         $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number']);
                         $action = AzadaB2BComparator::compare($row['number'], $row['netto'], $row['status'], $dbInfo);
@@ -237,6 +301,7 @@ class AdminAzadaOrdersController extends ModuleAdminController
             $wData = Db::getInstance()->getRow("SELECT name, raw_table_name FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = " . (int)$wholesalerId);
             if ($wData) { $rawTableName = $wData['raw_table_name']; $wholesalerName = $wData['name']; }
         }
+        $skuPrefix = AzadaWholesaler::getSkuPrefixByWholesaler($wholesalerName, $rawTableName);
         $html = '<div style="padding:15px; background-color:#fff;">';
         $html .= '<h5 style="margin-top:0; margin-bottom:10px; color:#555; font-size:12px; font-weight:bold; border-bottom:1px solid #eee; padding-bottom:5px;">Szczegóły Zamówienia: '.$docNumber.'</h5>';
         $html .= '<table class="table table-hover" style="font-size:11px; margin:0;"><thead><tr style="background:#f9f9f9;"><th>SKU Hurtowni</th><th>EAN</th><th>Produkt</th><th class="text-center">Ilość</th><th class="text-right">Netto</th><th class="text-right">Wartość</th></tr></thead><tbody>';
@@ -250,15 +315,39 @@ class AdminAzadaOrdersController extends ModuleAdminController
             $skuDisplay = !empty($row['sku_wholesaler']) ? $row['sku_wholesaler'] : $row['product_id'];
             $ean = trim($row['ean']);
             $foundInRaw = false;
-            if (empty($row['sku_wholesaler']) && !empty($rawTableName) && !empty($ean)) {
+            if (!empty($rawTableName)) {
                 $tableNameFull = _DB_PREFIX_ . pSQL($rawTableName);
                 try {
-                    $foundSku = Db::getInstance()->getValue("SELECT produkt_id FROM `$tableNameFull` WHERE kod_kreskowy = '" . pSQL($ean) . "'");
+                    $foundSku = '';
+                    if (!empty($ean)) {
+                        $foundSku = Db::getInstance()->getValue("SELECT produkt_id FROM `$tableNameFull` WHERE kod_kreskowy = '" . pSQL($ean) . "'");
+                    }
+                    if (empty($foundSku) && !empty($row['product_id'])) {
+                        $foundSku = Db::getInstance()->getValue("SELECT produkt_id FROM `$tableNameFull` WHERE kod = '" . pSQL($row['product_id']) . "'");
+                    }
                     if ($foundSku) { $skuDisplay = $foundSku; $foundInRaw = true; }
+
+                    // EAN uzupełniamy po SKU hurtowni z tabeli produktów (ważne dla NaturaMed).
+                    if (empty($ean)) {
+                        $eanFromRaw = Db::getInstance()->getValue("SELECT kod_kreskowy FROM `$tableNameFull` WHERE produkt_id = '" . pSQL($skuDisplay) . "'");
+                        if ($eanFromRaw) {
+                            $ean = $eanFromRaw;
+                        }
+                    }
                 } catch (Exception $e) {}
             }
-            if (!$foundInRaw && stripos($wholesalerName, 'Bio Planet') !== false) {
-                if (!empty($skuDisplay) && strpos($skuDisplay, 'BP_') === false) $skuDisplay = 'BP_' . $skuDisplay;
+            if (!$foundInRaw) {
+                $skuDisplay = AzadaWholesaler::applySkuPrefix($skuDisplay, $skuPrefix);
+
+                if (!empty($rawTableName) && empty($ean)) {
+                    $tableNameFull = _DB_PREFIX_ . pSQL($rawTableName);
+                    try {
+                        $eanFromRaw = Db::getInstance()->getValue("SELECT kod_kreskowy FROM `$tableNameFull` WHERE produkt_id = '" . pSQL($skuDisplay) . "'");
+                        if ($eanFromRaw) {
+                            $ean = $eanFromRaw;
+                        }
+                    } catch (Exception $e) {}
+                }
             }
             $skuHtml = '<span>'.$skuDisplay.'</span>';
             $quantityHtml = (int)$row['quantity'];
@@ -283,7 +372,7 @@ class AdminAzadaOrdersController extends ModuleAdminController
                     $rowStyle = 'background-color:#fffdf5;';
                 }
             }
-            $html .= '<tr style="'.$rowStyle.'"><td>'.$skuHtml.'</td><td class="text-muted">'.$row['ean'].'</td><td><strong>'.$row['name'].'</strong>'.$correctionNote.'</td><td class="text-center">'.$quantityHtml.'</td><td class="text-right">'.number_format($row['price_net'], 2, ',', ' ').'</td><td class="text-right">'.number_format($valNet, 2, ',', ' ').'</td></tr>';
+            $html .= '<tr style="'.$rowStyle.'"><td>'.$skuHtml.'</td><td class="text-muted">'.$ean.'</td><td><strong>'.$row['name'].'</strong>'.$correctionNote.'</td><td class="text-center">'.$quantityHtml.'</td><td class="text-right">'.number_format($row['price_net'], 2, ',', ' ').'</td><td class="text-right">'.number_format($valNet, 2, ',', ' ').'</td></tr>';
         }
         $html .= '<tr style="background:#eafcff; font-weight:bold; border-top:2px solid #ddd;"><td colspan="5" class="text-right">SUMA ZAMÓWIENIA (Skorygowana):</td><td class="text-right" style="color:#25b9d7;">'.number_format($total, 2, ',', ' ').' PLN</td></tr></tbody></table>';
         $html .= '</div>';

@@ -12,6 +12,21 @@ class AzadaCsvParser
         $content = file_get_contents($filePath);
         if (empty($content)) return [];
 
+        // Awaryjna normalizacja kodowania (szczególnie dla CSV zamówień NaturaMed)
+        if (!preg_match('//u', $content)) {
+            if (function_exists('mb_convert_encoding')) {
+                $converted = @mb_convert_encoding($content, 'UTF-8', 'Windows-1250,ISO-8859-2,CP1250');
+                if (is_string($converted) && $converted !== '') {
+                    $content = $converted;
+                }
+            } elseif (function_exists('iconv')) {
+                $converted = @iconv('Windows-1250', 'UTF-8//IGNORE', $content);
+                if ($converted !== false && $converted !== '') {
+                    $content = $converted;
+                }
+            }
+        }
+
         // Ujednolicenie znaków nowej linii i usunięcie BOM
         $content = str_replace(["\r\n", "\r"], "\n", $content);
         $content = preg_replace('/^[\xef\xbb\xbf]+/', '', $content);
@@ -33,12 +48,23 @@ class AzadaCsvParser
             
             $lineLower = mb_strtolower($line, 'UTF-8');
             
-            // Jeśli wiersz ma minimum 4 kolumny i zawiera słowa kluczowe tabeli produktów:
-            if (count($cols) >= 4 && (strpos($lineLower, 'nazwa') !== false || strpos($lineLower, 'cena') !== false || strpos($lineLower, 'towar') !== false || strpos($lineLower, 'kod') !== false || strpos($lineLower, 'ean') !== false)) {
-                $headerRowIndex = $i;
-                $separator = $sep;
-                $headerLine = $line;
-                break;
+            // Heurystyka nagłówka: wymagamy min. 2 trafień w kolumnach biznesowych,
+            // żeby nie złapać metryczki dokumentu (np. "Kod dokumentu").
+            if (count($cols) >= 4) {
+                $score = 0;
+                foreach ($cols as $hCol) {
+                    $hClean = mb_strtolower(preg_replace('/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/u', '', (string)$hCol), 'UTF-8');
+                    if (in_array($hClean, ['kod', 'sku', 'symbol', 'kodkreskowy', 'ean', 'ilosc', 'ilość', 'cena', 'cenabrutto', 'wartosc', 'wartoscbrutto', 'nazwa', 'towar', 'produkt'])) {
+                        $score++;
+                    }
+                }
+
+                if ($score >= 2 && (strpos($lineLower, 'kod') !== false || strpos($lineLower, 'ean') !== false || strpos($lineLower, 'nazwa') !== false || strpos($lineLower, 'ilosc') !== false || strpos($lineLower, 'cena') !== false)) {
+                    $headerRowIndex = $i;
+                    $separator = $sep;
+                    $headerLine = $line;
+                    break;
+                }
             }
         }
 
@@ -65,23 +91,36 @@ class AzadaCsvParser
             'value_gross' => 10
         ];
 
-        // DYNAMICZNE MAPOWANIE (Dla EkoWitala i innych formatek)
+        // DYNAMICZNE MAPOWANIE (Dla EkoWitala/NaturaMed i innych formatek)
         $detected = false;
+        $hasExplicitEanColumn = false;
         foreach ($header as $i => $col) {
             $colClean = mb_strtolower(preg_replace('/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/u', '', $col), 'UTF-8');
             if (empty($colClean)) continue;
 
-            if (in_array($colClean, ['kodkreskowy', 'kod', 'symbol']) || strpos($colClean, 'ean') !== false) { $map['ean'] = $i; $detected = true; }
-            // ZMIANA TUTAJ: Wyszukujemy 'produktnazwa' lub po prostu części słowa 'nazwa'
-            elseif (in_array($colClean, ['nazwa', 'nazwatowaru', 'towar', 'produkt', 'produktnazwa']) || strpos($colClean, 'nazwa') !== false) { $map['name'] = $i; $detected = true; }
-            elseif (in_array($colClean, ['ilosc', 'ilość', 'sztuk', 'il'])) { $map['quantity'] = $i; $detected = true; }
+            // EAN mapujemy WYŁĄCZNIE po jawnych kolumnach EAN/kod kreskowy.
+            // Kolumny "kod"/"sku"/"symbol" traktujemy jako SKU hurtowni (product_id), nie EAN.
+            if (in_array($colClean, ['kodkreskowy']) || strpos($colClean, 'ean') !== false) {
+                $map['ean'] = $i;
+                $hasExplicitEanColumn = true;
+                $detected = true;
+            }
+            // SKU hurtowni / identyfikator produktu w CSV
+            elseif (in_array($colClean, ['kod', 'sku', 'symbol', 'indeks', 'index', 'id', 'produktid', 'idproduktu'])) {
+                $map['product_id'] = $i;
+                $detected = true;
+            }
+            elseif (in_array($colClean, ['nazwa', 'nazwatowaru', 'towar', 'produkt', 'produktnazwa']) || strpos($colClean, 'nazwa') !== false) {
+                $map['name'] = $i;
+                $detected = true;
+            }
+            elseif (in_array($colClean, ['ilosc', 'ilość', 'sztuk', 'il', 'ilosczamowiona'])) { $map['quantity'] = $i; $detected = true; }
             elseif (in_array($colClean, ['jm', 'jednostka', 'miara'])) { $map['unit'] = $i; $detected = true; }
             elseif (strpos($colClean, 'cenanetto') !== false) { $map['price_net'] = $i; $detected = true; }
             elseif (strpos($colClean, 'wartoscnetto') !== false || strpos($colClean, 'wartośćnetto') !== false) { $map['value_net'] = $i; $detected = true; }
             elseif (strpos($colClean, 'vat') !== false || strpos($colClean, 'stawkavat') !== false || $colClean === 'stawka') { $map['vat_rate'] = $i; $detected = true; }
             elseif (strpos($colClean, 'cenabrutto') !== false) { $map['price_gross'] = $i; $detected = true; }
             elseif (strpos($colClean, 'wartoscbrutto') !== false || strpos($colClean, 'wartośćbrutto') !== false) { $map['value_gross'] = $i; $detected = true; }
-            elseif (in_array($colClean, ['id', 'indeks', 'index'])) { $map['product_id'] = $i; $detected = true; }
         }
 
         // Dopasowanie awaryjne dla "Ceny", jeśli nie było wprost napisane "Cena netto"
@@ -107,6 +146,9 @@ class AzadaCsvParser
             
             $name = isset($row[$map['name']]) ? trim($row[$map['name']]) : '';
             $ean = isset($row[$map['ean']]) ? trim($row[$map['ean']]) : '';
+            if (!$hasExplicitEanColumn) {
+                $ean = '';
+            }
 
             // Pomijamy puste linie, śmieci i wiersze z podsumowaniem stopki EkoWitala
             if (empty($name) || stripos($name, 'podsumowanie') !== false || stripos($name, 'razem') !== false || stripos($name, 'do zapłaty') !== false) {

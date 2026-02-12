@@ -85,6 +85,41 @@ class AzadaWholesaler extends ObjectModel
         return 'csv'; 
     }
 
+
+    public static function getSkuPrefixByWholesaler($wholesalerName = '', $rawTableName = '')
+    {
+        $name = (string)$wholesalerName;
+        $raw = (string)$rawTableName;
+
+        if (stripos($raw, 'azada_raw_bioplanet') !== false || stripos($name, 'Bio Planet') !== false) {
+            return 'BP_';
+        }
+        if (stripos($raw, 'azada_raw_ekowital') !== false || stripos($name, 'EkoWital') !== false || stripos($name, 'Eko Wital') !== false) {
+            return 'EKOWIT_';
+        }
+        if (stripos($raw, 'azada_raw_naturamed') !== false || stripos($name, 'NaturaMed') !== false || stripos($name, 'Natura Med') !== false) {
+            return 'NAT_';
+        }
+
+        return '';
+    }
+
+    public static function applySkuPrefix($sku, $prefix)
+    {
+        $sku = trim((string)$sku);
+        $prefix = (string)$prefix;
+
+        if ($sku === '' || $prefix === '') {
+            return $sku;
+        }
+
+        if (stripos($sku, $prefix) === 0) {
+            return $sku;
+        }
+
+        return $prefix . $sku;
+    }
+
     // --- ZAMÓWIENIA (Orders) ---
     public static function processDownload($wholesalerId, $docNumber, $docDate, $docNetto, $docStatus, $downloadUrl, $cookieFile = null)
     {
@@ -103,30 +138,75 @@ class AzadaWholesaler extends ObjectModel
         $downloadRes = AzadaFileHandler::downloadFile($downloadUrl, $localPath, $cookieFile);
 
         if ($downloadRes['status'] == 'success') {
+            if ($ext === 'csv') {
+                $wholesalerNameForEncoding = (string)Db::getInstance()->getValue(
+                    'SELECT name FROM ' . _DB_PREFIX_ . 'azada_wholesaler_pro_integration WHERE id_wholesaler = ' . (int)$wholesalerId
+                );
+                if (stripos($wholesalerNameForEncoding, 'NaturaMed') !== false || stripos($wholesalerNameForEncoding, 'Natura Med') !== false) {
+                    AzadaFileHandler::normalizeCsvFileToUtf8($localPath);
+                }
+            }
+
             $idFile = AzadaDbRepository::saveFileHeader($wholesalerId, $docNumber, $dateSql, $nettoSql, $docStatus, $safeName);
 
             if ($idFile && $ext === 'csv') {
                 $rows = AzadaCsvParser::parseCsv($localPath);
                 
                 if (!empty($rows)) {
-                    $rawTableName = Db::getInstance()->getValue("SELECT raw_table_name FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = ".(int)$wholesalerId);
-                    $skuMap = [];
+                    $wMeta = Db::getInstance()->getRow("SELECT name, raw_table_name FROM "._DB_PREFIX_."azada_wholesaler_pro_integration WHERE id_wholesaler = ".(int)$wholesalerId);
+                    $rawTableName = isset($wMeta['raw_table_name']) ? $wMeta['raw_table_name'] : '';
+                    $wholesalerName = isset($wMeta['name']) ? $wMeta['name'] : '';
+                    $skuPrefix = self::getSkuPrefixByWholesaler($wholesalerName, $rawTableName);
+
+                    $skuMapByEan = [];
+                    $skuMapByCode = [];
+                    $eanMapBySku = [];
                     if ($rawTableName) {
                         $fullRawTable = _DB_PREFIX_ . pSQL($rawTableName);
                         try {
-                            $rawList = Db::getInstance()->executeS("SELECT kod_kreskowy, produkt_id FROM `$fullRawTable`");
-                            if ($rawList) foreach ($rawList as $rItem) $skuMap[trim($rItem['kod_kreskowy'])] = trim($rItem['produkt_id']);
+                            $rawList = Db::getInstance()->executeS("SELECT kod_kreskowy, kod, produkt_id FROM `$fullRawTable`");
+                            if ($rawList) {
+                                foreach ($rawList as $rItem) {
+                                    $eanKey = trim((string)$rItem['kod_kreskowy']);
+                                    $codeKey = trim((string)$rItem['kod']);
+                                    $mappedSku = trim((string)$rItem['produkt_id']);
+
+                                    if ($eanKey !== '' && $mappedSku !== '') {
+                                        $skuMapByEan[$eanKey] = $mappedSku;
+                                        $eanMapBySku[$mappedSku] = $eanKey;
+                                    }
+                                    if ($codeKey !== '' && $mappedSku !== '') {
+                                        $skuMapByCode[$codeKey] = $mappedSku;
+                                    }
+                                }
+                            }
                         } catch (Exception $e) {}
                     }
 
                     $invoiceVerifiedCount = 0; 
 
                     foreach ($rows as &$row) {
-                        $ean = trim($row['ean']);
+                        $ean = trim((string)$row['ean']);
+                        $productId = trim((string)$row['product_id']);
                         $foundSku = '';
-                        if (isset($skuMap[$ean])) $foundSku = $skuMap[$ean];
-                        elseif (empty($foundSku) && !empty($row['product_id']) && $rawTableName == 'azada_raw_bioplanet') $foundSku = 'BP_' . $row['product_id'];
+
+                        if ($ean !== '' && isset($skuMapByEan[$ean])) {
+                            $foundSku = $skuMapByEan[$ean];
+                        } elseif ($productId !== '' && isset($skuMapByCode[$productId])) {
+                            $foundSku = $skuMapByCode[$productId];
+                        } elseif ($productId !== '') {
+                            // W CSV NaturaMed "Kod" to SKU hurtowni bez prefiksu
+                            $foundSku = self::applySkuPrefix($productId, $skuPrefix);
+                        }
+
                         $row['sku_wholesaler'] = $foundSku;
+
+                        // Jeśli EAN nie jest dostępny w CSV zamówienia, dociągamy go z tabeli produktów hurtowni
+                        // po SKU hurtowni (np. NAT_XXXX dla NaturaMed).
+                        if ($ean === '' && $foundSku !== '' && isset($eanMapBySku[$foundSku])) {
+                            $row['ean'] = $eanMapBySku[$foundSku];
+                            $ean = $row['ean'];
+                        }
 
                         // SANITYZACJA ILOŚCI
                         if (class_exists('AzadaOrderSanitizer')) {
