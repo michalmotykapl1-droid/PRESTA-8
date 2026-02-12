@@ -170,39 +170,49 @@ class AzadaWholesaler extends ObjectModel
     }
 
     public static function processInvoiceDownload($wholesalerId, $docNumber, $docDate, $docNetto, $docDeadline, $isPaid, $downloadUrl, $cookieFile = null)
-    {
-        self::ensureDatabaseStructure();
+{
+    self::ensureDatabaseStructure();
 
-        $dateSql = AzadaCsvParser::sanitizeDate($docDate);
-        $nettoSql = AzadaCsvParser::sanitizePrice($docNetto);
-        $ext = self::detectExtensionFromUrl($downloadUrl);
-        $safeName = AzadaFileHandler::getSafeFileName($docNumber, $ext);
-        $localPath = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/FV/' . $safeName;
+    $dateSql = AzadaCsvParser::sanitizeDate($docDate);
+    $nettoSql = AzadaCsvParser::sanitizePrice($docNetto);
+    $ext = self::detectExtensionFromUrl($downloadUrl);
+    $safeName = AzadaFileHandler::getSafeFileName($docNumber, $ext);
+    $localPath = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/FV/' . $safeName;
 
-        if (!is_dir(dirname($localPath))) {
-            mkdir(dirname($localPath), 0777, true);
-        }
-
-        $res = AzadaFileHandler::downloadFile($downloadUrl, $localPath, $cookieFile);
-
-        if ($res['status'] == 'success') {
-            $idInvoice = AzadaDbRepository::saveInvoiceHeader($wholesalerId, $docNumber, $dateSql, $nettoSql, $docDeadline, $isPaid, $safeName);
-            
-            if ($idInvoice && $ext === 'csv') {
-                $rows = AzadaCsvParser::parseCsv($localPath);
-                if (!empty($rows)) {
-                    AzadaDbRepository::saveInvoiceDetails($idInvoice, $docNumber, $rows);
-                    AzadaLogger::addLog('FV IMPORT', "Zapisano FV: $docNumber", "Pozycji: " . count($rows), 1);
-                } else {
-                    AzadaLogger::addLog('FV IMPORT', "Pusty plik FV: $docNumber", "", 2);
-                }
-            }
-            return ['status' => 'success', 'msg' => 'OK (Format: ' . strtoupper($ext) . ')'];
-        } else {
-            AzadaLogger::addLog('FV ERROR', "Błąd pobierania FV: $docNumber", $res['msg'], 3);
-        }
-        return $res;
+    if (!is_dir(dirname($localPath))) {
+        mkdir(dirname($localPath), 0777, true);
     }
+
+    $res = AzadaFileHandler::downloadFile($downloadUrl, $localPath, $cookieFile);
+
+    if ($res['status'] == 'success') {
+        if ($ext === 'csv') {
+            $wholesalerName = (string)Db::getInstance()->getValue(
+                'SELECT name FROM ' . _DB_PREFIX_ . 'azada_wholesaler_pro_integration WHERE id_wholesaler = ' . (int)$wholesalerId
+            );
+            if (stripos($wholesalerName, 'NaturaMed') !== false || stripos($wholesalerName, 'Natura Med') !== false) {
+                AzadaFileHandler::normalizeCsvFileToUtf8($localPath);
+            }
+        }
+
+        $idInvoice = AzadaDbRepository::saveInvoiceHeader($wholesalerId, $docNumber, $dateSql, $nettoSql, $docDeadline, $isPaid, $safeName);
+        
+        if ($idInvoice && $ext === 'csv') {
+            $rows = AzadaCsvParser::parseCsv($localPath);
+            if (!empty($rows)) {
+                AzadaDbRepository::saveInvoiceDetails($idInvoice, $docNumber, $rows);
+                AzadaLogger::addLog('FV IMPORT', "Zapisano FV: $docNumber", "Pozycji: " . count($rows), 1);
+            } else {
+                AzadaLogger::addLog('FV IMPORT', "Pusty plik FV: $docNumber", "", 2);
+            }
+        }
+        return ['status' => 'success', 'msg' => 'OK (Format: ' . strtoupper($ext) . ')'];
+    } else {
+        AzadaLogger::addLog('FV ERROR', "Błąd pobierania FV: $docNumber", $res['msg'], 3);
+    }
+    return $res;
+}
+
 
     public static function ensureDatabaseStructure()
     {

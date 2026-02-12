@@ -161,6 +161,51 @@ class AdminAzadaInvoicesController extends ModuleAdminController
         die(json_encode($res));
     }
 
+
+    /**
+     * Ujednolica CSV do UTF-8 z BOM, aby Excel poprawnie wyświetlał polskie znaki.
+     *
+     * Celowo nie używa mb_detect_encoding(), bo na części serwerów aliasy kodowań
+     * powodują wyjątki ValueError i blokują pobieranie plików.
+     */
+    private function normalizeCsvForPolishChars($content)
+    {
+        if (!is_string($content) || $content === '') {
+            return $content;
+        }
+
+        $utf8Bom = "\xEF\xBB\xBF";
+        if (strncmp($content, $utf8Bom, 3) === 0) {
+            $content = substr($content, 3);
+        }
+
+        // Jeżeli treść jest już poprawnym UTF-8, tylko dopinamy BOM dla Excela.
+        if (preg_match('//u', $content)) {
+            return $utf8Bom . $content;
+        }
+
+        $converted = false;
+
+        // Najczęstsze kodowanie dostawców B2B (w tym NaturaMed).
+        if (function_exists('iconv')) {
+            $converted = @iconv('Windows-1250', 'UTF-8//IGNORE', $content);
+            if ($converted === false || $converted === '') {
+                $converted = @iconv('ISO-8859-2', 'UTF-8//IGNORE', $content);
+            }
+        }
+
+        // Dodatkowy fallback dla hostów bez iconv.
+        if (($converted === false || $converted === '') && function_exists('mb_convert_encoding')) {
+            $converted = @mb_convert_encoding($content, 'UTF-8', 'ISO-8859-2');
+        }
+
+        if ($converted !== false && $converted !== '') {
+            $content = $converted;
+        }
+
+        return $utf8Bom . $content;
+    }
+
     public function processStreamFile()
     {
         $url = Tools::getValue('url');
@@ -198,12 +243,17 @@ class AdminAzadaInvoicesController extends ModuleAdminController
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+        if (file_exists($cookieFile)) {
+            curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+        }
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
         
         $fileContent = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         if ($httpCode == 200 && !empty($fileContent)) {
@@ -211,21 +261,39 @@ class AdminAzadaInvoicesController extends ModuleAdminController
             if (stripos($formatName, 'pdf') !== false) $ext = 'pdf';
             elseif (stripos($formatName, 'xml') !== false) $ext = 'xml';
             elseif (stripos($formatName, 'epp') !== false) $ext = 'epp';
-            
-            $filename = preg_replace('/[^a-zA-Z0-9_-]/', '_', $docNumber) . '.' . $ext;
-            
+
+            if ($ext === 'csv') {
+                $fileContent = $this->normalizeCsvForPolishChars($fileContent);
+            }
+
+            $rawFilename = trim((string)$docNumber) . '.' . $ext;
+            $rawFilename = str_replace(array("\r", "\n"), '', $rawFilename);
+            $asciiFilename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $rawFilename);
+            if ($asciiFilename === '' || $asciiFilename === '.' . $ext) {
+                $asciiFilename = 'plik.' . $ext;
+            }
+
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+
             header('Content-Description: File Transfer');
-            header('Content-Type: application/octet-stream');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Content-Length: ' . strlen($fileContent));
+            if ($ext === 'csv') {
+                header('Content-Type: text/csv; charset=UTF-8');
+            } else {
+                header('Content-Type: application/octet-stream');
+            }
+            header('X-Content-Type-Options: nosniff');
+            header("Content-Disposition: attachment; filename=\"" . $asciiFilename . "\"; filename*=UTF-8''" . rawurlencode($rawFilename));
             header('Expires: 0');
-            header('Cache-Control: must-revalidate');
+            header('Cache-Control: no-store, no-cache, must-revalidate');
             header('Pragma: public');
-            
+
             echo $fileContent;
             exit;
         } else {
-            die('Błąd pobierania pliku z hurtowni (HTTP Code: ' . $httpCode . ')');
+            $extra = ($fileContent === false && !empty($curlError)) ? ('; cURL: ' . $curlError) : '';
+            die('Błąd pobierania pliku z hurtowni (HTTP Code: ' . $httpCode . $extra . ')');
         }
     }
 

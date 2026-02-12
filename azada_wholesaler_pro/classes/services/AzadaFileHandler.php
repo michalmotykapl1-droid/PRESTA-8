@@ -69,6 +69,46 @@ class AzadaFileHandler
         }
     }
 
+
+    /**
+     * Dla wybranych dostawców (np. NaturaMed) normalizuje plik CSV do UTF-8,
+     * ale tylko gdy wejście nie jest poprawnym UTF-8.
+     */
+    public static function normalizeCsvFileToUtf8($filePath)
+    {
+        if (!file_exists($filePath)) {
+            return false;
+        }
+
+        $content = @file_get_contents($filePath);
+        if (!is_string($content) || $content === '') {
+            return false;
+        }
+
+        $bom = "\xEF\xBB\xBF";
+        if (strncmp($content, $bom, 3) === 0) {
+            $content = substr($content, 3);
+        }
+
+        if (preg_match('//u', $content)) {
+            return true;
+        }
+
+        $converted = false;
+        if (function_exists('iconv')) {
+            $converted = @iconv('Windows-1250', 'UTF-8//IGNORE', $content);
+            if ($converted === false || $converted === '') {
+                $converted = @iconv('ISO-8859-2', 'UTF-8//IGNORE', $content);
+            }
+        }
+
+        if ($converted === false || $converted === '') {
+            return false;
+        }
+
+        return (@file_put_contents($filePath, $converted) !== false);
+    }
+
     public static function deleteFile($filePath)
     {
         if (file_exists($filePath)) {
