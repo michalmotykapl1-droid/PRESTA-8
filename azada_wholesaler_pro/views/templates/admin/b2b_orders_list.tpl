@@ -69,6 +69,21 @@
         margin-left: 5px;
         vertical-align: middle;
     }
+
+
+    .csv-on-disk-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+        border-radius: 3px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
 </style>
 
 {if isset($grouped_data)}
@@ -137,14 +152,23 @@
 
                             <td class="col-actions text-right">
                                 {if $doc.is_downloaded}
-                                    <button class="btn btn-outline-success btn-xs" disabled>
-                                        <i class="icon-check"></i> CSV
-                                    </button>
-                                    <button class="btn btn-default btn-xs btn-delete-csv" data-number="{$doc.number}" title="Usuń">
+                                    <span class="csv-on-disk-badge" title="Plik CSV jest już zapisany na dysku">
+                                        <i class="icon-check"></i> CSV NA DYSKU
+                                    </span>
+                                    <button class="btn btn-default btn-xs btn-delete-csv" data-number="{$doc.number}" title="Usuń" style="margin-left:5px;">
                                         <i class="icon-trash"></i>
                                     </button>
                                 {else}
                                     {if $doc.system_csv_url}
+                                        <span class="js-auto-sys-download" style="display:none;"
+                                              data-id-wholesaler="{$doc.id_wholesaler}"
+                                              data-url="{$doc.system_csv_url}"
+                                              data-number="{$doc.number}"
+                                              data-date="{$doc.date}"
+                                              data-netto="{$doc.netto}"
+                                              data-status="{$doc.status}"
+                                              data-clean-number="{$doc.clean_number}"></span>
+
                                         <button class="btn btn-primary btn-xs btn-download-system-csv" 
                                                 id="status-btn-{$doc.clean_number}"
                                                 data-wholesaler="{$doc.id_wholesaler}" 

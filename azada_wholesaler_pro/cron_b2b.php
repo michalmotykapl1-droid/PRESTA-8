@@ -1,33 +1,36 @@
 <?php
+
 /**
- * CRON B2B (ZAMÓWIENIA) - TYLKO SYSTEMOWY CSV
+ * CRON: Pobiera nowe / zmienione pliki CSV zamówień B2B do bazy.
+ * Uruchamiany zewnętrznie po URL-u.
  */
 
-ob_start();
-include(dirname(__FILE__) . '/../../config/config.inc.php');
-include(dirname(__FILE__) . '/../../init.php');
+include_once(dirname(__FILE__) . '/../../config/config.inc.php');
+include_once(dirname(__FILE__) . '/../../init.php');
 
-$token = Tools::getValue('token');
-if (!$token || $token !== Configuration::get('AZADA_CRON_KEY')) die('Error: Invalid Token');
+if (!defined('_PS_MODULE_DIR_')) define('_PS_MODULE_DIR_', _PS_ROOT_DIR_ . '/modules/');
 
-require_once(dirname(__FILE__) . '/classes/AzadaWholesaler.php');
-require_once(dirname(__FILE__) . '/classes/services/AzadaLogger.php');
-require_once(dirname(__FILE__) . '/classes/services/AzadaDbRepository.php');
-require_once(dirname(__FILE__) . '/classes/services/AzadaB2BComparator.php');
-require_once(dirname(__FILE__) . '/classes/services/AzadaFileHandler.php');
-foreach (glob(dirname(__FILE__) . '/classes/integrations/*.php') as $f) require_once($f);
+require_once(_PS_MODULE_DIR_ . 'azada_wholesaler_pro/classes/AzadaWholesaler.php');
+require_once(_PS_MODULE_DIR_ . 'azada_wholesaler_pro/classes/services/AzadaDbRepository.php');
+require_once(_PS_MODULE_DIR_ . 'azada_wholesaler_pro/classes/services/AzadaB2BComparator.php');
+
+foreach (glob(_PS_MODULE_DIR_ . 'azada_wholesaler_pro/classes/integrations/*.php') as $filename) {
+    require_once($filename);
+}
+
+function getWorkerClassCron($wholesalerName)
+{
+    $cleanName = preg_replace('/[^a-zA-Z0-9]/', '', ucwords($wholesalerName));
+    $className = 'Azada' . $cleanName . 'B2B';
+    return class_exists($className) ? new $className() : null;
+}
 
 echo "<pre>";
 echo "==========================================================\n";
-echo "   CRON ZAMÓWIENIA (SYSTEMOWY) - START: " . date('Y-m-d H:i:s') . "\n";
-echo "==========================================================\n";
+echo "   START CRON ZAMÓWIENIA B2B - " . date('Y-m-d H:i:s') . "\n";
+echo "==========================================================\n\n";
 
-$hasErrors = false;
-$filesDownloaded = 0;
-
-echo "[INFO] Czyszczenie starych plików... ";
 AzadaWholesaler::performMaintenance();
-echo "OK.\n\n";
 
 $integrations = Db::getInstance()->executeS(
     "SELECT * FROM "._DB_PREFIX_."azada_wholesaler_pro_integration
@@ -36,17 +39,19 @@ $integrations = Db::getInstance()->executeS(
     AND b2b_password IS NOT NULL AND b2b_password != ''"
 );
 
+$filesDownloaded = 0;
+$hasErrors = false;
+
 if ($integrations) {
     foreach ($integrations as $wholesaler) {
-        echo "----------------------------------------------------------\n";
-        echo "HURTOWNIA: [" . $wholesaler['name'] . "]\n";
+        echo ">> HURTOWNIA: " . $wholesaler['name'] . "\n";
 
-        $cleanName = preg_replace('/[^a-zA-Z0-9]/', '', ucwords($wholesaler['name']));
-        $className = 'Azada' . $cleanName . 'B2B';
-        $worker = null;
-        if (class_exists($className)) $worker = new $className();
-
-        if (!$worker) { echo "[SKIP] Brak klasy integracji.\n"; continue; }
+        $worker = getWorkerClassCron($wholesaler['name']);
+        if (!$worker || !method_exists($worker, 'scrapeOrders')) {
+            echo "BŁĄD: Brak klasy integracji lub metody scrapeOrders.\n\n";
+            $hasErrors = true;
+            continue;
+        }
 
         echo "[LOGOWANIE] Pobieranie listy... ";
         $pass = base64_decode($wholesaler['b2b_password']);
@@ -72,7 +77,7 @@ if ($integrations) {
 
             if (!$url) { echo " > " . $row['number'] . " [SKIP - BRAK PLIKU]\n"; continue; }
 
-            $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number']);
+            $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number'], (int)$wholesaler['id_wholesaler']);
             $action = AzadaB2BComparator::compare($row['number'], $row['netto'], $row['status'], $dbInfo);
 
             if ($action != AzadaB2BComparator::ACTION_NONE) {
@@ -98,11 +103,3 @@ echo "\n==========================================================\n";
 echo "   KONIEC PRACY CRON ZAMÓWIENIA\n";
 echo "==========================================================\n";
 echo "</pre>";
-
-$output = ob_get_contents();
-ob_end_flush();
-
-$title = "CRON ZAMÓWIENIA";
-if ($filesDownloaded > 0) $title .= " (Pobrano: $filesDownloaded)";
-$severity = ($hasErrors) ? AzadaLogger::SEVERITY_ERROR : (($filesDownloaded > 0) ? AzadaLogger::SEVERITY_SUCCESS : AzadaLogger::SEVERITY_INFO);
-AzadaLogger::addLog('CRON_B2B', $title, $output, $severity);

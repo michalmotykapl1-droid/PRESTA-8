@@ -11,12 +11,18 @@ class AzadaDbRepository
         $db->execute($sql2);
     }
 
-    public static function getFileByDocNumber($docNumber)
+    public static function getFileByDocNumber($docNumber, $idWholesaler = null)
     {
         $sql = new DbQuery();
         $sql->select('*');
         $sql->from('azada_wholesaler_pro_order_files');
         $sql->where("external_doc_number = '" . pSQL($docNumber) . "'");
+
+        if ($idWholesaler !== null) {
+            $sql->where('id_wholesaler = ' . (int)$idWholesaler);
+        }
+
+        $sql->orderBy('id_file DESC');
         return Db::getInstance()->getRow($sql);
     }
 
@@ -36,7 +42,7 @@ class AzadaDbRepository
     {
         $db = Db::getInstance();
         $table = 'azada_wholesaler_pro_order_files';
-        $existing = self::getFileByDocNumber($docNumber);
+        $existing = self::getFileByDocNumber($docNumber, $idWholesaler);
         $data = [
             'external_doc_number' => pSQL($docNumber),
             'doc_date' => pSQL($dateSql),

@@ -220,7 +220,7 @@
                     var cleanNum = $row.data("clean-number");
                     var $statusBtn = $("#status-btn-" + cleanNum);
                     if ($statusBtn.length > 0) {
-                        $statusBtn.replaceWith('<button class="btn btn-outline-success btn-xs" disabled><i class="icon-check"></i> NA DYSKU CSV</button>');
+                        $statusBtn.replaceWith('<span class="csv-on-disk-badge" title="Plik CSV jest już zapisany na dysku"><i class="icon-check"></i> CSV NA DYSKU</span>');
                     }
                 } else {
                     stats.errors++;

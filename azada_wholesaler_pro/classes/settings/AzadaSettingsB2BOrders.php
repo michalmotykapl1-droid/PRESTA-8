@@ -28,7 +28,7 @@ class AzadaSettingsB2BOrders
                 'name' => 'AZADA_B2B_DELETE_DAYS',
                 'class' => 'fixed-width-sm',
                 'suffix' => 'dni',
-                'desc' => 'Ile dni trzymać pliki zamówień na serwerze? (0 = bez limitu).',
+                'desc' => 'Ile dni trzymać pliki zamówień na serwerze? (0 = bez limitu). Wartość musi być >= „Dni wstecz do sprawdzania zamówień” + 1.',
             ]
         ];
     }

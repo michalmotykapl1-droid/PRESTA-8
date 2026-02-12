@@ -163,11 +163,16 @@ class AdminAzadaOrdersController extends ModuleAdminController
                             $row['pill_class'] = 'pill-warning';
                         }
 
-                        $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number']);
-                        $action = AzadaB2BComparator::compare($row['number'], $row['netto'], $row['status'], $dbInfo);
-                        
-                        $row['is_downloaded'] = ($action == AzadaB2BComparator::ACTION_NONE);
-                        
+                        $dbInfo = AzadaDbRepository::getFileByDocNumber($row['number'], (int)$wholesaler['id_wholesaler']);
+
+                        // Status "pobrano" opieramy o faktyczny stan pliku na dysku + wpis w bazie,
+                        // a nie o porównanie statusu/kwoty (to powodowało ponowne kolejki po odświeżeniu).
+                        $row['is_downloaded'] = false;
+                        if (!empty($dbInfo) && (int)$dbInfo['is_downloaded'] === 1 && !empty($dbInfo['file_name'])) {
+                            $storedPath = _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/' . $dbInfo['file_name'];
+                            $row['is_downloaded'] = file_exists($storedPath);
+                        }
+
                         $row['is_verified'] = false;
                         if ($row['is_downloaded'] && isset($dbInfo['is_verified_with_invoice']) && $dbInfo['is_verified_with_invoice'] == 1) {
                             $row['is_verified'] = true;
@@ -294,7 +299,7 @@ class AdminAzadaOrdersController extends ModuleAdminController
         $docNumber = Tools::getValue('doc_number');
         $rows = AzadaDbRepository::getDetailsByDocNumber($docNumber);
         if (!$rows) die('<div class="alert alert-warning" style="margin:20px;">Brak szczegółów w bazie.</div>');
-        $fileInfo = AzadaDbRepository::getFileByDocNumber($docNumber);
+        $fileInfo = AzadaDbRepository::getFileByDocNumber($docNumber, null);
         $wholesalerId = isset($fileInfo['id_wholesaler']) ? (int)$fileInfo['id_wholesaler'] : 0;
         $rawTableName = ''; $wholesalerName = '';
         if ($wholesalerId) {

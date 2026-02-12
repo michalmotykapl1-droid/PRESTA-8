@@ -28,7 +28,7 @@ class AzadaSettingsB2BInvoices
                 'name' => 'AZADA_FV_DELETE_DAYS',
                 'class' => 'fixed-width-sm',
                 'suffix' => 'dni',
-                'desc' => 'Ile dni trzymać pliki CSV na serwerze? (0 = bez limitu).',
+                'desc' => 'Ile dni trzymać pliki CSV na serwerze? (0 = bez limitu). Wartość musi być >= „Zakres pobierania faktur” + 1.',
             ]
         ];
     }

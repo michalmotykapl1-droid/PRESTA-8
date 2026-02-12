@@ -48,12 +48,112 @@ class AdminAzadaSettingsController extends ModuleAdminController
             AzadaSettingsAdvanced::getForm()
         ];
 
-        return $helper->generateForm($forms);
+        $html = $helper->generateForm($forms);
+        $html .= $this->getRetentionAutoFixScript();
+
+        return $html;
+    }
+
+    private function getRetentionAutoFixScript()
+    {
+        return <<<'HTML'
+<script>
+            (function(){
+                function toInt(v){
+                    var n = parseInt(v, 10);
+                    return isNaN(n) ? 0 : n;
+                }
+
+                function normalizePair(rangeName, deleteName, label){
+                    var rangeInput = document.querySelector("input[name='" + rangeName + "']");
+                    var deleteInput = document.querySelector("input[name='" + deleteName + "']");
+                    if (!rangeInput || !deleteInput) {
+                        return null;
+                    }
+
+                    var rangeVal = toInt(rangeInput.value);
+                    if (rangeVal < 1) {
+                        rangeVal = 1;
+                    }
+
+                    var deleteVal = toInt(deleteInput.value);
+                    if (deleteVal < 0) {
+                        deleteVal = 0;
+                    }
+
+                    var minDelete = rangeVal + 1;
+                    if (deleteVal > 0 && deleteVal < minDelete) {
+                        deleteInput.value = String(minDelete);
+                        return label + ": automatycznie ustawiono " + minDelete + " (zakres " + rangeVal + " + 1 dzień).";
+                    }
+
+                    return null;
+                }
+
+                function bindOnSave(){
+                    var btn = document.querySelector("button[name='submitAzadaGlobalConfig']");
+                    if (!btn) {
+                        return;
+                    }
+
+                    btn.addEventListener("click", function(){
+                        var fixes = [];
+                        var ordersFix = normalizePair("AZADA_B2B_DAYS_RANGE", "AZADA_B2B_DELETE_DAYS", "Pliki zamówień");
+                        if (ordersFix) {
+                            fixes.push(ordersFix);
+                        }
+
+                        var invoicesFix = normalizePair("AZADA_FV_DAYS_RANGE", "AZADA_FV_DELETE_DAYS", "Pliki faktur");
+                        if (invoicesFix) {
+                            fixes.push(invoicesFix);
+                        }
+
+                        if (fixes.length > 0) {
+                            alert("Wykryto zbyt niską wartość dni kasowania.\n\n" + fixes.join("\n") + "\n\nZmiany zostały poprawione przed zapisem.");
+                        }
+                    });
+                }
+
+                if (document.readyState === "loading") {
+                    document.addEventListener("DOMContentLoaded", bindOnSave);
+                } else {
+                    bindOnSave();
+                }
+            })();
+        </script>
+HTML;
     }
 
     public function postProcess()
     {
         if (Tools::isSubmit('submitAzadaGlobalConfig')) {
+            $b2bDaysRange = (int)Tools::getValue('AZADA_B2B_DAYS_RANGE');
+            if ($b2bDaysRange < 1) {
+                $b2bDaysRange = 1;
+            }
+
+            $b2bDeleteDaysRaw = (int)Tools::getValue('AZADA_B2B_DELETE_DAYS');
+            $b2bDeleteDays = $b2bDeleteDaysRaw < 0 ? 0 : $b2bDeleteDaysRaw;
+
+            $fvDaysRange = (int)Tools::getValue('AZADA_FV_DAYS_RANGE');
+            if ($fvDaysRange < 1) {
+                $fvDaysRange = 1;
+            }
+
+            $fvDeleteDaysRaw = (int)Tools::getValue('AZADA_FV_DELETE_DAYS');
+            $fvDeleteDays = $fvDeleteDaysRaw < 0 ? 0 : $fvDeleteDaysRaw;
+
+            $autoFixMessages = [];
+            if ($b2bDeleteDays > 0 && $b2bDeleteDays < ($b2bDaysRange + 1)) {
+                $b2bDeleteDays = $b2bDaysRange + 1;
+                $autoFixMessages[] = 'Pliki zamówień: automatycznie ustawiono „Usuwaj stare pliki zamówień po” na ' . (int)$b2bDeleteDays . ' (zakres ' . (int)$b2bDaysRange . ' + 1 dzień).';
+            }
+
+            if ($fvDeleteDays > 0 && $fvDeleteDays < ($fvDaysRange + 1)) {
+                $fvDeleteDays = $fvDaysRange + 1;
+                $autoFixMessages[] = 'Pliki faktur: automatycznie ustawiono „Usuwaj stare pliki faktur po” na ' . (int)$fvDeleteDays . ' (zakres ' . (int)$fvDaysRange . ' + 1 dzień).';
+            }
+
             $keys = [
                 'AZADA_CRON_KEY', 'AZADA_USE_SECURE_TOKEN',
                 
@@ -84,8 +184,23 @@ class AdminAzadaSettingsController extends ModuleAdminController
             ];
 
             foreach ($keys as $key) {
+                if ($key === 'AZADA_B2B_DELETE_DAYS') {
+                    Configuration::updateValue($key, (int)$b2bDeleteDays);
+                    continue;
+                }
+
+                if ($key === 'AZADA_FV_DELETE_DAYS') {
+                    Configuration::updateValue($key, (int)$fvDeleteDays);
+                    continue;
+                }
+
                 Configuration::updateValue($key, Tools::getValue($key));
             }
+
+            foreach ($autoFixMessages as $msg) {
+                $this->confirmations[] = $msg;
+            }
+
             $this->confirmations[] = 'Ustawienia zostały zapisane.';
         }
     }
