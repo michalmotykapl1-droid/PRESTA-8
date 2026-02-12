@@ -10,18 +10,24 @@ class OrderRepository
      * Pobiera datę ostatniej aktualizacji zamówienia w bazie.
      * POPRAWKA: Używamy executeS zamiast getValue, aby uniknąć problemu "podwójnego LIMIT 1".
      */
-    public function getLastFetchedDate()
+    public function getLastFetchedDate(?int $accountId = null)
     {
         // 1. Sprawdzamy czy tabela nie jest pusta
-        $count = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order`');
+        $where = '';
+        if ($accountId !== null) {
+            $where = ' WHERE `id_allegropro_account` = ' . (int)$accountId;
+        }
+
+        $count = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order`' . $where);
         
         if ($count === 0) {
             return null; 
         }
 
         // 2. Pobieramy ostatnią datę bezpiecznym zapytaniem
-        $sql = 'SELECT `updated_at_allegro` 
-                FROM `' . _DB_PREFIX_ . 'allegropro_order` 
+        $sql = 'SELECT `updated_at_allegro`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`' .
+                ($accountId !== null ? ' WHERE `id_allegropro_account` = ' . (int)$accountId : '') . '
                 ORDER BY `updated_at_allegro` DESC 
                 LIMIT 1';
         
@@ -93,7 +99,71 @@ class OrderRepository
 
     public function markShipment(int $accountId, string $checkoutFormId, ?string $shipmentId, string $commandId)
     {
-        // Placeholder
+        $data = [
+            'date_upd' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($shipmentId) {
+            $data['status'] = 'READY_FOR_SHIPMENT';
+        }
+
+        Db::getInstance()->update(
+            'allegropro_order',
+            $data,
+            "id_allegropro_account = " . (int)$accountId . " AND checkout_form_id = '" . pSQL($checkoutFormId) . "'"
+        );
+
+        Db::getInstance()->execute(
+            'UPDATE `' . _DB_PREFIX_ . "allegropro_shipment`
+             SET `checkout_form_id` = '" . pSQL($checkoutFormId) . "', `updated_at` = '" . pSQL(date('Y-m-d H:i:s')) . "'
+             WHERE `id_allegropro_account` = " . (int)$accountId .
+            " AND `shipment_id` = '" . pSQL($shipmentId ?: $commandId) . "'"
+        );
+    }
+
+    public function list(int $accountId, int $limit = 50): array
+    {
+        $sql = 'SELECT o.*, s.shipment_id, s.status AS shipment_status, s.updated_at
+                FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+                LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` s
+                  ON s.checkout_form_id = o.checkout_form_id
+                 AND s.id_allegropro_account = o.id_allegropro_account
+                WHERE o.id_allegropro_account = ' . (int)$accountId . '
+                ORDER BY o.updated_at_allegro DESC
+                LIMIT ' . (int)$limit;
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    public function listWithoutShipment(int $accountId, int $limit = 50): array
+    {
+        $sql = 'SELECT o.*
+                FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+                LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` s
+                  ON s.checkout_form_id = o.checkout_form_id
+                 AND s.id_allegropro_account = o.id_allegropro_account
+                WHERE o.id_allegropro_account = ' . (int)$accountId . '
+                  AND s.id_allegropro_shipment IS NULL
+                ORDER BY o.updated_at_allegro DESC
+                LIMIT ' . (int)$limit;
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    public function getRaw(int $accountId, string $checkoutFormId): ?array
+    {
+        $sql = 'SELECT o.*, s.shipment_id, s.status AS shipment_status
+                FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+                LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` s
+                  ON s.checkout_form_id = o.checkout_form_id
+                 AND s.id_allegropro_account = o.id_allegropro_account
+                WHERE o.id_allegropro_account = ' . (int)$accountId . "
+                  AND o.checkout_form_id = '" . pSQL($checkoutFormId) . "'
+                ORDER BY s.updated_at DESC
+                LIMIT 1";
+
+        $row = Db::getInstance()->getRow($sql);
+        return $row ?: null;
     }
 
     public function getDecodedOrder(int $accountId, string $checkoutFormId): ?array

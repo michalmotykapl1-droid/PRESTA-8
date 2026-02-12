@@ -284,12 +284,22 @@ $(document).ready(function() {
             row.show();
             var url = '{$admin_link|escape:'javascript':'UTF-8'}&action=get_order_details&checkout_form_id=' + cfId;
             fetch(url).then(r=>r.json()).then(data=>{
+                var esc = function(v) {
+                    return String(v === null || v === undefined ? '' : v)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                };
+
                 var html = '<table class="table" style="background:#fff;"><thead><tr><th>Nazwa</th><th>SKU</th><th>EAN</th><th>Ilość</th><th>Cena</th><th>Mapowanie</th></tr></thead><tbody>';
                 if (data.length === 0) html += '<tr><td colspan="6" class="text-danger">BRAK DANYCH</td></tr>';
                 else {
                     data.forEach(function(item) {
-                        var matchInfo = item.id_product > 0 ? '<span class="label label-success">OK (ID: '+item.id_product+')</span>' : '<span class="label label-danger">BRAK</span>';
-                        html += '<tr><td>' + item.name + '</td><td>' + (item.reference_number || '-') + '</td><td>' + (item.ean || '-') + '</td><td><strong>' + item.quantity + ' szt.</strong></td><td>' + item.price + '</td><td>' + matchInfo + '</td></tr>';
+                        var idProduct = parseInt(item.id_product || 0, 10);
+                        var matchInfo = idProduct > 0 ? '<span class="label label-success">OK (ID: '+idProduct+')</span>' : '<span class="label label-danger">BRAK</span>';
+                        html += '<tr><td>' + esc(item.name) + '</td><td>' + esc(item.reference_number || '-') + '</td><td>' + esc(item.ean || '-') + '</td><td><strong>' + esc(item.quantity) + ' szt.</strong></td><td>' + esc(item.price) + '</td><td>' + matchInfo + '</td></tr>';
                     });
                 }
                 html += '</tbody></table>';

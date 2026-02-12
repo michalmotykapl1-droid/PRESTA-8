@@ -90,9 +90,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 
                 // ZMIANA: Rozróżnienie trybów pobierania
                 if ($scope === 'history') {
-                    // Tryb historii: pobieramy starsze (np. 100 sztuk) bez patrzenia na datę "ostatniego"
-                    // (To jest dla bezpieczeństwa, gdybyś chciał uzupełnić luki)
-                    $res = $fetcher->fetchRecent($acc, 100); 
+                    $dateTo = date('Y-m-d');
+                    $dateFrom = date('Y-m-d', strtotime('-30 days'));
+                    $res = $fetcher->fetchHistory($acc, $dateFrom, $dateTo, 100);
                 } else {
                     // Tryb Standard: Inteligentne pobieranie tylko NOWYCH
                     $res = $fetcher->fetchRecent($acc, 50);

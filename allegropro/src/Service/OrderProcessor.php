@@ -146,7 +146,7 @@ class OrderProcessor
 
             $customer->firstname = $fName;
             $customer->lastname = $lName;
-            $customer->passwd = md5(time()._COOKIE_KEY_);
+            $customer->passwd = \Tools::encrypt((string) bin2hex(random_bytes(32)));
             $customer->is_guest = 1;
             $customer->active = 1;
             if (!$customer->add()) throw new \Exception("Błąd tworzenia klienta.");
@@ -245,7 +245,8 @@ class OrderProcessor
     private function fixOrderData($id_order, $orderRow, $items)
     {
         $orderDetails = OrderDetail::getList($id_order);
-        $realProductsTotalGross = 0.00; 
+        $realProductsTotalGross = 0.00;
+        $realProductsTotalNet = 0.00;
 
         foreach ($orderDetails as $detail) {
             $detailObj = new OrderDetail($detail['id_order_detail']);
@@ -276,13 +277,22 @@ class OrderProcessor
                     WHERE id_order_detail = ".(int)$detailObj->id);
                 
                 $realProductsTotalGross += $totalGross;
+                $realProductsTotalNet += $totalNet;
             }
         }
 
         $totalPaidAllegro = (float)$orderRow['total_amount'];
         $shippingGross = $totalPaidAllegro - $realProductsTotalGross;
         if ($shippingGross < 0) $shippingGross = 0.00;
-        $shippingNet = $shippingGross / 1.23; 
+
+        $orderObj = new Order($id_order);
+        $shippingTaxRate = isset($orderObj->carrier_tax_rate) ? (float)$orderObj->carrier_tax_rate : 0.0;
+        $shippingTaxDivisor = 1 + ($shippingTaxRate / 100);
+        if ($shippingTaxDivisor <= 0) {
+            $shippingTaxDivisor = 1;
+        }
+        $shippingNet = $shippingGross / $shippingTaxDivisor;
+        $totalPaidNet = $realProductsTotalNet + $shippingNet;
 
         // 1. POBIERZ ID TECHNICZNEGO PRZEWOŹNIKA "WYSYŁKA ALLEGRO"
         $targetCarrierId = (int)Configuration::get('ALLEGROPRO_CARRIER_ID');
@@ -295,7 +305,7 @@ class OrderProcessor
             total_paid = $totalPaidAllegro,
             total_paid_tax_incl = $totalPaidAllegro,
             total_paid_real = $totalPaidAllegro,
-            total_products = " . ($realProductsTotalGross / 1.23) . ",
+            total_products = " . $realProductsTotalNet . ",
             total_products_wt = $realProductsTotalGross,
             total_shipping = $shippingGross,
             total_shipping_tax_incl = $shippingGross,
@@ -319,15 +329,14 @@ class OrderProcessor
         if ($id_invoice) {
             Db::getInstance()->execute("UPDATE "._DB_PREFIX_."order_invoice SET 
                 total_paid_tax_incl = $totalPaidAllegro,
-                total_paid_tax_excl = " . ($totalPaidAllegro / 1.23) . ",
-                total_products = " . ($realProductsTotalGross / 1.23) . ",
+                total_paid_tax_excl = " . $totalPaidNet . ",
+                total_products = " . $realProductsTotalNet . ",
                 total_products_wt = $realProductsTotalGross,
                 total_shipping_tax_incl = $shippingGross,
                 total_shipping_tax_excl = $shippingNet
                 WHERE id_order_invoice = ".(int)$id_invoice);
         }
 
-        $orderObj = new Order($id_order);
         $ref = $orderObj->reference;
         Db::getInstance()->delete('order_payment', "order_reference = '$ref'");
         Db::getInstance()->insert('order_payment', [
