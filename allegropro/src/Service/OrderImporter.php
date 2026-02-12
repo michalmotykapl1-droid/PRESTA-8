@@ -3,15 +3,12 @@ namespace AllegroPro\Service;
 
 use AllegroPro\Repository\OrderRepository;
 use AllegroPro\Repository\AccountRepository;
-use AllegroPro\Service\AllegroApiClient;
-use AllegroPro\Service\OrderFetcher;
-use AllegroPro\Service\OrderProcessor;
 
 class OrderImporter
 {
-    private $api;
-    private $repo;
-    private $accounts;
+    private AllegroApiClient $api;
+    private OrderRepository $repo;
+    private AccountRepository $accounts;
 
     public function __construct(AllegroApiClient $api, OrderRepository $repo, AccountRepository $accounts)
     {
@@ -20,7 +17,7 @@ class OrderImporter
         $this->accounts = $accounts;
     }
 
-    public function runImport()
+    public function runImport(): string
     {
         $activeAccounts = $this->accounts->all();
         $report = [];
@@ -29,30 +26,46 @@ class OrderImporter
         $processor = new OrderProcessor($this->repo);
 
         foreach ($activeAccounts as $account) {
-            if (!$account['active']) continue;
-            $lbl = $account['label'];
-            $accId = (int)$account['id_allegropro_account'];
-
-            // 1. POBIERANIE (FETCH)
-            try {
-                // Limit 5 na start
-                $fetchStats = $fetcher->fetchAndSave($account, 5); 
-                $report[] = "<div style='color:blue; font-weight:bold;'>⬇️ $lbl: Pobrano/Aktualizowano: {$fetchStats['fetched_count']}</div>";
-            } catch (\Exception $e) {
-                $report[] = "<div style='color:red;'>❌ $lbl: Błąd pobierania: " . $e->getMessage() . "</div>";
+            if (empty($account['active'])) {
+                continue;
             }
 
-            // 2. TWORZENIE (PROCESS) - TRYB DEBUG
-            $report[] = "<div><strong>--- Próba tworzenia zamówień (DEBUG) ---</strong></div>";
-            
-            $procStats = $processor->processPendingOrders($accId);
-            
-            if (!empty($procStats['logs'])) {
-                foreach ($procStats['logs'] as $log) {
-                    $report[] = "<div>$log</div>";
+            $label = (string)($account['label'] ?? 'Konto');
+            $accId = (int)($account['id_allegropro_account'] ?? 0);
+
+            // 1) FETCH (używa istniejącej metody)
+            try {
+                $fetchStats = $fetcher->fetchRecent($account, 50);
+                $report[] = "<div style='color:blue; font-weight:bold;'>⬇️ {$label}: Pobrano/Aktualizowano: " . (int)($fetchStats['fetched_count'] ?? 0) . "</div>";
+            } catch (\Exception $e) {
+                $report[] = "<div style='color:red;'>❌ {$label}: Błąd pobierania: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . "</div>";
+                continue;
+            }
+
+            // 2) PROCESS (create + fix) dla zamówień oczekujących
+            $pendingIds = $this->repo->getPendingIds(50, $accId > 0 ? $accId : null);
+            if (empty($pendingIds)) {
+                $report[] = "<div>ℹ️ {$label}: Brak zamówień do przetworzenia.</div>";
+                continue;
+            }
+
+            foreach ($pendingIds as $cfId) {
+                $cfId = (string)$cfId;
+
+                $create = $processor->processSingleOrder($cfId, 'create', $accId > 0 ? $accId : null);
+                if (!empty($create['success'])) {
+                    $report[] = "<div>✅ {$label} [{$cfId}] create: " . htmlspecialchars((string)($create['action'] ?? 'ok'), ENT_QUOTES, 'UTF-8') . "</div>";
+                } else {
+                    $report[] = "<div style='color:#a94442;'>⚠️ {$label} [{$cfId}] create: " . htmlspecialchars((string)($create['message'] ?? 'Błąd'), ENT_QUOTES, 'UTF-8') . "</div>";
+                    continue;
                 }
-            } else {
-                $report[] = "<div>Brak logów z procesu tworzenia (może brak nowych zamówień?)</div>";
+
+                $fix = $processor->processSingleOrder($cfId, 'fix', $accId > 0 ? $accId : null);
+                if (!empty($fix['success'])) {
+                    $report[] = "<div>✅ {$label} [{$cfId}] fix: " . htmlspecialchars((string)($fix['action'] ?? 'ok'), ENT_QUOTES, 'UTF-8') . "</div>";
+                } else {
+                    $report[] = "<div style='color:#a94442;'>⚠️ {$label} [{$cfId}] fix: " . htmlspecialchars((string)($fix['message'] ?? 'Błąd'), ENT_QUOTES, 'UTF-8') . "</div>";
+                }
             }
         }
 

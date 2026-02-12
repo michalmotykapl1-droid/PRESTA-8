@@ -55,16 +55,21 @@ class OrderRepository
     /**
      * Zwraca listę ID tylko dla zamówień NIEZAKOŃCZONYCH (is_finished=0)
      */
-    public function getPendingIds(int $limit = 50): array
+    public function getPendingIds(int $limit = 50, ?int $accountId = null): array
     {
-        $sql = 'SELECT `checkout_form_id` 
-                FROM `' . _DB_PREFIX_ . 'allegropro_order` 
-                WHERE `is_finished` = 0 
-                ORDER BY `updated_at_allegro` DESC 
+        $where = 'WHERE `is_finished` = 0';
+        if ($accountId !== null) {
+            $where .= ' AND `id_allegropro_account` = ' . (int)$accountId;
+        }
+
+        $sql = 'SELECT `checkout_form_id`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                ' . $where . '
+                ORDER BY `updated_at_allegro` DESC
                 LIMIT ' . (int)$limit;
-        
+
         $rows = Db::getInstance()->executeS($sql);
-        
+
         $ids = [];
         if ($rows) {
             foreach ($rows as $r) {
@@ -76,10 +81,20 @@ class OrderRepository
 
     public function markAsFinished(string $checkoutFormId)
     {
+        $this->markAsFinishedForAccount(null, $checkoutFormId);
+    }
+
+    public function markAsFinishedForAccount(?int $accountId, string $checkoutFormId): void
+    {
+        $where = "checkout_form_id = '" . pSQL($checkoutFormId) . "'";
+        if ($accountId !== null) {
+            $where .= ' AND id_allegropro_account = ' . (int)$accountId;
+        }
+
         Db::getInstance()->update(
             'allegropro_order',
             ['is_finished' => 1],
-            "checkout_form_id = '" . pSQL($checkoutFormId) . "'"
+            $where
         );
     }
 
