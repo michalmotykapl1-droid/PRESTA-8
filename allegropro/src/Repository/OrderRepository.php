@@ -439,6 +439,67 @@ class OrderRepository
         ];
     }
 
+    public function getPendingCheckoutFormIdsForAccount(int $accountId, int $limit = 50, bool $onlyFetched = false): array
+    {
+        $accountId = (int)$accountId;
+        $limit = max(1, (int)$limit);
+
+        $where = 'WHERE id_allegropro_account = ' . $accountId . ' AND is_finished = 0';
+        if ($onlyFetched) {
+            $where .= " AND fetched_at IS NOT NULL";
+        }
+
+        $sql = 'SELECT checkout_form_id
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                ' . $where . '
+                ORDER BY updated_at_allegro DESC
+                LIMIT ' . $limit;
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = (string)$r['checkout_form_id'];
+        }
+
+        return $out;
+    }
+
+    public function markImportedByCheckoutIdsForAccount(array $ids, int $accountId): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if (empty($ids)) {
+            return 0;
+        }
+
+        $quoted = [];
+        foreach ($ids as $id) {
+            $quoted[] = "'" . pSQL($id) . "'";
+        }
+
+        $sql = 'UPDATE `' . _DB_PREFIX_ . 'allegropro_order`
+                SET imported_at = NOW()
+                WHERE id_allegropro_account = ' . (int)$accountId . '
+                  AND checkout_form_id IN (' . implode(',', $quoted) . ')';
+
+        Db::getInstance()->execute($sql);
+        return (int)Db::getInstance()->Affected_Rows();
+    }
+
+    public function saveOrderData(array $data): void
+    {
+        $this->saveFullOrder($data);
+    }
+
+    public function saveOrder(array $data): void
+    {
+        $this->saveFullOrder($data);
+    }
+
+    public function upsertOrder(array $data): void
+    {
+        $this->saveFullOrder($data);
+    }
+
     public function saveFullOrder(array $data)
     {
         $db = Db::getInstance();

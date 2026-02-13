@@ -827,45 +827,157 @@ class ShipmentManager
 
     public function downloadLabel(array $account, string $checkoutFormId, string $shipmentId): array
     {
-        $resolvedShipmentId = $shipmentId;
-        if (!$this->looksLikeShipmentId($resolvedShipmentId) && $this->looksLikeCreateCommandId($resolvedShipmentId)) {
-            $resolved = $this->resolveShipmentIdCandidate($account, $resolvedShipmentId);
-            if (is_string($resolved) && $resolved !== '') {
-                $resolvedShipmentId = $resolved;
+        $debug = [];
+        $debug[] = '[LABEL] input shipmentId=' . $shipmentId . ', checkoutFormId=' . $checkoutFormId;
+
+        // 1) Zbuduj listę kandydatów shipmentId (lokalny + wykryte z API).
+        $candidateIds = [];
+
+        $primaryCandidate = trim($shipmentId);
+        if ($primaryCandidate !== '') {
+            if (!$this->looksLikeShipmentId($primaryCandidate) && $this->looksLikeCreateCommandId($primaryCandidate)) {
+                $resolved = $this->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
+                if (is_string($resolved) && $resolved !== '') {
+                    $primaryCandidate = $resolved;
+                    $debug[] = '[LABEL] resolved create-command to shipmentId=' . $primaryCandidate;
+                }
+            }
+            if ($this->looksLikeShipmentId($primaryCandidate)) {
+                $candidateIds[$primaryCandidate] = true;
             }
         }
 
-        if (!$this->looksLikeShipmentId($resolvedShipmentId)) {
-            return ['ok' => false, 'message' => 'Nie udało się ustalić poprawnego shipmentId do pobrania etykiety.'];
+        foreach ($this->discoverShipmentIdsFromApi($account, $checkoutFormId, $debug) as $discoveredId) {
+            $resolvedDiscoveredId = trim((string)$discoveredId);
+            if ($resolvedDiscoveredId === '') {
+                continue;
+            }
+
+            if (!$this->looksLikeShipmentId($resolvedDiscoveredId) && $this->looksLikeCreateCommandId($resolvedDiscoveredId)) {
+                $resolved = $this->resolveShipmentIdCandidate($account, $resolvedDiscoveredId, $debug);
+                if (is_string($resolved) && $resolved !== '') {
+                    $resolvedDiscoveredId = $resolved;
+                }
+            }
+
+            if ($this->looksLikeShipmentId($resolvedDiscoveredId)) {
+                $candidateIds[$resolvedDiscoveredId] = true;
+            }
         }
+
+        $candidateIds = array_keys($candidateIds);
+        if (empty($candidateIds)) {
+            return [
+                'ok' => false,
+                'message' => 'Nie udało się ustalić poprawnego shipmentId do pobrania etykiety.',
+                'debug_lines' => $debug,
+            ];
+        }
+
+        $debug[] = '[LABEL] shipment candidates=' . implode(', ', $candidateIds);
 
         $labelFormat = $this->config->getFileFormat();
         $isA4Pdf = ($this->config->getPageSize() === 'A4' && $labelFormat === 'PDF');
-        $accept = $labelFormat === 'ZPL' ? 'application/zpl' : 'application/pdf';
 
-        $payload = [
-            'shipmentIds' => [$resolvedShipmentId],
-            'pageSize' => $this->config->getPageSize(),
-            'labelFormat' => $labelFormat,
-            'cutLine' => $isA4Pdf
-        ];
+        $acceptCandidates = $labelFormat === 'ZPL'
+            ? ['application/zpl', 'text/plain', 'application/octet-stream', '*/*']
+            : ['application/pdf', 'application/octet-stream', '*/*'];
 
-        $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, $accept);
+        $lastResp = ['ok' => false, 'code' => 0, 'raw' => ''];
+        $usedShipmentId = null;
 
-        if (!$resp['ok']) {
-            return ['ok' => false, 'message' => 'Błąd pobierania etykiety'];
+        // 2) Próbuj pobrać etykietę dla kolejnych shipmentId.
+        foreach ($candidateIds as $candidateShipmentId) {
+            $payload = [
+                'shipmentIds' => [$candidateShipmentId],
+                'pageSize' => $this->config->getPageSize(),
+                'labelFormat' => $labelFormat,
+                'cutLine' => $isA4Pdf
+            ];
+            $debug[] = '[LABEL] trying shipmentId=' . $candidateShipmentId . ' payload=' . json_encode($payload, JSON_UNESCAPED_UNICODE);
+
+            // Debug preflight: sprawdź, czy Allegro widzi shipment po ID.
+            $shipmentDetail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($candidateShipmentId));
+            $debug[] = '[LABEL] API GET /shipment-management/shipments/{id} shipmentId=' . $candidateShipmentId . ' code=' . (int)($shipmentDetail['code'] ?? 0) . ', ok=' . (!empty($shipmentDetail['ok']) ? '1' : '0');
+            if (!empty($shipmentDetail['ok']) && is_array($shipmentDetail['json'])) {
+                $debug[] = '[LABEL] shipment detail status=' . (string)($shipmentDetail['json']['status'] ?? '-') . ', waybill=' . (string)($shipmentDetail['json']['waybill'] ?? '-');
+            }
+
+            $resp = ['ok' => false, 'code' => 0, 'raw' => ''];
+            foreach ($acceptCandidates as $accept) {
+                $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, $accept);
+                $debug[] = '[LABEL] API POST /shipment-management/label shipmentId=' . $candidateShipmentId . ' Accept=' . $accept . ' code=' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+
+                if (!empty($resp['ok'])) {
+                    $usedShipmentId = $candidateShipmentId;
+                    $lastResp = $resp;
+                    break;
+                }
+
+                $code = (int)($resp['code'] ?? 0);
+                // 406 = nieakceptowalna reprezentacja -> próbuj kolejny Accept.
+                if ($code === 406) {
+                    $lastResp = $resp;
+                    continue;
+                }
+
+                // 404 dla tego shipmentId -> przejdź do następnego shipmentId.
+                if ($code === 404) {
+                    $lastResp = $resp;
+                    break;
+                }
+
+                // Inne błędy: zatrzymaj retry Accept dla tego shipmentId.
+                $lastResp = $resp;
+                break;
+            }
+
+            if ($usedShipmentId !== null) {
+                break;
+            }
         }
 
-        $uniqueName = $checkoutFormId . '_' . substr($resolvedShipmentId, 0, 8);
-        $path = $this->storage->save($uniqueName, $resp['raw'], $labelFormat);
+        if ($usedShipmentId === null || empty($lastResp['ok'])) {
+            $apiMessage = '';
+            $raw = (string)($lastResp['raw'] ?? '');
+            $json = json_decode($raw, true);
+            if (is_array($json) && !empty($json['errors'][0]['message'])) {
+                $apiMessage = (string)$json['errors'][0]['message'];
+            } elseif (is_array($json) && !empty($json['message'])) {
+                $apiMessage = (string)$json['message'];
+            } elseif ($raw !== '') {
+                $apiMessage = mb_substr(trim($raw), 0, 500);
+            }
+
+            if ($apiMessage !== '') {
+                $debug[] = '[LABEL] API error message=' . $apiMessage;
+            }
+
+            $debug[] = '[LABEL] hint: sprawdź GET /order/checkout-forms/' . rawurlencode($checkoutFormId) . '/shipments (lista shipmentów)';
+            $debug[] = '[LABEL] hint: sprawdź GET /shipment-management/shipments/{id} dla każdego kandydata';
+            $debug[] = '[LABEL] hint: etykieta pobierana z POST /shipment-management/label z payload shipmentIds + pageSize + labelFormat';
+
+            return [
+                'ok' => false,
+                'message' => $apiMessage !== '' ? ('Błąd pobierania etykiety: ' . $apiMessage) : 'Błąd pobierania etykiety',
+                'debug_lines' => $debug,
+                'http_code' => (int)($lastResp['code'] ?? 0),
+            ];
+        }
+
+        $uniqueName = $checkoutFormId . '_' . substr($usedShipmentId, 0, 8);
+        $path = $this->storage->save($uniqueName, $lastResp['raw'], $labelFormat);
+        $debug[] = '[LABEL] success shipmentId=' . $usedShipmentId . ', saved file=' . $path;
 
         return [
             'ok' => true,
             'path' => $path,
             'format' => $labelFormat,
             'name' => $uniqueName,
+            'debug_lines' => $debug,
         ];
     }
+
 
     // --- Helpers ---
 

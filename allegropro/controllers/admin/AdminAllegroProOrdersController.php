@@ -299,12 +299,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
         }
 
-        $downloadUrl = self::$currentIndex
-            . '&token=' . $this->token
-            . '&action=download_label'
-            . '&id_allegropro_account=' . (int)$account['id_allegropro_account']
-            . '&checkout_form_id=' . urlencode($cfId)
-            . '&shipment_id=' . urlencode($shipmentId);
+        $downloadUrl = $this->context->link->getAdminLink('AdminAllegroProOrders', true, [], [
+            'action' => 'download_label',
+            'id_allegropro_account' => (int)$account['id_allegropro_account'],
+            'checkout_form_id' => $cfId,
+            'shipment_id' => $shipmentId,
+        ]);
 
         $this->ajaxDie(json_encode(['success' => true, 'url' => $downloadUrl]));
     }
@@ -528,29 +528,66 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     {
         $shipmentId = (string)Tools::getValue('shipment_id');
         $cfId = (string)Tools::getValue('checkout_form_id');
+        $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
+        $debugLines = [];
 
         if ($shipmentId === '' || $cfId === '') {
+            if ($debug) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Brak shipment_id lub checkout_form_id.',
+                    'debug_lines' => ['[LABEL] brak shipment_id lub checkout_form_id'],
+                ]);
+                exit;
+            }
+
             header('HTTP/1.1 400 Bad Request');
             echo 'Brak shipment_id lub checkout_form_id.';
             exit;
         }
 
+        $debugLines[] = '[LABEL] start checkout_form_id=' . $cfId . ', shipment_id=' . $shipmentId;
+
         $account = $this->getValidAccountFromRequest();
         if (!$account) {
+            if ($debug) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Nieprawidłowe konto Allegro.',
+                    'debug_lines' => array_merge($debugLines, ['[LABEL] nieprawidłowe konto Allegro']),
+                ]);
+                exit;
+            }
+
             header('HTTP/1.1 403 Forbidden');
             echo 'Nieprawidłowe konto Allegro.';
             exit;
         }
+
+        $debugLines[] = '[LABEL] account_id=' . (int)$account['id_allegropro_account'];
 
         $exists = (int)Db::getInstance()->getValue(
             'SELECT id_allegropro_shipment FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
             . 'WHERE id_allegropro_account = ' . (int)$account['id_allegropro_account']
             . " AND checkout_form_id = '" . pSQL($cfId) . "'"
             . " AND shipment_id = '" . pSQL($shipmentId) . "'"
-            . ' LIMIT 1'
         );
 
+        $debugLines[] = '[LABEL] local shipment row exists=' . ($exists > 0 ? '1' : '0');
+
         if ($exists <= 0) {
+            if ($debug) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Nie znaleziono przesyłki dla wskazanego zamówienia.',
+                    'debug_lines' => array_merge($debugLines, ['[LABEL] brak rekordu w tabeli allegropro_shipment']),
+                ]);
+                exit;
+            }
+
             header('HTTP/1.1 404 Not Found');
             echo 'Nie znaleziono przesyłki dla wskazanego zamówienia.';
             exit;
@@ -559,7 +596,22 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $manager = $this->getShipmentManager();
         $res = $manager->downloadLabel($account, $cfId, $shipmentId);
 
+        if (!empty($res['debug_lines']) && is_array($res['debug_lines'])) {
+            $debugLines = array_merge($debugLines, array_values($res['debug_lines']));
+        }
+
         if (empty($res['ok']) || empty($res['path']) || !is_file($res['path'])) {
+            if ($debug) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => (string)($res['message'] ?? 'Błąd pobierania etykiety.'),
+                    'http_code' => (int)($res['http_code'] ?? 0),
+                    'debug_lines' => $debugLines,
+                ]);
+                exit;
+            }
+
             header('HTTP/1.1 502 Bad Gateway');
             echo 'Błąd pobierania etykiety.';
             exit;
@@ -569,6 +621,22 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $mime = (new LabelStorage())->getMimeType($format);
         $ext = (strtoupper($format) === 'ZPL') ? 'zpl' : 'pdf';
         $fileName = 'allegro_label_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $cfId) . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $shipmentId) . '.' . $ext;
+
+        $debugLines[] = '[LABEL] success format=' . $format . ', mime=' . $mime . ', file=' . $res['path'];
+
+        if ($debug) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Etykieta pobrana poprawnie (tryb debug - bez streamu pliku).',
+                'file_name' => $fileName,
+                'file_path' => $res['path'],
+                'file_size' => (int)filesize($res['path']),
+                'mime' => $mime,
+                'debug_lines' => $debugLines,
+            ]);
+            exit;
+        }
 
         if (ob_get_level()) {
             ob_end_clean();
@@ -582,6 +650,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         readfile($res['path']);
         exit;
     }
+
 
     private function ajaxGetOrderDetails()
     {

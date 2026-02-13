@@ -80,6 +80,12 @@
                                 </label>
                             </div>
                             <div id="ship_sync_debug" class="alert alert-secondary" style="display:none; font-size:11px; white-space:pre-wrap; max-height:220px; overflow:auto;"></div>
+                            <div class="mb-2" style="font-size:12px; margin-top:8px;">
+                                <label style="font-weight:normal; margin:0;">
+                                    <input type="checkbox" id="label_download_debug"> Tryb debug pobierania etykiety (nie otwiera PDF, pokazuje szczegóły)
+                                </label>
+                            </div>
+                            <div id="label_download_debug_box" class="alert alert-secondary" style="display:none; font-size:11px; white-space:pre-wrap; max-height:240px; overflow:auto;"></div>
                         {/if}
                         
                         {* BANER SMART *}
@@ -425,16 +431,75 @@ document.addEventListener("DOMContentLoaded", function() {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             var shipId = this.getAttribute('data-id');
+            var debugCheck = document.getElementById('label_download_debug');
+            var debugEnabled = !!(debugCheck && debugCheck.checked);
+            var debugBox = document.getElementById('label_download_debug_box');
+
+            if (debugBox) {
+                debugBox.style.display = 'none';
+                debugBox.innerText = '';
+            }
+
             var fd = new FormData();
             fd.append('shipment_id', shipId);
             fd.append('checkout_form_id', cfId);
             fd.append('id_allegropro_account', accId);
 
-            // POPRAWKA: Dodano spacje w obiekcie { method:... }
             fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=get_label&ajax=1', { method: 'POST', body: fd })
-            .then(r=>r.json()).then(d=>{
-                if(d.success) window.open(d.url, '_blank');
-                else alert('Błąd: '+d.message);
+            .then(r => r.json())
+            .then(d => {
+                if (!d.success || !d.url) {
+                    alert('Błąd: ' + (d.message || 'Brak URL etykiety.'));
+                    return;
+                }
+
+                if (!debugEnabled) {
+                    window.open(d.url, '_blank');
+                    return;
+                }
+
+                var debugUrl = d.url + '&debug=1&ajax=1';
+                fetch(debugUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(debugData) {
+                    if (!debugBox) {
+                        alert(JSON.stringify(debugData, null, 2));
+                        return;
+                    }
+
+                    var lines = [];
+                    lines.push('success=' + (debugData.success ? 'true' : 'false'));
+                    lines.push('message=' + (debugData.message || ''));
+                    if (debugData.http_code) {
+                        lines.push('http_code=' + debugData.http_code);
+                    }
+                    if (Array.isArray(debugData.debug_lines) && debugData.debug_lines.length) {
+                        lines.push('');
+                        lines.push('--- debug_lines ---');
+                        lines = lines.concat(debugData.debug_lines);
+                    }
+                    if (debugData.file_name) {
+                        lines.push('');
+                        lines.push('file_name=' + debugData.file_name);
+                    }
+                    if (debugData.file_size) {
+                        lines.push('file_size=' + debugData.file_size);
+                    }
+
+                    debugBox.style.display = 'block';
+                    debugBox.innerText = lines.join('\n');
+                })
+                .catch(function() {
+                    if (debugBox) {
+                        debugBox.style.display = 'block';
+                        debugBox.innerText = 'Błąd połączenia podczas pobierania danych debug etykiety.';
+                    } else {
+                        alert('Błąd połączenia podczas pobierania danych debug etykiety.');
+                    }
+                });
+            })
+            .catch(function() {
+                alert('Błąd połączenia podczas przygotowania URL etykiety.');
             });
         });
     });
