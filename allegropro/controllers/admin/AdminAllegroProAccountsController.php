@@ -22,7 +22,7 @@ class AdminAllegroProAccountsController extends ModuleAdminController
     public function initContent()
     {
         parent::initContent();
-        
+
         // Jeśli mamy akcję autoryzacji, wyświetlamy widok diagnostyczny
         if (Tools::getValue('action') === 'authorize') {
             $this->renderAuthorizeView();
@@ -32,7 +32,7 @@ class AdminAllegroProAccountsController extends ModuleAdminController
         if (isset($this->module) && method_exists($this->module, 'ensureTabs')) {
             $this->module->ensureTabs();
         }
-        
+
         $this->handleActions();
         $this->renderAccountsList();
     }
@@ -58,11 +58,27 @@ class AdminAllegroProAccountsController extends ModuleAdminController
     private function renderAuthorizeView()
     {
         $id = (int)Tools::getValue('id_allegropro_account');
+        if ($id <= 0) {
+            $this->errors[] = $this->l('Nieprawidłowe ID konta Allegro.');
+            $this->renderAccountsList();
+            return;
+        }
+
         $acc = $this->repo->get($id);
-        
+        if (!$acc) {
+            $this->errors[] = $this->l('Wybrane konto Allegro nie istnieje.');
+            $this->renderAccountsList();
+            return;
+        }
+
         $clientId = trim((string)Configuration::get('ALLEGROPRO_CLIENT_ID'));
         $clientSecret = trim((string)Configuration::get('ALLEGROPRO_CLIENT_SECRET'));
-        
+        if ($clientId === '' || $clientSecret === '') {
+            $this->errors[] = $this->l('Najpierw uzupełnij Client ID i Client Secret w Ustawieniach modułu.');
+            $this->renderAccountsList();
+            return;
+        }
+
         // Generujemy URI dynamicznie - to jest adres, który PrestaShop uważa za poprawny
         $redirectUri = $this->context->link->getModuleLink('allegropro', 'oauthcallback', [], true);
 
@@ -89,7 +105,7 @@ class AdminAllegroProAccountsController extends ModuleAdminController
 
         $env = ((int)$acc['sandbox'] === 1) ? 'sandbox' : (Configuration::get('ALLEGROPRO_ENV') ?: 'prod');
         $baseUrl = ($env === 'sandbox') ? 'https://allegro.pl.allegrosandbox.pl/auth/oauth/authorize' : 'https://allegro.pl/auth/oauth/authorize';
-        
+
         $finalUrl = $baseUrl . '?response_type=code&client_id=' . $clientId . '&redirect_uri=' . urlencode($redirectUri) . '&state=' . $statePayload . '&scope=' . implode('%20', $scopes);
 
         // Wyświetlamy prosty HTML debugujący
@@ -98,15 +114,15 @@ class AdminAllegroProAccountsController extends ModuleAdminController
             <div style="background:#fff; padding:30px; max-width:800px; margin:0 auto; border-radius:8px; box-shadow:0 5px 15px rgba(0,0,0,0.1);">
                 <h1 style="color:#ff5a00;">Naprawa Autoryzacji</h1>
                 <p>Zanim klikniesz przycisk, <strong>SKOPIUJ</strong> poniższy adres i wklej go w ustawieniach swojej aplikacji na Allegro w polu "Redirect URI":</p>
-                
+
                 <div style="background:#ffffd0; padding:15px; border:1px solid #e0e0e0; font-family:monospace; font-size:16px; word-break:break-all; margin:20px 0;">
                     ' . $redirectUri . '
                 </div>
 
                 <p style="color:#666; font-size:13px;">(Musi być identyczny co do znaku! Sprawdź czy jest https i www)</p>
-                
+
                 <hr style="margin:30px 0; border:0; border-top:1px solid #eee;">
-                
+
                 <a href="' . $finalUrl . '" style="background:#ff5a00; color:#fff; padding:15px 30px; text-decoration:none; font-size:20px; border-radius:5px; font-weight:bold; display:inline-block;">
                     PRZEJDŹ DO ALLEGRO (AUTORYZUJ)
                 </a>

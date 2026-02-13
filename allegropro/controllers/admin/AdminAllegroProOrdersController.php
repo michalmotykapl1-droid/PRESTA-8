@@ -30,10 +30,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $this->identifier = 'id_allegropro_order';
         $this->default_order_by = 'updated_at_allegro';
         $this->default_order_way = 'DESC';
-        
+
         parent::__construct();
         $this->repo = new OrderRepository();
-        
+
         $this->fields_list = [
             'id_allegropro_order' => ['title' => 'ID', 'width' => 30],
             'checkout_form_id' => ['title' => 'Allegro ID'],
@@ -49,7 +49,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $api = new AllegroApiClient($http, $accRepo);
         $fetcher = new OrderFetcher($api, $this->repo);
         $processor = new OrderProcessor($this->repo);
-        
+
         return [$accRepo, $fetcher, $processor];
     }
 
@@ -57,19 +57,34 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $accRepo = new AccountRepository();
         $http = new HttpClient();
         $api = new AllegroApiClient($http, $accRepo);
-        
+
         return new ShipmentManager(
-            $api, 
-            new LabelConfig(), 
-            new LabelStorage(), 
-            new OrderRepository(), 
-            new DeliveryServiceRepository(), 
+            $api,
+            new LabelConfig(),
+            new LabelStorage(),
+            new OrderRepository(),
+            new DeliveryServiceRepository(),
             new ShipmentRepository()
         );
     }
 
     private function getAccount($id) {
         return (new AccountRepository())->get((int)$id);
+    }
+
+    private function getValidAccountFromRequest(): ?array
+    {
+        $accId = (int)Tools::getValue('id_allegropro_account');
+        if ($accId <= 0) {
+            return null;
+        }
+
+        $account = $this->getAccount($accId);
+        if (!is_array($account)) {
+            return null;
+        }
+
+        return $account;
     }
 
     // ============================================================
@@ -79,25 +94,25 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     // Krok 1: Pobieranie z Allegro (INCREMENTAL FETCH)
     public function displayAjaxImportFetch() {
         list($accRepo, $fetcher, ) = $this->getServices();
-        $scope = Tools::getValue('scope'); 
-        
+        $scope = Tools::getValue('scope');
+
         $accounts = $accRepo->all();
         $totalFetched = 0;
-        
+
         try {
             foreach ($accounts as $acc) {
                 if (!$acc['active']) continue;
-                
+
                 // ZMIANA: Rozróżnienie trybów pobierania
                 if ($scope === 'history') {
                     // Tryb historii: pobieramy starsze (np. 100 sztuk) bez patrzenia na datę "ostatniego"
                     // (To jest dla bezpieczeństwa, gdybyś chciał uzupełnić luki)
-                    $res = $fetcher->fetchRecent($acc, 100); 
+                    $res = $fetcher->fetchRecent($acc, 100);
                 } else {
                     // Tryb Standard: Inteligentne pobieranie tylko NOWYCH
                     $res = $fetcher->fetchRecent($acc, 50);
                 }
-                
+
                 $totalFetched += $res['fetched_count'];
             }
             $this->ajaxDie(json_encode(['success' => true, 'count' => $totalFetched]));
@@ -111,7 +126,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         // Używamy metody, która zwraca tylko ID gdzie is_finished=0
         // Czyli Twoje "ALLEGRO PRO - ZAMÓWIENIE PRZETWARZANE"
         $ids = $this->repo->getPendingIds(50);
-        
+
         $this->ajaxDie(json_encode(['success' => true, 'ids' => $ids]));
     }
 
@@ -127,7 +142,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         try {
             $result = $processor->processSingleOrder($cfId, $step);
-            $this->ajaxDie(json_encode($result)); 
+            $this->ajaxDie(json_encode($result));
         } catch (Exception $e) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => $e->getMessage()]));
         }
@@ -139,43 +154,74 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
     public function displayAjaxCreateShipment() {
         $cfId = Tools::getValue('checkout_form_id');
-        $accId = (int)Tools::getValue('id_allegropro_account');
         $sizeCode = Tools::getValue('size_code');
         $weight = Tools::getValue('weight');
         $isSmart = (int)Tools::getValue('is_smart');
-        $account = $this->getAccount($accId);
+
+        if (!$cfId) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
         $manager = $this->getShipmentManager();
-        $res = $manager->createShipment($account, $cfId, ['size_code'=>$sizeCode, 'weight'=>$weight, 'smart'=>$isSmart]);
+        $res = $manager->createShipment($account, $cfId, ['size_code' => $sizeCode, 'weight' => $weight, 'smart' => $isSmart]);
         if ($res['ok']) $this->ajaxDie(json_encode(['success' => true]));
         else $this->ajaxDie(json_encode(['success' => false, 'message' => $res['message']]));
     }
 
     public function displayAjaxCancelShipment() {
-        $shipmentId = Tools::getValue('shipment_id');
-        $accId = (int)Tools::getValue('id_allegropro_account');
-        $account = $this->getAccount($accId);
+        $shipmentId = (string)Tools::getValue('shipment_id');
+        if ($shipmentId === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak shipment_id.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
         $manager = $this->getShipmentManager();
         $res = $manager->cancelShipment($account, $shipmentId);
         if ($res['ok']) $this->ajaxDie(json_encode(['success' => true]));
         else $this->ajaxDie(json_encode(['success' => false, 'message' => $res['message']]));
     }
-    
+
     public function displayAjaxGetLabel() {
-        $shipmentId = Tools::getValue('shipment_id');
-        $cfId = Tools::getValue('checkout_form_id');
-        $accId = (int)Tools::getValue('id_allegropro_account');
-        $account = $this->getAccount($accId);
+        $shipmentId = (string)Tools::getValue('shipment_id');
+        $cfId = (string)Tools::getValue('checkout_form_id');
+
+        if ($shipmentId === '' || $cfId === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak shipment_id lub checkout_form_id.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
         $manager = $this->getShipmentManager();
         $res = $manager->downloadLabel($account, $cfId, $shipmentId);
         if ($res['ok']) $this->ajaxDie(json_encode(['success' => true, 'url' => $res['url']]));
         else $this->ajaxDie(json_encode(['success' => false, 'message' => 'Błąd pobierania']));
     }
-    
+
     public function displayAjaxUpdateAllegroStatus() {
-        $cfId = Tools::getValue('checkout_form_id');
-        $accId = (int)Tools::getValue('id_allegropro_account');
-        $status = Tools::getValue('new_status');
-        $account = $this->getAccount($accId);
+        $cfId = (string)Tools::getValue('checkout_form_id');
+        $status = (string)Tools::getValue('new_status');
+
+        if ($cfId === '' || $status === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id lub statusu.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
         $http = new HttpClient();
         $api = new AllegroApiClient($http, new AccountRepository());
         $resp = $api->postJson($account, '/order/checkout-forms/' . $cfId . '/fulfillment', ['status' => $status]);
@@ -194,7 +240,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
     public function renderList()
     {
-        $orders = $this->repo->getPaginated(50); 
+        $orders = $this->repo->getPaginated(50);
         $accounts = (new AccountRepository())->all();
         $selectedAccount = (int)Tools::getValue('id_allegropro_account');
         if (!$selectedAccount && !empty($accounts)) $selectedAccount = $accounts[0]['id_allegropro_account'];
