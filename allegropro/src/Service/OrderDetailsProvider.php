@@ -18,15 +18,16 @@ use AllegroPro\Service\HttpClient;
 
 class OrderDetailsProvider
 {
-    private $shipmentManager;
+    private ShipmentManager $shipmentManager;
+    private AccountRepository $accounts;
 
     public function __construct()
     {
         // Ręczne wstrzykiwanie zależności
         $http = new HttpClient();
-        $accRepo = new AccountRepository();
-        $api = new AllegroApiClient($http, $accRepo);
-        
+        $this->accounts = new AccountRepository();
+        $api = new AllegroApiClient($http, $this->accounts);
+
         $this->shipmentManager = new ShipmentManager(
             $api,
             new LabelConfig(),
@@ -47,37 +48,55 @@ class OrderDetailsProvider
         $q->where('o.id_order_prestashop = ' . (int)$psOrderId);
         $order = Db::getInstance()->getRow($q);
 
-        if (!$order) return null;
+        if (!$order) {
+            return null;
+        }
 
-        $cfId = $order['checkout_form_id'];
+        $cfId = (string)$order['checkout_form_id'];
         $cfIdEsc = pSQL($cfId);
 
-        // 2. Pobierz dane
+        // 2) Sync shipmentów z Allegro przy wejściu na widok (z TTL)
+        $syncMeta = [
+            'ok' => false,
+            'synced' => 0,
+            'skipped' => true,
+        ];
+
+        $account = $this->accounts->get((int)$order['id_allegropro_account']);
+        if (is_array($account) && !empty($account['access_token'])) {
+            $sync = $this->shipmentManager->syncOrderShipments($account, $cfId, 90, false);
+            if (is_array($sync)) {
+                $syncMeta['ok'] = !empty($sync['ok']);
+                $syncMeta['synced'] = (int)($sync['synced'] ?? 0);
+                $syncMeta['skipped'] = !empty($sync['skipped']);
+            }
+        }
+
+        // 3. Pobierz dane (już po sync)
         $buyer = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_buyer WHERE checkout_form_id = '$cfIdEsc'");
         $shipping = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_shipping WHERE checkout_form_id = '$cfIdEsc'");
         $invoice = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_invoice WHERE checkout_form_id = '$cfIdEsc'");
         $items = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."allegropro_order_item WHERE checkout_form_id = '$cfIdEsc'");
 
-        // 3. NOWA LOGIKA: Pobierz tryb (BOX/COURIER) i historię przesyłek
+        // 4. Tryb i historia przesyłek
         $carrierMode = 'COURIER';
         if (!empty($shipping['method_name'])) {
-            $carrierMode = $this->shipmentManager->detectCarrierMode($shipping['method_name']);
+            $carrierMode = $this->shipmentManager->detectCarrierMode((string)$shipping['method_name']);
         }
-        
+
         $shipmentsHistory = $this->shipmentManager->getHistory($cfId);
 
-        // Oblicz pozostałe darmowe paczki (Smart Limit - Smart Zużyte + Smart Anulowane)
+        // Smart: liczymy po zsynchronizowanej historii
         $smartLimit = (int)($shipping['package_count'] ?? 0);
         $smartUsed = 0;
         foreach ($shipmentsHistory as $sh) {
-            // Liczymy tylko te, które są SMART i NIE są anulowane
-            if ($sh['status'] !== 'CANCELLED' && isset($sh['is_smart']) && $sh['is_smart'] == 1) {
+            if ((string)($sh['status'] ?? '') !== 'CANCELLED' && (int)($sh['is_smart'] ?? 0) === 1) {
                 $smartUsed++;
             }
         }
         $smartLeft = max(0, $smartLimit - $smartUsed);
 
-        // 4. Statusy
+        // 5. Statusy
         $psStatusName = 'Nieznany';
         $psOrder = new Order($psOrderId);
         if (Validate::isLoadedObject($psOrder)) {
@@ -102,12 +121,13 @@ class OrderDetailsProvider
             'items' => $items,
             'ps_status_name' => $psStatusName,
             'allegro_statuses' => $allegroStatuses,
-            
-            // --- DANE DLA NOWEGO WIDOKU ---
+
+            // --- DANE DLA WIDOKU ---
             'carrier_mode' => $carrierMode,
             'shipments' => $shipmentsHistory,
             'smart_limit' => $smartLimit,
-            'smart_left' => $smartLeft
+            'smart_left' => $smartLeft,
+            'shipments_sync' => $syncMeta,
         ];
     }
 }

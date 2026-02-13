@@ -58,6 +58,29 @@
                 <div class="card bg-light border-0">
                     <div class="card-body p-3">
                         <h4 class="text-muted mb-3">Zarządzanie Wysyłką</h4>
+                        {if isset($allegro_data.shipments_sync)}
+                            <div class="d-flex align-items-center justify-content-between mb-2" style="gap:8px;">
+                                <div class="text-muted" style="font-size:11px;" id="ship_sync_msg">
+                                    {if $allegro_data.shipments_sync.skipped}
+                                        Synchronizacja przesyłek: odświeżone niedawno (TTL).
+                                    {elseif $allegro_data.shipments_sync.ok}
+                                        Synchronizacja przesyłek: zaktualizowano {$allegro_data.shipments_sync.synced|intval} rekordów.
+                                    {else}
+                                        Synchronizacja przesyłek: brak aktualizacji (użyto danych lokalnych).
+                                    {/if}
+                                </div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSyncShipmentsNow" title="Wymuś aktualizację przesyłek i numerów nadania z Allegro">
+                                    <i class="material-icons" style="font-size:16px; vertical-align:middle;">refresh</i>
+                                    Odśwież przesyłki
+                                </button>
+                            </div>
+                            <div class="mb-2" style="font-size:12px;">
+                                <label style="font-weight:normal; margin:0;">
+                                    <input type="checkbox" id="sync_shipments_debug"> Tryb debug (pokaż szczegóły odpowiedzi API po odświeżeniu)
+                                </label>
+                            </div>
+                            <div id="ship_sync_debug" class="alert alert-secondary" style="display:none; font-size:11px; white-space:pre-wrap; max-height:220px; overflow:auto;"></div>
+                        {/if}
                         
                         {* BANER SMART *}
                         {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
@@ -123,6 +146,7 @@
                                         <th>Status</th>
                                         <th>Typ</th>
                                         <th>Data</th>
+                                        <th>Nr nadania</th>
                                         <th class="text-right">Akcje</th>
                                     </tr>
                                 </thead>
@@ -139,6 +163,13 @@
                                         </td>
                                         <td>{$ship.size_details}</td>
                                         <td>{$ship.created_at|date_format:"%H:%M %d-%m"}</td>
+                                        <td>
+                                            {if $ship.tracking_number}
+                                                <code>{$ship.tracking_number|escape:'htmlall':'UTF-8'}</code>
+                                            {else}
+                                                <span class="text-muted">—</span>
+                                            {/if}
+                                        </td>
                                         <td class="text-right">
                                             {if $ship.status == 'CREATED'}
                                                 <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
@@ -147,7 +178,7 @@
                                         </td>
                                     </tr>
                                 {foreachelse}
-                                    <tr><td colspan="4" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
+                                    <tr><td colspan="5" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
                                 {/foreach}
                                 </tbody>
                             </table>
@@ -314,6 +345,74 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     });
+
+
+    // --- 5. RĘCZNY SYNC PRZESYŁEK ---
+    var btnSync = document.getElementById('btnSyncShipmentsNow');
+    if (btnSync) {
+        btnSync.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            var msg = document.getElementById('ship_sync_msg');
+            var debugCheck = document.getElementById('sync_shipments_debug');
+            var debugBox = document.getElementById('ship_sync_debug');
+            var debugEnabled = !!(debugCheck && debugCheck.checked);
+
+            btnSync.disabled = true;
+            if (msg) {
+                msg.className = 'text-info';
+                msg.innerText = 'Trwa synchronizacja przesyłek z Allegro...';
+            }
+            if (debugBox) {
+                debugBox.style.display = 'none';
+                debugBox.innerText = '';
+            }
+
+            var fd = new FormData();
+            fd.append('checkout_form_id', cfId);
+            fd.append('id_allegropro_account', accId);
+            fd.append('debug', debugEnabled ? '1' : '0');
+
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=sync_shipments&ajax=1', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                btnSync.disabled = false;
+
+                if (debugEnabled && debugBox) {
+                    var lines = Array.isArray(d.debug_lines) ? d.debug_lines : [];
+                    if (!lines.length) {
+                        lines = ['Brak dodatkowych danych debug.'];
+                    }
+                    debugBox.style.display = 'block';
+                    debugBox.innerText = lines.join('\n');
+                }
+
+                if (d.success) {
+                    if (msg) {
+                        msg.className = 'text-success';
+                        msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + (debugEnabled ? '. Tryb debug aktywny.' : '') + '. Odświeżam widok...';
+                    }
+                    setTimeout(function(){ location.reload(); }, debugEnabled ? 1500 : 800);
+                } else {
+                    if (msg) {
+                        msg.className = 'text-danger';
+                        msg.innerText = 'Błąd synchronizacji: ' + (d.message || 'Nieznany błąd');
+                    }
+                }
+            })
+            .catch(function() {
+                btnSync.disabled = false;
+                if (msg) {
+                    msg.className = 'text-danger';
+                    msg.innerText = 'Błąd połączenia podczas synchronizacji.';
+                }
+                if (debugEnabled && debugBox) {
+                    debugBox.style.display = 'block';
+                    debugBox.innerText = 'Błąd połączenia - brak danych debug z serwera.';
+                }
+            });
+        });
+    }
 
     // --- 4. DRUKOWANIE (Pobieranie PDF) ---
     document.querySelectorAll('.btn-get-label').forEach(function(btn) {

@@ -252,6 +252,40 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         else $this->ajaxDie(json_encode(['success' => false, 'message' => $res['message']]));
     }
 
+    public function displayAjaxSyncShipments() {
+        $cfId = (string)Tools::getValue('checkout_form_id');
+        $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
+
+        if ($cfId === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $manager = $this->getShipmentManager();
+        $res = $manager->syncOrderShipments($account, $cfId, 0, true, $debug);
+
+        if (!empty($res['ok'])) {
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'synced' => (int)($res['synced'] ?? 0),
+                'skipped' => !empty($res['skipped']),
+                'debug_enabled' => $debug,
+                'debug_lines' => is_array($res['debug_lines'] ?? null) ? array_values($res['debug_lines']) : [],
+            ]));
+        }
+
+        $this->ajaxDie(json_encode([
+            'success' => false,
+            'message' => (string)($res['message'] ?? 'Błąd synchronizacji przesyłek.'),
+            'debug_enabled' => $debug,
+            'debug_lines' => is_array($res['debug_lines'] ?? null) ? array_values($res['debug_lines']) : [],
+        ]));
+    }
+
     public function displayAjaxGetLabel() {
         $shipmentId = (string)Tools::getValue('shipment_id');
         $cfId = (string)Tools::getValue('checkout_form_id');

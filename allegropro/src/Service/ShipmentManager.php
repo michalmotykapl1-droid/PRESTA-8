@@ -152,6 +152,426 @@ class ShipmentManager
         }
     }
 
+    /**
+     * Synchronizuje przesyłki dla checkoutForm z Allegro:
+     * - odświeża dane Smart (is_smart / package_count),
+     * - aktualizuje statusy i tracking_number lokalnych przesyłek,
+     * - próbuje wykryć przesyłki utworzone poza modułem.
+     */
+    public function syncOrderShipments(array $account, string $checkoutFormId, int $ttlSeconds = 90, bool $force = false, bool $debug = false): array
+    {
+        $debugLines = [];
+        $startedAt = microtime(true);
+        $accountId = (int)($account['id_allegropro_account'] ?? 0);
+        if ($accountId <= 0 || $checkoutFormId === '') {
+            return ['ok' => false, 'message' => 'Brak danych konta lub checkoutFormId.'];
+        }
+
+        if ($debug) {
+            $debugLines[] = '[SYNC] start checkoutFormId=' . $checkoutFormId . ', accountId=' . $accountId;
+        }
+
+        if (!$force && !$this->shipments->shouldSyncOrder($accountId, $checkoutFormId, $ttlSeconds)) {
+            if ($debug) {
+                $debugLines[] = '[SYNC] pominięto przez TTL=' . (int)$ttlSeconds . 's';
+                $this->persistSyncDebug($checkoutFormId, $debugLines);
+            }
+            return ['ok' => true, 'skipped' => true, 'synced' => 0, 'debug_lines' => $debugLines];
+        }
+
+        $shipmentIds = [];
+        foreach ($this->shipments->getOrderShipmentIds($accountId, $checkoutFormId) as $id) {
+            $shipmentIds[$id] = true;
+        }
+        if ($debug) {
+            $debugLines[] = '[SYNC] lokalne shipment_id: ' . implode(', ', array_keys($shipmentIds));
+        }
+
+        // 1) Pobierz świeże dane checkoutForm i zaktualizuj dane Smart
+        $orderResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
+        if ($debug) {
+            $debugLines[] = '[API] GET /order/checkout-forms/{id}: HTTP ' . (int)($orderResp['code'] ?? 0) . ', ok=' . (!empty($orderResp['ok']) ? '1' : '0');
+        }
+        if ($orderResp['ok'] && is_array($orderResp['json'])) {
+            $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
+            $this->updateShippingSmartData(
+                $checkoutFormId,
+                $smart['package_count'],
+                $smart['is_smart']
+            );
+            if ($debug) {
+                $debugLines[] = '[SYNC] Smart z checkout-form: package_count=' . var_export($smart['package_count'], true) . ', is_smart=' . var_export($smart['is_smart'], true);
+            }
+
+            foreach ($this->extractShipmentIdsFromCheckoutForm($orderResp['json']) as $sid) {
+                $shipmentIds[$sid] = true;
+            }
+            if ($debug) {
+                $debugLines[] = '[SYNC] shipment_id z checkout-form: ' . implode(', ', $this->extractShipmentIdsFromCheckoutForm($orderResp['json']));
+            }
+        } elseif ($debug) {
+            $debugLines[] = '[SYNC] checkout-form nie zwrócił danych JSON. raw=' . $this->shortRaw($orderResp['raw'] ?? '');
+        }
+
+        // 1b) Dodatkowa próba wykrycia shipmentów utworzonych poza modułem
+        foreach ($this->discoverShipmentIdsFromApi($account, $checkoutFormId, $debugLines) as $sid) {
+            $shipmentIds[$sid] = true;
+        }
+
+        if ($debug) {
+            $debugLines[] = '[SYNC] finalna lista shipment_id: ' . implode(', ', array_keys($shipmentIds));
+        }
+
+        // 2) Dla każdego ID pobierz szczegóły przesyłki (status + tracking)
+        $synced = 0;
+        foreach (array_keys($shipmentIds) as $shipmentId) {
+            if ($shipmentId === '') {
+                continue;
+            }
+
+            $detail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($shipmentId));
+            if (!$detail['ok'] || !is_array($detail['json'])) {
+                if ($debug) {
+                    $debugLines[] = '[API] GET /shipment-management/shipments/' . $shipmentId . ': HTTP ' . (int)($detail['code'] ?? 0) . ', brak danych; raw=' . $this->shortRaw($detail['raw'] ?? '');
+                }
+                continue;
+            }
+
+            $status = (string)($detail['json']['status'] ?? 'CREATED');
+            $tracking = $this->extractTrackingNumber($detail['json']);
+            $isSmart = $this->extractIsSmart($detail['json']);
+            $carrierMode = $this->extractCarrierMode($detail['json']);
+            $sizeDetails = $this->extractSizeDetails($detail['json']);
+
+            $this->shipments->upsertFromAllegro(
+                $accountId,
+                $checkoutFormId,
+                $shipmentId,
+                $status,
+                $tracking,
+                $isSmart,
+                $carrierMode,
+                $sizeDetails
+            );
+            $synced++;
+
+            if ($debug) {
+                $debugLines[] = '[SYNC] shipment=' . $shipmentId . ', status=' . $status . ', tracking=' . ($tracking ?: '-') . ', smart=' . var_export($isSmart, true);
+            }
+        }
+
+        if ($debug) {
+            $debugLines[] = '[SYNC] koniec, synced=' . $synced . ', time=' . round(microtime(true) - $startedAt, 3) . 's';
+            $this->persistSyncDebug($checkoutFormId, $debugLines);
+        }
+
+        return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'debug_lines' => $debugLines];
+    }
+
+
+    private function updateShippingSmartData(string $checkoutFormId, ?int $packageCount, ?int $isSmart): void
+    {
+        $data = [];
+
+        if ($packageCount !== null && $packageCount >= 0) {
+            $data['package_count'] = (int)$packageCount;
+        }
+
+        if ($isSmart !== null) {
+            $data['is_smart'] = (int)$isSmart;
+        }
+
+        if (empty($data)) {
+            return;
+        }
+
+        \Db::getInstance()->update(
+            'allegropro_order_shipping',
+            $data,
+            "checkout_form_id = '" . pSQL($checkoutFormId) . "'"
+        );
+    }
+
+    private function extractSmartDataFromCheckoutForm(array $cf): array
+    {
+        $delivery = is_array($cf['delivery'] ?? null) ? $cf['delivery'] : [];
+
+        $packageCount = null;
+        if (isset($delivery['calculatedNumberOfPackages'])) {
+            $packageCount = max(0, (int)$delivery['calculatedNumberOfPackages']);
+        }
+
+        $isSmart = null;
+        if (isset($delivery['smart'])) {
+            $isSmart = !empty($delivery['smart']) ? 1 : 0;
+        }
+
+        return [
+            'package_count' => $packageCount,
+            'is_smart' => $isSmart,
+        ];
+    }
+
+    /**
+     * Wyciąga shipmentId z możliwych struktur checkoutForm.
+     */
+    private function extractShipmentIdsFromCheckoutForm(array $cf): array
+    {
+        $ids = [];
+
+        $delivery = is_array($cf['delivery'] ?? null) ? $cf['delivery'] : [];
+
+        if (!empty($delivery['shipments']) && is_array($delivery['shipments'])) {
+            foreach ($delivery['shipments'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                foreach (['shipmentId', 'id'] as $k) {
+                    if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
+                        $ids[(string)$row[$k]] = true;
+                    }
+                }
+            }
+        }
+
+        if (!empty($delivery['shipment']) && is_array($delivery['shipment'])) {
+            foreach (['shipmentId', 'id'] as $k) {
+                if (!empty($delivery['shipment'][$k]) && $this->looksLikeShipmentId((string)$delivery['shipment'][$k])) {
+                    $ids[(string)$delivery['shipment'][$k]] = true;
+                }
+            }
+        }
+
+        if (!empty($cf['shipments']) && is_array($cf['shipments'])) {
+            foreach ($cf['shipments'] as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                foreach (['shipmentId', 'id'] as $k) {
+                    if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
+                        $ids[(string)$row[$k]] = true;
+                    }
+                }
+            }
+        }
+
+        return array_keys($ids);
+    }
+
+    private function looksLikeShipmentId(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        // Allegro shipment ids to zwykle UUID lub podobny identyfikator z myślnikami.
+        return (bool)preg_match('/^[a-zA-Z0-9-]{12,}$/', $value);
+    }
+
+    private function extractTrackingNumber(array $shipment): ?string
+    {
+        $candidates = [
+            $shipment['trackingNumber'] ?? null,
+            $shipment['waybill'] ?? null,
+            $shipment['waybillNumber'] ?? null,
+            $shipment['tracking']['number'] ?? null,
+            $shipment['label']['trackingNumber'] ?? null,
+            $shipment['summary']['trackingNumber'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate)) {
+                $candidate = trim($candidate);
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function extractIsSmart(array $shipment): ?int
+    {
+        if (isset($shipment['smart'])) {
+            return !empty($shipment['smart']) ? 1 : 0;
+        }
+
+        if (isset($shipment['service']['smart'])) {
+            return !empty($shipment['service']['smart']) ? 1 : 0;
+        }
+
+        return null;
+    }
+
+    private function extractCarrierMode(array $shipment): ?string
+    {
+        $candidate = $shipment['packages'][0]['type'] ?? ($shipment['package']['type'] ?? null);
+        if (!is_string($candidate) || $candidate === '') {
+            return null;
+        }
+
+        $candidate = strtoupper(trim($candidate));
+        if (in_array($candidate, ['BOX', 'PACKAGE', 'COURIER'], true)) {
+            return $candidate === 'PACKAGE' ? 'COURIER' : $candidate;
+        }
+
+        return null;
+    }
+
+    private function extractSizeDetails(array $shipment): ?string
+    {
+        $candidate = $shipment['packages'][0]['size']
+            ?? $shipment['packages'][0]['type']
+            ?? ($shipment['package']['size'] ?? null);
+
+        if (!is_string($candidate) || trim($candidate) === '') {
+            return null;
+        }
+
+        return strtoupper(trim($candidate));
+    }
+
+    private function discoverShipmentIdsFromApi(array $account, string $checkoutFormId, array &$debugLines = []): array
+    {
+        $found = [];
+
+        $querySets = [
+            ['limit' => 100, 'checkoutForm.id' => $checkoutFormId],
+            ['limit' => 100, 'checkoutFormId' => $checkoutFormId],
+            ['limit' => 100, 'order.id' => $checkoutFormId],
+            ['limit' => 100, 'orderId' => $checkoutFormId],
+            ['limit' => 100],
+        ];
+
+        foreach ($querySets as $query) {
+            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments?' . http_build_query($query) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+            }
+            if (!$resp['ok'] || !is_array($resp['json'])) {
+                if (!empty($debugLines)) {
+                    $debugLines[] = '[API] list raw=' . $this->shortRaw($resp['raw'] ?? '');
+                }
+                continue;
+            }
+
+            $rows = $this->extractShipmentRows($resp['json']);
+            if (!empty($debugLines)) {
+                $debugLines[] = '[SYNC] list rows=' . count($rows);
+            }
+            foreach ($rows as $row) {
+                $sid = $this->extractShipmentIdFromRow($row);
+                if ($sid === null) {
+                    continue;
+                }
+
+                if (!$this->rowMatchesCheckoutForm($row, $checkoutFormId) && count($query) === 1) {
+                    // Dla zapytania bez filtrów wymagamy jawnego powiązania z checkoutForm
+                    continue;
+                }
+
+                $found[$sid] = true;
+            }
+
+            if (!empty($found)) {
+                if (!empty($debugLines)) {
+                    $debugLines[] = '[SYNC] discovery znalezione shipment_id: ' . implode(', ', array_keys($found));
+                }
+                break;
+            }
+        }
+
+        return array_keys($found);
+    }
+
+    private function shortRaw(string $raw): string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return '[empty]';
+        }
+
+        $raw = preg_replace('/\s+/', ' ', $raw);
+        if (strlen($raw) > 350) {
+            $raw = substr($raw, 0, 350) . '...';
+        }
+
+        return $raw;
+    }
+
+    private function persistSyncDebug(string $checkoutFormId, array $lines): void
+    {
+        if (empty($lines)) {
+            return;
+        }
+
+        $base = rtrim(_PS_ROOT_DIR_, '/\\') . '/var/logs';
+        if (!is_dir($base)) {
+            @mkdir($base, 0775, true);
+        }
+
+        if (!is_dir($base) || !is_writable($base)) {
+            return;
+        }
+
+        $logPath = $base . '/allegropro_sync_debug.log';
+        $prefix = '[' . date('Y-m-d H:i:s') . '][' . $checkoutFormId . '] ';
+        $content = '';
+        foreach ($lines as $line) {
+            $content .= $prefix . $line . PHP_EOL;
+        }
+
+        @file_put_contents($logPath, $content, FILE_APPEND);
+    }
+
+    private function extractShipmentRows(array $json): array
+    {
+        $keys = ['shipments', 'items', 'shipmentList'];
+        foreach ($keys as $k) {
+            if (!empty($json[$k]) && is_array($json[$k])) {
+                return $json[$k];
+            }
+        }
+
+        if (isset($json[0]) && is_array($json[0])) {
+            return $json;
+        }
+
+        return [];
+    }
+
+    private function extractShipmentIdFromRow(array $row): ?string
+    {
+        foreach (['id', 'shipmentId'] as $k) {
+            if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
+                return (string)$row[$k];
+            }
+        }
+
+        return null;
+    }
+
+    private function rowMatchesCheckoutForm(array $row, string $checkoutFormId): bool
+    {
+        $candidates = [
+            $row['checkoutForm']['id'] ?? null,
+            $row['checkoutFormId'] ?? null,
+            $row['order']['id'] ?? null,
+            $row['orderId'] ?? null,
+            $row['reference'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) === $checkoutFormId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function cancelShipment(array $account, string $shipmentId): array
     {
         $endpoint = '/shipment-management/shipments/' . $shipmentId . '/cancel';
