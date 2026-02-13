@@ -89,7 +89,18 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
     private function getImportLimit(string $scope): int
     {
-        return $scope === 'history' ? 100 : 50;
+        $default = ($scope === 'history') ? 100 : 50;
+        $limit = (int)Tools::getValue('fetch_limit');
+
+        if ($limit <= 0) {
+            return $default;
+        }
+
+        if ($limit > 1000) {
+            return 1000;
+        }
+
+        return $limit;
     }
 
     // ============================================================
