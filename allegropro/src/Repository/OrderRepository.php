@@ -263,6 +263,22 @@ class OrderRepository
         return (int) Db::getInstance()->getValue($q);
     }
 
+    /**
+     * Kompatybilna wersja sprawdzenia istnienia zamówienia per konto.
+     *
+     * Starsze wersje OrderFetcher wywołują właśnie tę metodę.
+     */
+    public function existsForAccount(int $accountId, string $checkoutFormId): int
+    {
+        $q = new DbQuery();
+        $q->select('id_allegropro_order');
+        $q->from('allegropro_order');
+        $q->where('id_allegropro_account = ' . (int)$accountId);
+        $q->where("checkout_form_id = '" . pSQL($checkoutFormId) . "'");
+
+        return (int)Db::getInstance()->getValue($q);
+    }
+
     public function updatePsOrderId($checkoutFormId, $psOrderId)
     {
         Db::getInstance()->update('allegropro_order', ['id_order_prestashop' => (int)$psOrderId], "checkout_form_id = '" . pSQL($checkoutFormId) . "'");

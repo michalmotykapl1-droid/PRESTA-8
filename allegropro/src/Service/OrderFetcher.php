@@ -91,7 +91,7 @@ class OrderFetcher
                 continue;
             }
 
-            if ($skipExisting && $this->repo->exists((string)$order['id'])) {
+            if ($skipExisting && $this->repo->existsForAccount((int)$account['id_allegropro_account'], (string)$order['id'])) {
                 continue;
             }
 
@@ -148,7 +148,7 @@ class OrderFetcher
                     continue;
                 }
 
-                if ($this->repo->exists((string)$order['id'])) {
+                if ($this->repo->existsForAccount((int)$account['id_allegropro_account'], (string)$order['id'])) {
                     continue;
                 }
 

@@ -178,10 +178,10 @@
   <div style="background:#ffffff; width:min(1080px,96vw); margin:18px auto; padding:0; border-radius:16px; box-shadow:0 24px 80px rgba(0,0,0,0.35); overflow:hidden; border:1px solid #dbe7f3;">
 
     <div style="padding:18px 24px; background:linear-gradient(120deg,#0ea5e9,#2563eb); color:#fff; display:flex; justify-content:space-between; align-items:center;">
-      <h3 style="margin:0; font-size:26px; font-weight:700; color:#ffffff !important; background:transparent !important; border:none !important; text-shadow:0 1px 2px rgba(0,0,0,.25); display:flex; align-items:center; gap:10px;">
+      <div style="margin:0; font-size:26px; font-weight:700; color:#ffffff; text-shadow:0 1px 2px rgba(0,0,0,.25); display:flex; align-items:center; gap:10px; line-height:1.2;">
         <i class="icon icon-refresh" style="color:#fff;"></i>
         <span style="color:#ffffff;">Konsola Importu Allegro</span>
-      </h3>
+      </div>
       <button type="button" class="close" style="color:#fff; opacity:.95; text-shadow:none; font-size:28px;" onclick="$('#importModal').hide();">&times;</button>
     </div>
 
@@ -231,6 +231,11 @@
               <label style="font-weight:700; margin-bottom:8px; display:block;">Ile zamówień na konto</label>
               <input type="number" min="1" max="1000" step="1" id="fetch_limit" class="form-control" value="100" style="height:44px; border-radius:10px; border:1px solid #cfe0f1;" />
               <small class="text-muted">Zakres 1-1000 (dla każdego konta osobno).</small>
+              <label style="display:block; margin-top:10px; font-weight:600; color:#334155;">
+                <input type="checkbox" id="include_older_missing" value="1" style="margin-right:6px;" />
+                Uzupełnij brakujące starsze zamówienia (po wyczerpaniu nowych)
+              </label>
+              <small class="text-muted" style="display:block; margin-top:2px;">Gdy zaznaczone: jeśli nowych jest mniej niż limit, moduł dobierze starsze brakujące do pełnego limitu.</small>
             </div>
           </div>
 
@@ -333,6 +338,19 @@ var ImportManager = {
     }).get();
   },
 
+  getAjaxUrl: function(action) {
+    return IMPORT_CFG.adminLink + '&action=' + encodeURIComponent(action) + '&ajax=1';
+  },
+
+  getAccountLabel: function(accountId) {
+    var id = String(accountId);
+    var checkbox = $('input[name="import_account_ids[]"][value="' + id.replace(/"/g, '\"') + '"]');
+    if (!checkbox.length) return 'Konto #' + id;
+    var row = checkbox.closest('label');
+    var text = $.trim(row.text());
+    return text || ('Konto #' + id);
+  },
+
   start: function() {
     this.selectedAccounts = this.getSelectedAccountIds();
     this.totalFetched = 0;
@@ -342,6 +360,11 @@ var ImportManager = {
       this.log('Wybierz przynajmniej jedno konto.', 'error');
       return;
     }
+
+    $('#console_logs').html('<div class="text-muted">Start nowego procesu...</div>');
+    $('#btnCloseComplete').hide();
+    $('#status_fetch,#status_create,#status_fix').removeClass('label-success label-warning label-danger').addClass('label-default').text('Oczekuje...');
+    $('#bar_fetch,#bar_create,#bar_fix').css('width', '0%').text('0%');
 
     $('#step_config').hide();
     $('#step_progress').show();
@@ -363,30 +386,31 @@ var ImportManager = {
 
     var accountId = this.selectedAccounts[idx];
     var accountNo = (idx + 1) + '/' + this.selectedAccounts.length;
-    $('#run_summary').text('Konto ' + accountNo + ' (ID ' + accountId + ')');
-    this.log('=== START KONTO ' + accountNo + ' (ID ' + accountId + ') ===', 'warning');
+    var accountLabel = this.getAccountLabel(accountId);
+    $('#run_summary').text('Konto ' + accountNo + ' (' + accountLabel + ')');
+    this.log('=== START KONTO ' + accountNo + ' (' + accountLabel + ') ===', 'warning');
 
     this.fetchForSingleAccount(accountId, (res) => {
       if (!res || !res.success) {
-        this.log('Pominięto konto ID ' + accountId + ' z powodu błędu.', 'error');
+        this.log('Pominięto konto ' + accountLabel + ' z powodu błędu.', 'error');
         this.processAccountAt(idx + 1);
         return;
       }
 
       this.getPendingForSingleAccount(res.account_id, res.limit, res.fetched_ids || [], (pendingRes) => {
         if (!pendingRes || !pendingRes.success) {
-          this.log('Błąd listy pending dla konta ID ' + accountId + '.', 'error');
+          this.log('Błąd pobrania listy zamówień do przetworzenia dla konta ' + accountLabel + '.', 'error');
           this.processAccountAt(idx + 1);
           return;
         }
 
         var list = pendingRes.ids || [];
         this.totalProcessed += list.length;
-        this.log('Pending dla konta ID ' + accountId + ': ' + list.length, 'warning');
+        this.log('Zamówienia do przetworzenia dla konta ' + accountLabel + ': ' + list.length, 'warning');
 
         this.processQueueCreate(list, 0, () => {
           this.processQueueFix(list, 0, () => {
-            this.log('=== KONIEC KONTO ID ' + accountId + ' ===', 'success');
+            this.log('=== KONIEC KONTO ' + accountLabel + ' ===', 'success');
             this.processAccountAt(idx + 1);
           });
         });
@@ -401,7 +425,8 @@ var ImportManager = {
     var payload = {
       scope: scope,
       id_allegropro_account: accountId,
-      fetch_limit: fetchLimit
+      fetch_limit: fetchLimit,
+      include_older_missing: $('#include_older_missing').is(':checked') ? 1 : 0
     };
 
     if (scope === 'history') {
@@ -424,7 +449,7 @@ var ImportManager = {
     $('#bar_fetch').css('width', '50%').text('50%');
 
     $.ajax({
-      url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_fetch&ajax=1',
+      url: this.getAjaxUrl('import_fetch'),
       type: 'POST',
       data: payload,
       dataType: 'json',
@@ -433,14 +458,25 @@ var ImportManager = {
           this.totalFetched += (res.count || 0);
           $('#bar_fetch').css('width', '100%').text('100%');
           $('#status_fetch').removeClass('label-warning').addClass('label-success').text('OK ('+(res.count||0)+')');
-          this.log('Pobrano dla konta ID ' + accountId + ': ' + (res.count||0), 'success');
+          var accountLabel = this.getAccountLabel(accountId);
+          var info = 'Pobrano dla konta ' + accountLabel + ': ' + (res.count||0);
+          if (typeof res.recent_fetched_count !== 'undefined' || typeof res.backfill_fetched_count !== 'undefined') {
+            info += ' (najnowsze: ' + (res.recent_fetched_count||0) + ', uzupełnienie starszych luk: ' + (res.backfill_fetched_count||0) + ')';
+          }
+          this.log(info, 'success');
         } else {
-          this.log('Błąd fetch konto ID ' + accountId + ': ' + res.message, 'error');
+          var accountLabel = this.getAccountLabel(accountId);
+          this.log('Błąd pobierania dla konta ' + accountLabel + ': ' + res.message, 'error');
         }
         done(res);
       },
-      error: () => {
-        this.log('Błąd połączenia fetch konto ID ' + accountId, 'error');
+      error: (xhr) => {
+        var accountLabel = this.getAccountLabel(accountId);
+        var details = xhr && xhr.status ? (' [HTTP ' + xhr.status + ']') : '';
+        this.log('Błąd połączenia przy pobieraniu konta ' + accountLabel + details, 'error');
+        if (xhr && xhr.responseText) {
+          this.log('Szczegóły odpowiedzi: ' + String(xhr.responseText).substring(0, 220), 'error');
+        }
         done({ 'success': false });
       }
     });
@@ -448,16 +484,22 @@ var ImportManager = {
 
   getPendingForSingleAccount: function(accountId, limit, fetchedIds, done) {
     $.ajax({
-      url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_get_pending&ajax=1',
+      url: this.getAjaxUrl('import_get_pending'),
       type: 'POST',
       dataType: 'json',
       data: {
         id_allegropro_account: accountId,
         limit: limit,
-        fetched_ids: JSON.stringify(fetchedIds || [])
+        fetched_ids: JSON.stringify(fetchedIds || []),
+        batch_only: 1
       },
       success: (res) => done(res),
-      error: () => done({ 'success': false })
+      error: (xhr) => {
+        if (xhr && xhr.responseText) {
+          this.log('Błąd pobrania pending: ' + String(xhr.responseText).substring(0, 220), 'error');
+        }
+        done({ 'success': false });
+      }
     });
   },
 
@@ -480,7 +522,7 @@ var ImportManager = {
 
     var cfId = list[index];
     $.ajax({
-      url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
+      url: this.getAjaxUrl('import_process_single'),
       type: 'POST',
       data: { checkout_form_id: cfId, step: 'create' },
       dataType: 'json',
@@ -511,7 +553,7 @@ var ImportManager = {
 
     var cfId = list[index];
     $.ajax({
-      url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
+      url: this.getAjaxUrl('import_process_single'),
       type: 'POST',
       data: { checkout_form_id: cfId, step: 'fix' },
       dataType: 'json',

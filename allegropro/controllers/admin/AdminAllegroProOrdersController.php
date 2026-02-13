@@ -139,7 +139,8 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
                 $res = $fetcher->fetchHistory($account, $dateFrom, $dateTo, $limit);
             } else {
-                $res = $fetcher->fetchRecent($account, $limit);
+                $includeOlderMissing = (int)Tools::getValue('include_older_missing') === 1;
+                $res = $fetcher->fetchRecent($account, $limit, $includeOlderMissing);
             }
 
             $this->ajaxDie(json_encode([
@@ -148,6 +149,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 'account_id' => (int)$account['id_allegropro_account'],
                 'fetched_ids' => $res['fetched_ids'] ?? [],
                 'limit' => $limit,
+                'include_older_missing' => isset($includeOlderMissing) ? $includeOlderMissing : false,
+                'recent_fetched_count' => (int)($res['recent_fetched_count'] ?? $res['fetched_count'] ?? 0),
+                'backfill_fetched_count' => (int)($res['backfill_fetched_count'] ?? 0),
             ]));
         } catch (Exception $e) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => $e->getMessage()]));
@@ -177,7 +181,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             }
         }
 
-        if (!empty($fetchedIds)) {
+        $batchOnly = (int)Tools::getValue('batch_only') === 1;
+        if ($batchOnly) {
+            $ids = $this->repo->filterPendingIdsForAccount((int)$account['id_allegropro_account'], $fetchedIds);
+        } elseif (!empty($fetchedIds)) {
             $ids = $this->repo->filterPendingIdsForAccount((int)$account['id_allegropro_account'], $fetchedIds);
         } else {
             $ids = $this->repo->getPendingIdsForAccount((int)$account['id_allegropro_account'], $limit);
