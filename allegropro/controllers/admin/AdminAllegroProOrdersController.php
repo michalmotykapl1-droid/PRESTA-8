@@ -296,15 +296,66 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
     public function renderList()
     {
-        $orders = $this->repo->getPaginated(50);
         $accounts = (new AccountRepository())->all();
+
+        $perPage = (int)Tools::getValue('per_page', 50);
+        $allowedPerPage = [20, 50, 100, 200];
+        if (!in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 50;
+        }
+
+        $page = (int)Tools::getValue('page', 1);
+        if ($page < 1) {
+            $page = 1;
+        }
+
+        $filters = [
+            'id_allegropro_account' => (int)Tools::getValue('filter_account'),
+            'date_from' => (string)Tools::getValue('filter_date_from'),
+            'date_to' => (string)Tools::getValue('filter_date_to'),
+            'delivery_method' => trim((string)Tools::getValue('filter_delivery_method')),
+            'status' => trim((string)Tools::getValue('filter_status')),
+            'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id')),
+        ];
+
+        if ($filters['id_allegropro_account'] <= 0) {
+            $filters['id_allegropro_account'] = 0;
+        }
+
+        if ($filters['date_from'] !== '' && strtotime($filters['date_from']) === false) {
+            $filters['date_from'] = '';
+        }
+
+        if ($filters['date_to'] !== '' && strtotime($filters['date_to']) === false) {
+            $filters['date_to'] = '';
+        }
+
+        $totalRows = $this->repo->countFiltered($filters);
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        if ($page > $totalPages) {
+            $page = $totalPages;
+        }
+
+        $offset = ($page - 1) * $perPage;
+        $orders = $this->repo->getPaginatedFiltered($filters, $perPage, $offset);
+
         $selectedAccount = (int)Tools::getValue('id_allegropro_account');
-        if (!$selectedAccount && !empty($accounts)) $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
+        if (!$selectedAccount && !empty($accounts)) {
+            $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
+        }
 
         $this->context->smarty->assign([
             'allegropro_orders' => $orders,
             'allegropro_accounts' => $accounts,
             'allegropro_selected_account' => $selectedAccount,
+            'allegropro_filters' => $filters,
+            'allegropro_pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total_rows' => $totalRows,
+                'total_pages' => $totalPages,
+                'allowed_per_page' => $allowedPerPage,
+            ],
             'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders')
         ]);
 

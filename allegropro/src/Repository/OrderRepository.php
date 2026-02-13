@@ -50,14 +50,63 @@ class OrderRepository
 
     public function getPaginated($limit = 20, $offset = 0)
     {
+        return $this->getPaginatedFiltered([], (int)$limit, (int)$offset);
+    }
+
+    public function getPaginatedFiltered(array $filters, int $limit = 20, int $offset = 0): array
+    {
         $q = new DbQuery();
-        $q->select('o.*, a.label as account_label, s.method_name as shipping_method_name');
+        $q->select('o.*, a.label as account_label, s.method_name as shipping_method_name, b.firstname as buyer_firstname, b.lastname as buyer_lastname, b.phone_number as buyer_phone');
         $q->from('allegropro_order', 'o');
         $q->leftJoin('allegropro_account', 'a', 'a.id_allegropro_account = o.id_allegropro_account');
         $q->leftJoin('allegropro_order_shipping', 's', 's.checkout_form_id = o.checkout_form_id');
+        $q->leftJoin('allegropro_order_buyer', 'b', 'b.checkout_form_id = o.checkout_form_id');
+
+        $this->applyFilters($q, $filters);
+
         $q->orderBy('o.updated_at_allegro DESC');
         $q->limit($limit, $offset);
-        return Db::getInstance()->executeS($q);
+
+        return Db::getInstance()->executeS($q) ?: [];
+    }
+
+    public function countFiltered(array $filters): int
+    {
+        $q = new DbQuery();
+        $q->select('COUNT(*)');
+        $q->from('allegropro_order', 'o');
+        $q->leftJoin('allegropro_order_shipping', 's', 's.checkout_form_id = o.checkout_form_id');
+
+        $this->applyFilters($q, $filters);
+
+        return (int)Db::getInstance()->getValue($q);
+    }
+
+    private function applyFilters(DbQuery $q, array $filters): void
+    {
+        if (!empty($filters['id_allegropro_account'])) {
+            $q->where('o.id_allegropro_account = ' . (int)$filters['id_allegropro_account']);
+        }
+
+        if (!empty($filters['date_from'])) {
+            $q->where("o.updated_at_allegro >= '" . pSQL($filters['date_from'] . ' 00:00:00') . "'");
+        }
+
+        if (!empty($filters['date_to'])) {
+            $q->where("o.updated_at_allegro <= '" . pSQL($filters['date_to'] . ' 23:59:59') . "'");
+        }
+
+        if (!empty($filters['delivery_method'])) {
+            $q->where("s.method_name LIKE '%" . pSQL($filters['delivery_method']) . "%'");
+        }
+
+        if (!empty($filters['status'])) {
+            $q->where("o.status LIKE '%" . pSQL($filters['status']) . "%'");
+        }
+
+        if (!empty($filters['checkout_form_id'])) {
+            $q->where("o.checkout_form_id LIKE '%" . pSQL($filters['checkout_form_id']) . "%'");
+        }
     }
 
     /**
