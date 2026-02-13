@@ -268,9 +268,123 @@ class OrderRepository
         Db::getInstance()->update('allegropro_order', ['id_order_prestashop' => (int)$psOrderId], "checkout_form_id = '" . pSQL($checkoutFormId) . "'");
     }
 
-    public function markShipment(int $accountId, string $checkoutFormId, ?string $shipmentId, string $commandId)
+    public function markShipment(int $accountId, string $checkoutFormId, ?string $shipmentId, string $commandId): bool
     {
-        // Placeholder
+        $db = Db::getInstance();
+        $accountId = (int)$accountId;
+        $checkoutFormIdEsc = pSQL($checkoutFormId);
+
+        $orderExists = (int)$db->getValue(
+            'SELECT id_allegropro_order FROM `' . _DB_PREFIX_ . 'allegropro_order` WHERE id_allegropro_account = ' . $accountId . " AND checkout_form_id = '" . $checkoutFormIdEsc . "'"
+        );
+
+        if ($orderExists <= 0) {
+            return false;
+        }
+
+        $targetShipmentId = (string)($shipmentId ?: $commandId);
+        if ($targetShipmentId === '') {
+            return false;
+        }
+
+        $targetShipmentIdEsc = pSQL($targetShipmentId);
+        $commandIdEsc = pSQL($commandId);
+        $now = date('Y-m-d H:i:s');
+
+        $existingId = (int)$db->getValue(
+            'SELECT id_allegropro_shipment FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
+            . 'WHERE id_allegropro_account = ' . $accountId . " AND checkout_form_id = '" . $checkoutFormIdEsc . "' "
+            . "AND (shipment_id = '" . $targetShipmentIdEsc . "' OR shipment_id = '" . $commandIdEsc . "') "
+            . 'ORDER BY id_allegropro_shipment DESC LIMIT 1'
+        );
+
+        $status = $shipmentId ? 'CREATED' : 'NEW';
+        $row = [
+            'id_allegropro_account' => $accountId,
+            'checkout_form_id' => $checkoutFormIdEsc,
+            'shipment_id' => $targetShipmentIdEsc,
+            'status' => pSQL($status),
+            'updated_at' => pSQL($now),
+        ];
+
+        if ($existingId > 0) {
+            return $db->update('allegropro_shipment', $row, 'id_allegropro_shipment=' . $existingId);
+        }
+
+        $row['tracking_number'] = '';
+        $row['carrier_mode'] = 'BOX';
+        $row['size_details'] = 'CUSTOM';
+        $row['is_smart'] = 0;
+        $row['label_path'] = null;
+        $row['created_at'] = pSQL($now);
+
+        return $db->insert('allegropro_shipment', $row);
+    }
+
+    public function list(int $accountId, int $limit = 50): array
+    {
+        $accountId = (int)$accountId;
+        $limit = max(1, (int)$limit);
+
+        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro, o.status, o.total_amount, o.currency, '
+            . 's.method_name AS shipping_method_name, sh.shipment_id, sh.status AS shipment_status, sh.updated_at AS shipment_updated_at '
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
+            . 'LEFT JOIN ( '
+            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id '
+            . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
+            . '    WHERE id_allegropro_account = ' . $accountId . ' '
+            . '    GROUP BY checkout_form_id '
+            . ') shx ON shx.checkout_form_id = o.checkout_form_id '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
+            . 'WHERE o.id_allegropro_account = ' . $accountId . ' '
+            . 'ORDER BY o.updated_at_allegro DESC '
+            . 'LIMIT ' . $limit;
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    public function listWithoutShipment(int $accountId, int $limit = 50): array
+    {
+        $accountId = (int)$accountId;
+        $limit = max(1, (int)$limit);
+
+        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro, o.status, o.total_amount, o.currency, '
+            . 's.method_name AS shipping_method_name '
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
+            . 'LEFT JOIN ( '
+            . '    SELECT checkout_form_id '
+            . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
+            . '    WHERE id_allegropro_account = ' . $accountId . ' '
+            . '    GROUP BY checkout_form_id '
+            . ') shx ON shx.checkout_form_id = o.checkout_form_id '
+            . 'WHERE o.id_allegropro_account = ' . $accountId . ' AND shx.checkout_form_id IS NULL '
+            . 'ORDER BY o.updated_at_allegro DESC '
+            . 'LIMIT ' . $limit;
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    public function getRaw(int $accountId, string $checkoutFormId): ?array
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormIdEsc = pSQL($checkoutFormId);
+
+        $sql = 'SELECT o.*, sh.shipment_id, sh.status AS shipment_status, sh.updated_at AS shipment_updated_at '
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
+            . 'LEFT JOIN ( '
+            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id '
+            . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
+            . '    WHERE id_allegropro_account = ' . $accountId . ' '
+            . '    GROUP BY checkout_form_id '
+            . ') shx ON shx.checkout_form_id = o.checkout_form_id '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
+            . 'WHERE o.id_allegropro_account = ' . $accountId . " AND o.checkout_form_id = '" . $checkoutFormIdEsc . "' "
+            . 'LIMIT 1';
+
+        $row = Db::getInstance()->getRow($sql);
+        return $row ?: null;
     }
 
     public function getDecodedOrder(int $accountId, string $checkoutFormId): ?array
