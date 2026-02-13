@@ -294,6 +294,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         parent::initContent();
     }
 
+
     private function mapModuleStatusLabel(string $status): string
     {
         $status = strtoupper(trim($status));
@@ -307,6 +308,43 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         }
 
         return 'ALLEGRO PRO - PRZETWARZANIE';
+    }
+
+
+
+    private function getModuleStatusGroups(array $rawStatuses): array
+    {
+        $groups = [
+            'PAID' => [
+                'label' => 'ALLEGRO PRO - OPŁACONE',
+                'raw' => [],
+            ],
+            'PROCESSING' => [
+                'label' => 'ALLEGRO PRO - PRZETWARZANIE',
+                'raw' => [],
+            ],
+            'CANCELLED' => [
+                'label' => 'ALLEGRO PRO - ANULOWANE',
+                'raw' => [],
+            ],
+        ];
+
+        foreach ($rawStatuses as $raw) {
+            $label = $this->mapModuleStatusLabel((string)$raw);
+            if ($label === 'ALLEGRO PRO - OPŁACONE') {
+                $groups['PAID']['raw'][] = (string)$raw;
+            } elseif ($label === 'ALLEGRO PRO - ANULOWANE') {
+                $groups['CANCELLED']['raw'][] = (string)$raw;
+            } else {
+                $groups['PROCESSING']['raw'][] = (string)$raw;
+            }
+        }
+
+        foreach ($groups as $key => $meta) {
+            $groups[$key]['raw'] = array_values(array_unique($meta['raw']));
+        }
+
+        return $groups;
     }
 
     private function mapModuleStatusClass(string $label): string
@@ -343,11 +381,23 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         }
         $deliveryMethods = array_values(array_filter(array_map('trim', array_map('strval', $deliveryMethods))));
 
-        $statuses = Tools::getValue('filter_statuses', []);
-        if (!is_array($statuses)) {
-            $statuses = [$statuses];
+        $statusCodes = Tools::getValue('filter_statuses', []);
+        if (!is_array($statusCodes)) {
+            $statusCodes = [$statusCodes];
         }
-        $statuses = array_values(array_filter(array_map('trim', array_map('strval', $statuses))));
+        $statusCodes = array_values(array_filter(array_map('trim', array_map('strval', $statusCodes))));
+
+        $statusGroups = $this->getModuleStatusGroups($this->repo->getDistinctStatuses());
+        $statuses = [];
+        foreach ($statusCodes as $code) {
+            if (!isset($statusGroups[$code])) {
+                continue;
+            }
+            foreach ($statusGroups[$code]['raw'] as $rawStatus) {
+                $statuses[] = (string)$rawStatus;
+            }
+        }
+        $statuses = array_values(array_unique($statuses));
 
         $filters = [
             'id_allegropro_account' => (int)Tools::getValue('filter_account'),
@@ -402,7 +452,8 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 'allowed_per_page' => $allowedPerPage,
             ],
             'allegropro_delivery_options' => $this->repo->getDistinctDeliveryMethods(),
-            'allegropro_status_options' => $this->repo->getDistinctStatuses(),
+            'allegropro_status_options' => $statusGroups,
+            'allegropro_selected_status_codes' => $statusCodes,
             'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders')
         ]);
 

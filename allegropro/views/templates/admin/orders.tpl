@@ -52,10 +52,10 @@
       <div class="col-md-2">
         <label>Status (wielokrotny wybór)</label>
         <div style="max-height:120px; overflow:auto; border:1px solid #d8e3ef; border-radius:8px; padding:6px; background:#fff;">
-          {foreach from=$allegropro_status_options item=statusOpt}
+          {foreach from=$allegropro_status_options key=statusCode item=statusMeta}
             <label style="display:block; margin:0 0 4px 0; font-weight:normal;">
-              <input type="checkbox" name="filter_statuses[]" value="{$statusOpt|escape:'htmlall':'UTF-8'}" {if in_array($statusOpt, $allegropro_filters.statuses)}checked{/if} />
-              {$statusOpt|escape:'htmlall':'UTF-8'}
+              <input type="checkbox" name="filter_statuses[]" value="{$statusCode|escape:'htmlall':'UTF-8'}" {if in_array($statusCode, $allegropro_selected_status_codes)}checked{/if} />
+              {$statusMeta.label|escape:'htmlall':'UTF-8'}
             </label>
           {/foreach}
         </div>
@@ -157,8 +157,8 @@
       {foreach from=$allegropro_filters.delivery_methods item=dv}
         <input type="hidden" name="filter_delivery_methods[]" value="{$dv|escape:'htmlall':'UTF-8'}" />
       {/foreach}
-      {foreach from=$allegropro_filters.statuses item=st}
-        <input type="hidden" name="filter_statuses[]" value="{$st|escape:'htmlall':'UTF-8'}" />
+      {foreach from=$allegropro_selected_status_codes item=stCode}
+        <input type="hidden" name="filter_statuses[]" value="{$stCode|escape:'htmlall':'UTF-8'}" />
       {/foreach}
 
       {if $currentPage > 1}
