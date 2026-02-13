@@ -18,6 +18,7 @@ class ShipmentManager
     private DeliveryServiceRepository $deliveryServices;
     private ShipmentRepository $shipments;
     private array $discoveredShipmentContext = [];
+    private ?int $currentOrderIsSmart = null;
 
     public function __construct(
         AllegroApiClient $api,
@@ -163,6 +164,7 @@ class ShipmentManager
     {
         $debugLines = [];
         $this->discoveredShipmentContext = [];
+        $this->currentOrderIsSmart = null;
         $startedAt = microtime(true);
         $accountId = (int)($account['id_allegropro_account'] ?? 0);
         if ($accountId <= 0 || $checkoutFormId === '') {
@@ -196,6 +198,7 @@ class ShipmentManager
         }
         if ($orderResp['ok'] && is_array($orderResp['json'])) {
             $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
+            $this->currentOrderIsSmart = $smart['is_smart'];
             $this->updateShippingSmartData(
                 $checkoutFormId,
                 $smart['package_count'],
@@ -271,7 +274,8 @@ class ShipmentManager
                 $tracking,
                 $isSmart,
                 $carrierMode,
-                $sizeDetails
+                $sizeDetails,
+                $this->normalizeDateTime($detail['json']['createdAt'] ?? null)
             );
             $synced++;
 
@@ -563,14 +567,17 @@ class ShipmentManager
                     continue;
                 }
 
+                $refs = $this->extractCandidateReferencesFromArray($row);
+                foreach ($refs as $ref) {
+                    $this->captureDiscoveredRowContext($ref, $row);
+                }
+
                 $sid = $this->extractShipmentIdFromRow($row);
                 if ($sid !== null) {
                     $found[$sid] = true;
-                    $this->captureDiscoveredRowContext($sid, $row);
                 }
 
                 if (!empty($debugLines)) {
-                    $refs = $this->extractCandidateReferencesFromArray($row);
                     $debugLines[] = '[SYNC] /checkout-forms/{id}/shipments row#' . ((int)$idx + 1) . ' refs=' . (empty($refs) ? '-' : implode(', ', $refs)) . ', keys=' . implode(',', array_keys($row));
                 }
             }
@@ -619,10 +626,15 @@ class ShipmentManager
             $isSmart = !empty($row['smart']) ? 1 : 0;
         }
 
+        if ($isSmart === null && $this->currentOrderIsSmart !== null) {
+            $isSmart = (int)$this->currentOrderIsSmart;
+        }
+
         $this->discoveredShipmentContext[$referenceId] = [
             'status' => $status,
             'tracking' => $tracking,
             'is_smart' => $isSmart,
+            'created_at' => $this->normalizeDateTime($row['createdAt'] ?? null),
         ];
     }
 
@@ -636,7 +648,7 @@ class ShipmentManager
         $status = isset($context['status']) && is_string($context['status']) && trim($context['status']) !== ''
             ? trim($context['status'])
             : ($tracking !== '' ? 'CREATED' : 'NEW');
-        $isSmart = isset($context['is_smart']) ? (int)$context['is_smart'] : null;
+        $isSmart = isset($context['is_smart']) ? (int)$context['is_smart'] : $this->currentOrderIsSmart;
 
         if ($tracking === '' && $status === 'NEW') {
             return false;
@@ -650,7 +662,8 @@ class ShipmentManager
             $tracking,
             $isSmart,
             null,
-            null
+            null,
+            $this->normalizeDateTime($context['created_at'] ?? null)
         );
 
         if (!empty($debugLines)) {
@@ -658,6 +671,25 @@ class ShipmentManager
         }
 
         return true;
+    }
+
+    private function normalizeDateTime($value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $ts = strtotime($value);
+        if ($ts === false) {
+            return null;
+        }
+
+        return date('Y-m-d H:i:s', $ts);
     }
 
     private function shortRaw(string $raw): string
@@ -718,25 +750,16 @@ class ShipmentManager
 
     private function extractShipmentIdFromRow(array $row): ?string
     {
-        $candidates = [
-            $row['shipmentId'] ?? null,
-            $row['shipment']['id'] ?? null,
-            $row['shipment']['shipmentId'] ?? null,
-            $row['id'] ?? null,
-            $row['details']['shipmentId'] ?? null,
-            $row['details']['id'] ?? null,
-            $row['commandId'] ?? null,
-            $row['createCommandId'] ?? null,
-        ];
+        $refs = $this->extractCandidateReferencesFromArray($row);
 
-        foreach ($candidates as $candidate) {
-            if (is_string($candidate) && $this->looksLikeShipmentReference($candidate)) {
-                return trim($candidate);
+        foreach ($refs as $candidate) {
+            if ($this->looksLikeShipmentId($candidate)) {
+                return $candidate;
             }
         }
 
-        foreach ($this->extractCandidateReferencesFromArray($row) as $candidate) {
-            if ($this->looksLikeShipmentReference($candidate)) {
+        foreach ($refs as $candidate) {
+            if ($this->looksLikeCreateCommandId($candidate)) {
                 return $candidate;
             }
         }
@@ -804,22 +827,36 @@ class ShipmentManager
 
     public function downloadLabel(array $account, string $checkoutFormId, string $shipmentId): array
     {
+        $resolvedShipmentId = $shipmentId;
+        if (!$this->looksLikeShipmentId($resolvedShipmentId) && $this->looksLikeCreateCommandId($resolvedShipmentId)) {
+            $resolved = $this->resolveShipmentIdCandidate($account, $resolvedShipmentId);
+            if (is_string($resolved) && $resolved !== '') {
+                $resolvedShipmentId = $resolved;
+            }
+        }
+
+        if (!$this->looksLikeShipmentId($resolvedShipmentId)) {
+            return ['ok' => false, 'message' => 'Nie udało się ustalić poprawnego shipmentId do pobrania etykiety.'];
+        }
+
         $labelFormat = $this->config->getFileFormat();
         $isA4Pdf = ($this->config->getPageSize() === 'A4' && $labelFormat === 'PDF');
         $accept = $labelFormat === 'ZPL' ? 'application/zpl' : 'application/pdf';
 
         $payload = [
-            'shipmentIds' => [$shipmentId],
+            'shipmentIds' => [$resolvedShipmentId],
             'pageSize' => $this->config->getPageSize(),
             'labelFormat' => $labelFormat,
             'cutLine' => $isA4Pdf
         ];
-        
-        $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, $accept);
-        
-        if (!$resp['ok']) return ['ok' => false, 'message' => 'Błąd pobierania etykiety'];
 
-        $uniqueName = $checkoutFormId . '_' . substr($shipmentId, 0, 8);
+        $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, $accept);
+
+        if (!$resp['ok']) {
+            return ['ok' => false, 'message' => 'Błąd pobierania etykiety'];
+        }
+
+        $uniqueName = $checkoutFormId . '_' . substr($resolvedShipmentId, 0, 8);
         $path = $this->storage->save($uniqueName, $resp['raw'], $labelFormat);
 
         return [

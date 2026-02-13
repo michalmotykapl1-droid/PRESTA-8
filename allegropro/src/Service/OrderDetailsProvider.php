@@ -85,13 +85,38 @@ class OrderDetailsProvider
         }
 
         $shipmentsHistory = $this->shipmentManager->getHistory($cfId);
+        foreach ($shipmentsHistory as &$sh) {
+            $sid = trim((string)($sh['shipment_id'] ?? ''));
+            $isUuid = (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $sid);
+            $isCreateCommand = (bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $sid) && strlen($sid) >= 16 && (strlen($sid) % 4 === 0);
+            if (!$isCreateCommand && strpos($sid, ':') !== false) {
+                $isCreateCommand = true;
+            }
+            $sh['can_download_label'] = $isUuid || $isCreateCommand;
+        }
+        unset($sh);
 
         // Smart: liczymy po zsynchronizowanej historii
         $smartLimit = (int)($shipping['package_count'] ?? 0);
         $smartUsed = 0;
+        $orderSmartFlag = (int)($shipping['is_smart'] ?? 0) === 1;
         foreach ($shipmentsHistory as $sh) {
-            if ((string)($sh['status'] ?? '') !== 'CANCELLED' && (int)($sh['is_smart'] ?? 0) === 1) {
+            if ((string)($sh['status'] ?? '') === 'CANCELLED') {
+                continue;
+            }
+
+            $shipmentSmart = (int)($sh['is_smart'] ?? 0) === 1;
+            if ($shipmentSmart) {
                 $smartUsed++;
+                continue;
+            }
+
+            if ($orderSmartFlag) {
+                $status = strtoupper((string)($sh['status'] ?? ''));
+                $tracking = trim((string)($sh['tracking_number'] ?? ''));
+                if ($status === 'CREATED' || $tracking !== '') {
+                    $smartUsed++;
+                }
             }
         }
         $smartLeft = max(0, $smartLimit - $smartUsed);
