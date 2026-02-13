@@ -463,7 +463,8 @@ var ImportManager = {
       data: {
         id_allegropro_account: accountId,
         limit: limit,
-        fetched_ids: JSON.stringify(fetchedIds || [])
+        fetched_ids: JSON.stringify(fetchedIds || []),
+        only_fetched: $('#include_older').is(':checked') ? 0 : 1
       },
       success: (res) => done(res),
       error: () => done({ 'success': false })

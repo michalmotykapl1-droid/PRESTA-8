@@ -161,6 +161,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
         }
 
+        $onlyFetchedRaw = Tools::getValue('only_fetched', 0);
+        $onlyFetched = in_array((string)$onlyFetchedRaw, ['1', 'true', 'on', 'yes'], true);
+
         $limit = (int)Tools::getValue('limit');
         if ($limit <= 0) {
             $limit = 50;
@@ -179,6 +182,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         if (!empty($fetchedIds)) {
             $ids = $this->repo->filterPendingIdsForAccount((int)$account['id_allegropro_account'], $fetchedIds);
+        } elseif ($onlyFetched) {
+            // Tryb "tylko nowe": jeżeli nic nie pobrano w fetchu, nie schodzimy do starszych pendingów.
+            $ids = [];
         } else {
             $ids = $this->repo->getPendingIdsForAccount((int)$account['id_allegropro_account'], $limit);
         }
