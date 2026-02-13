@@ -185,9 +185,13 @@ class ShipmentManager
 
         $uniqueName = $checkoutFormId . '_' . substr($shipmentId, 0, 8);
         $path = $this->storage->save($uniqueName, $resp['raw'], $labelFormat);
-        $url = $this->storage->getUrl($uniqueName, $labelFormat);
 
-        return ['ok' => true, 'url' => $url];
+        return [
+            'ok' => true,
+            'path' => $path,
+            'format' => $labelFormat,
+            'name' => $uniqueName,
+        ];
     }
 
     // --- Helpers ---

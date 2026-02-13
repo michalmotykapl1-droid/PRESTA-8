@@ -265,10 +265,14 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
         }
 
-        $manager = $this->getShipmentManager();
-        $res = $manager->downloadLabel($account, $cfId, $shipmentId);
-        if ($res['ok']) $this->ajaxDie(json_encode(['success' => true, 'url' => $res['url']]));
-        else $this->ajaxDie(json_encode(['success' => false, 'message' => 'Błąd pobierania']));
+        $downloadUrl = self::$currentIndex
+            . '&token=' . $this->token
+            . '&action=download_label'
+            . '&id_allegropro_account=' . (int)$account['id_allegropro_account']
+            . '&checkout_form_id=' . urlencode($cfId)
+            . '&shipment_id=' . urlencode($shipmentId);
+
+        $this->ajaxDie(json_encode(['success' => true, 'url' => $downloadUrl]));
     }
 
     public function displayAjaxUpdateAllegroStatus() {
@@ -297,6 +301,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxGetOrderDetails();
             return;
         }
+
+        if (Tools::getValue('action') === 'download_label') {
+            $this->downloadLabelFile();
+            return;
+        }
+
         parent::initContent();
     }
 
@@ -478,6 +488,65 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
+    }
+
+    private function downloadLabelFile(): void
+    {
+        $shipmentId = (string)Tools::getValue('shipment_id');
+        $cfId = (string)Tools::getValue('checkout_form_id');
+
+        if ($shipmentId === '' || $cfId === '') {
+            header('HTTP/1.1 400 Bad Request');
+            echo 'Brak shipment_id lub checkout_form_id.';
+            exit;
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            header('HTTP/1.1 403 Forbidden');
+            echo 'Nieprawidłowe konto Allegro.';
+            exit;
+        }
+
+        $exists = (int)Db::getInstance()->getValue(
+            'SELECT id_allegropro_shipment FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
+            . 'WHERE id_allegropro_account = ' . (int)$account['id_allegropro_account']
+            . " AND checkout_form_id = '" . pSQL($cfId) . "'"
+            . " AND shipment_id = '" . pSQL($shipmentId) . "'"
+            . ' LIMIT 1'
+        );
+
+        if ($exists <= 0) {
+            header('HTTP/1.1 404 Not Found');
+            echo 'Nie znaleziono przesyłki dla wskazanego zamówienia.';
+            exit;
+        }
+
+        $manager = $this->getShipmentManager();
+        $res = $manager->downloadLabel($account, $cfId, $shipmentId);
+
+        if (empty($res['ok']) || empty($res['path']) || !is_file($res['path'])) {
+            header('HTTP/1.1 502 Bad Gateway');
+            echo 'Błąd pobierania etykiety.';
+            exit;
+        }
+
+        $format = (string)($res['format'] ?? 'PDF');
+        $mime = (new LabelStorage())->getMimeType($format);
+        $ext = (strtoupper($format) === 'ZPL') ? 'zpl' : 'pdf';
+        $fileName = 'allegro_label_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $cfId) . '_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $shipmentId) . '.' . $ext;
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . (string)filesize($res['path']));
+        header('Content-Disposition: inline; filename="' . $fileName . '"');
+        header('X-Content-Type-Options: nosniff');
+
+        readfile($res['path']);
+        exit;
     }
 
     private function ajaxGetOrderDetails()

@@ -342,7 +342,7 @@ class OrderRepository
         $accountId = (int)$accountId;
         $limit = max(1, (int)$limit);
 
-        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro, o.status, o.total_amount, o.currency, '
+        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro AS updated_at, o.status, o.total_amount, o.currency, o.buyer_login, '
             . 's.method_name AS shipping_method_name, sh.shipment_id, sh.status AS shipment_status, sh.updated_at AS shipment_updated_at '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
@@ -365,7 +365,7 @@ class OrderRepository
         $accountId = (int)$accountId;
         $limit = max(1, (int)$limit);
 
-        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro, o.status, o.total_amount, o.currency, '
+        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro AS updated_at, o.status, o.total_amount, o.currency, o.buyer_login, '
             . 's.method_name AS shipping_method_name '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
@@ -563,8 +563,8 @@ class OrderRepository
                 'addr_zip' => pSQL($addr['zipCode'] ?? ''),
                 'addr_country' => pSQL($addr['countryCode'] ?? 'PL'),
                 'addr_phone' => pSQL($addr['phoneNumber'] ?? ''),
-                'pickup_point_id' => pSQL($del['pickupPoint']['id'] ?? null),
-                'pickup_point_name' => pSQL($del['pickupPoint']['name'] ?? null),
+                'pickup_point_id' => pSQL($del['pickupPoint']['id'] ?? ''),
+                'pickup_point_name' => pSQL($del['pickupPoint']['name'] ?? '')
             ]);
         }
 
@@ -574,7 +574,27 @@ class OrderRepository
             $db->insert('allegropro_order_payment', [
                 'checkout_form_id' => $cfIdEsc,
                 'payment_id' => pSQL($pay['id'] ?? ''),
-                'paid_amount' => (float)($pay['paidAmount']['amount'] ?? 0),
+                'paid_amount' => (float)($pay['paidAmount']['amount'] ?? 0.00),
+                'status' => pSQL($pay['status'] ?? ''),
+                'provider' => pSQL($pay['provider'] ?? ''),
+                'finished_at' => !empty($pay['finishedAt']) ? pSQL(str_replace(['T','Z'], [' ',''], $pay['finishedAt'])) : null
+            ]);
+        }
+
+        // 5. INVOICE
+        if (!empty($data['invoice'])) {
+            $inv = $data['invoice'];
+            $addr = $inv['address'] ?? [];
+            $company = $inv['company'] ?? [];
+            $db->insert('allegropro_order_invoice', [
+                'checkout_form_id' => $cfIdEsc,
+                'company_name' => pSQL($company['name'] ?? ''),
+                'tax_id' => pSQL($company['taxId'] ?? ''),
+                'street' => pSQL($addr['street'] ?? ''),
+                'city' => pSQL($addr['city'] ?? ''),
+                'zip_code' => pSQL($addr['zipCode'] ?? ''),
+                'country_code' => pSQL($addr['countryCode'] ?? 'PL'),
+                'natural_person' => !empty($inv['naturalPerson']) ? 1 : 0
             ]);
         }
     }

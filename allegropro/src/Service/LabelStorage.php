@@ -1,34 +1,30 @@
 <?php
 namespace AllegroPro\Service;
 
-use Tools;
-
 class LabelStorage
 {
     private string $dir;
-    private string $dirUrl;
 
     public function __construct()
     {
-        // Ścieżka fizyczna na serwerze: /modules/allegropro/labels/
-        $this->dir = _PS_MODULE_DIR_ . 'allegropro/labels/';
-        
-        // Ścieżka URL (dla przeglądarki): https://twojsklep.pl/modules/allegropro/labels/
-        $this->dirUrl = _PS_BASE_URL_ . __PS_BASE_URI__ . 'modules/allegropro/labels/';
+        // Katalog prywatny (poza publicznym /modules), aby etykiety nie były dostępne po URL.
+        $this->dir = rtrim(_PS_CACHE_DIR_, '/\\') . DIRECTORY_SEPARATOR . 'allegropro_labels' . DIRECTORY_SEPARATOR;
     }
 
     /**
-     * Zapisuje zawartość etykiety do pliku
-     * @param string $checkoutFormId UUID zamówienia
+     * Zapisuje zawartość etykiety do pliku prywatnego.
+     *
+     * @param string $checkoutFormId UUID zamówienia (lub klucz techniczny)
      * @param string $content Binarna zawartość pliku
-     * @param string $format Format (PDF lub ZPL) - używany do rozszerzenia
+     * @param string $format Format (PDF lub ZPL)
+     *
      * @return string Pełna ścieżka do zapisanego pliku
      */
     public function save(string $checkoutFormId, string $content, string $format): string
     {
         $this->ensureDirectory();
 
-        $ext = (strtoupper($format) === LabelConfig::FORMAT_ZPL) ? 'zpl' : 'pdf';
+        $ext = $this->resolveExtension($format);
         $filename = 'label_' . $checkoutFormId . '.' . $ext;
         $path = $this->dir . $filename;
 
@@ -38,39 +34,40 @@ class LabelStorage
     }
 
     /**
-     * Sprawdza, czy etykieta w danym formacie już istnieje
+     * Zwraca pełną ścieżkę do etykiety, jeśli istnieje.
      */
-    public function exists(string $checkoutFormId, string $format): bool
+    public function getPath(string $checkoutFormId, string $format): ?string
     {
-        $ext = (strtoupper($format) === LabelConfig::FORMAT_ZPL) ? 'zpl' : 'pdf';
-        return file_exists($this->dir . 'label_' . $checkoutFormId . '.' . $ext);
-    }
+        $ext = $this->resolveExtension($format);
+        $path = $this->dir . 'label_' . $checkoutFormId . '.' . $ext;
 
-    /**
-     * Zwraca URL do etykiety (do wyświetlenia w przycisku "Pobierz")
-     */
-    public function getUrl(string $checkoutFormId, string $format): ?string
-    {
-        if (!$this->exists($checkoutFormId, $format)) {
+        if (!is_file($path)) {
             return null;
         }
-        
-        $ext = (strtoupper($format) === LabelConfig::FORMAT_ZPL) ? 'zpl' : 'pdf';
-        return $this->dirUrl . 'label_' . $checkoutFormId . '.' . $ext;
+
+        return $path;
     }
 
     /**
-     * Tworzy katalog labels jeśli nie istnieje i zabezpiecza go plikiem index.php
+     * MIME typu dla danego formatu etykiety.
+     */
+    public function getMimeType(string $format): string
+    {
+        return (strtoupper($format) === LabelConfig::FORMAT_ZPL) ? 'application/zpl' : 'application/pdf';
+    }
+
+    private function resolveExtension(string $format): string
+    {
+        return (strtoupper($format) === LabelConfig::FORMAT_ZPL) ? 'zpl' : 'pdf';
+    }
+
+    /**
+     * Tworzy katalog prywatny na etykiety, jeśli nie istnieje.
      */
     private function ensureDirectory(): void
     {
         if (!is_dir($this->dir)) {
             mkdir($this->dir, 0755, true);
-        }
-
-        // Dodajemy index.php dla bezpieczeństwa (żeby nikt nie mógł wylistować katalogu w przeglądarce)
-        if (!file_exists($this->dir . 'index.php')) {
-            file_put_contents($this->dir . 'index.php', '<?php header("Expires: Mon, 26 Jul 1997 05:00:00 GMT"); header("Last-Modified: ".gmdate("D, d M Y H:i:s")." GMT"); header("Cache-Control: no-store, no-cache, must-revalidate"); header("Cache-Control: post-check=0, pre-check=0", false); header("Pragma: no-cache"); header("Location: ../"); exit;');
         }
     }
 }
