@@ -9,6 +9,32 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
 {
     public $ssl = true;
 
+    private function isAllowedAdminReturnUrl(string $url): bool
+    {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $allowedBase = $this->context->link->getAdminLink('AdminAllegroProAccounts');
+        $allowedParts = parse_url($allowedBase);
+        $candidateParts = parse_url($url);
+        if (!is_array($allowedParts) || !is_array($candidateParts)) {
+            return false;
+        }
+
+        $allowedScheme = strtolower((string)($allowedParts['scheme'] ?? ''));
+        $allowedHost = strtolower((string)($allowedParts['host'] ?? ''));
+        $allowedPort = isset($allowedParts['port']) ? (int)$allowedParts['port'] : null;
+
+        $candidateScheme = strtolower((string)($candidateParts['scheme'] ?? ''));
+        $candidateHost = strtolower((string)($candidateParts['host'] ?? ''));
+        $candidatePort = isset($candidateParts['port']) ? (int)$candidateParts['port'] : null;
+
+        return $candidateScheme === $allowedScheme
+            && $candidateHost === $allowedHost
+            && $candidatePort === $allowedPort;
+    }
+
     public function initContent()
     {
         parent::initContent();
@@ -28,7 +54,7 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
         if ($returnUrlEncoded) {
             $base64 = str_replace(['-', '_'], ['+', '/'], $returnUrlEncoded);
             $decoded = base64_decode($base64);
-            if (filter_var($decoded, FILTER_VALIDATE_URL)) {
+            if ($this->isAllowedAdminReturnUrl((string)$decoded)) {
                 $adminReturnUrl = $decoded;
             }
         }
