@@ -21,13 +21,16 @@ class OrderFetcher
 
     /**
      * INTELIGENTNE POBIERANIE (INCREMENTAL FETCH) PER KONTO
-     * Pobiera tylko zamówienia nowsze niż ostatnie w bazie dla konkretnego konta.
+     * 1) Pobiera najnowsze (od ostatniej daty w bazie)
+     * 2) Robi backfill starszych luk (zamówień niepobranych wcześniej)
      */
     public function fetchRecent(array $account, int $limit = 50): array
     {
+        $limit = max(1, (int)$limit);
+
         $params = [
             'limit' => $limit,
-            'sort' => '-updatedAt' // Najnowsze na górze
+            'sort' => '-updatedAt',
         ];
 
         $accountId = (int)($account['id_allegropro_account'] ?? 0);
@@ -38,7 +41,24 @@ class OrderFetcher
             $params['updatedAt.gte'] = $isoDate;
         }
 
-        return $this->performFetch($account, $params);
+        $recentResult = $this->performFetch($account, $params, true);
+
+        // Backfill: sprawdź starsze strony i uzupełnij brakujące zamówienia
+        // (nie nadpisujemy hurtowo już pobranych, szukamy realnych luk)
+        $backfillResult = $this->performBackfillFetch($account, $limit);
+
+        $allIds = array_values(array_unique(array_merge(
+            $recentResult['fetched_ids'] ?? [],
+            $backfillResult['fetched_ids'] ?? []
+        )));
+
+        return [
+            'fetched_count' => (int)$recentResult['fetched_count'] + (int)$backfillResult['fetched_count'],
+            'raw_count' => (int)$recentResult['raw_count'] + (int)$backfillResult['raw_count'],
+            'fetched_ids' => $allIds,
+            'recent_fetched_count' => (int)$recentResult['fetched_count'],
+            'backfill_fetched_count' => (int)$backfillResult['fetched_count'],
+        ];
     }
 
     /**
@@ -50,11 +70,11 @@ class OrderFetcher
             'limit' => $limit,
             'sort' => '-updatedAt',
             'updatedAt.gte' => $dateFrom . 'T00:00:00Z',
-            'updatedAt.lte' => $dateTo . 'T23:59:59Z'
-        ]);
+            'updatedAt.lte' => $dateTo . 'T23:59:59Z',
+        ], false);
     }
 
-    private function performFetch(array $account, array $params): array
+    private function performFetch(array $account, array $params, bool $skipExisting = false): array
     {
         $resp = $this->api->get($account, '/order/checkout-forms', $params);
 
@@ -67,15 +87,112 @@ class OrderFetcher
         $fetchedIds = [];
 
         foreach ($orders as $order) {
-            $order['account_id'] = $account['id_allegropro_account'];
+            if (!is_array($order) || empty($order['id'])) {
+                continue;
+            }
 
+            if ($skipExisting && $this->repo->exists((string)$order['id'])) {
+                continue;
+            }
+
+            $prepared = $this->prepareOrder($account, $order);
+            $this->repo->saveFullOrder($prepared);
+
+            $fetchedIds[] = (string)$prepared['id'];
+            $count++;
+        }
+
+        return [
+            'fetched_count' => $count,
+            'raw_count' => count($orders),
+            'fetched_ids' => $fetchedIds,
+        ];
+    }
+
+    /**
+     * Dodatkowe skanowanie starszych stron, aby uzupełnić luki
+     * (zamówienia starsze, których nie ma lokalnie).
+     */
+    private function performBackfillFetch(array $account, int $limit): array
+    {
+        $pageLimit = min(100, max(20, $limit));
+        $maxPages = 10;
+
+        $fetchedCount = 0;
+        $rawCount = 0;
+        $fetchedIds = [];
+        $consecutivePagesWithoutMissing = 0;
+
+        for ($page = 0; $page < $maxPages; $page++) {
+            $offset = $page * $pageLimit;
+            $resp = $this->api->get($account, '/order/checkout-forms', [
+                'limit' => $pageLimit,
+                'offset' => $offset,
+                'sort' => '-updatedAt',
+            ]);
+
+            if (!$resp['ok']) {
+                break;
+            }
+
+            $orders = $resp['json']['checkoutForms'] ?? [];
+            if (empty($orders) || !is_array($orders)) {
+                break;
+            }
+
+            $rawCount += count($orders);
+            $pageFetched = 0;
+
+            foreach ($orders as $order) {
+                if (!is_array($order) || empty($order['id'])) {
+                    continue;
+                }
+
+                if ($this->repo->exists((string)$order['id'])) {
+                    continue;
+                }
+
+                $prepared = $this->prepareOrder($account, $order);
+                $this->repo->saveFullOrder($prepared);
+
+                $fetchedIds[] = (string)$prepared['id'];
+                $fetchedCount++;
+                $pageFetched++;
+            }
+
+            if ($pageFetched === 0) {
+                $consecutivePagesWithoutMissing++;
+            } else {
+                $consecutivePagesWithoutMissing = 0;
+            }
+
+            // Jeśli kolejne strony nie wnoszą braków, kończymy szybciej.
+            if ($consecutivePagesWithoutMissing >= 2) {
+                break;
+            }
+        }
+
+        return [
+            'fetched_count' => $fetchedCount,
+            'raw_count' => $rawCount,
+            'fetched_ids' => $fetchedIds,
+        ];
+    }
+
+    private function prepareOrder(array $account, array $order): array
+    {
+        $order['account_id'] = $account['id_allegropro_account'];
+
+        if (!empty($order['lineItems']) && is_array($order['lineItems'])) {
             foreach ($order['lineItems'] as &$item) {
                 // EAN
                 $ean = $item['offer']['ean'] ?? null;
                 if (empty($ean) && !empty($item['offer']['id'])) {
                     $ean = $this->fetchEanFromOfferDetails($account, $item['offer']['id']);
                 }
-                if ($ean) $ean = preg_replace('/[^0-9]/', '', $ean);
+                if ($ean) {
+                    $ean = preg_replace('/[^0-9]/', '', $ean);
+                }
                 $item['mapped_ean'] = $ean;
 
                 // Match SKU
@@ -91,17 +208,9 @@ class OrderFetcher
                 }
             }
             unset($item);
-
-            $this->repo->saveFullOrder($order);
-            $fetchedIds[] = (string)$order['id'];
-            $count++;
         }
 
-        return [
-            'fetched_count' => $count,
-            'raw_count' => count($orders),
-            'fetched_ids' => $fetchedIds,
-        ];
+        return $order;
     }
 
     // --- Helpery ---
