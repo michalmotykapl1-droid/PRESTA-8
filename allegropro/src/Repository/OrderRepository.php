@@ -96,12 +96,32 @@ class OrderRepository
             $q->where("o.updated_at_allegro <= '" . pSQL($filters['date_to'] . ' 23:59:59') . "'");
         }
 
-        if (!empty($filters['delivery_method'])) {
-            $q->where("s.method_name LIKE '%" . pSQL($filters['delivery_method']) . "%'");
+        if (!empty($filters['delivery_methods']) && is_array($filters['delivery_methods'])) {
+            $vals = [];
+            foreach ($filters['delivery_methods'] as $method) {
+                $method = trim((string)$method);
+                if ($method === '') {
+                    continue;
+                }
+                $vals[] = "'" . pSQL($method) . "'";
+            }
+            if (!empty($vals)) {
+                $q->where('s.method_name IN (' . implode(',', $vals) . ')');
+            }
         }
 
-        if (!empty($filters['status'])) {
-            $q->where("o.status LIKE '%" . pSQL($filters['status']) . "%'");
+        if (!empty($filters['statuses']) && is_array($filters['statuses'])) {
+            $vals = [];
+            foreach ($filters['statuses'] as $status) {
+                $status = trim((string)$status);
+                if ($status === '') {
+                    continue;
+                }
+                $vals[] = "'" . pSQL($status) . "'";
+            }
+            if (!empty($vals)) {
+                $q->where('o.status IN (' . implode(',', $vals) . ')');
+            }
         }
 
         if (!empty($filters['checkout_form_id'])) {
@@ -191,6 +211,38 @@ class OrderRepository
         }
 
         return $result;
+    }
+
+    public function getDistinctDeliveryMethods(): array
+    {
+        $sql = 'SELECT DISTINCT s.method_name
+                FROM `' . _DB_PREFIX_ . 'allegropro_order_shipping` s
+                WHERE s.method_name IS NOT NULL AND s.method_name != ""
+                ORDER BY s.method_name ASC';
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = (string)$r['method_name'];
+        }
+
+        return $out;
+    }
+
+    public function getDistinctStatuses(): array
+    {
+        $sql = 'SELECT DISTINCT o.status
+                FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+                WHERE o.status IS NOT NULL AND o.status != ""
+                ORDER BY o.status ASC';
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = (string)$r['status'];
+        }
+
+        return $out;
     }
 
     public function markAsFinished(string $checkoutFormId)

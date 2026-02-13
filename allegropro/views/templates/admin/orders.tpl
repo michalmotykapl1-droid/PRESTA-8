@@ -39,14 +39,28 @@
         <input type="date" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" class="form-control" />
       </div>
       <div class="col-md-2">
-        <label>Dostawa</label>
-        <input type="text" name="filter_delivery_method" value="{$allegropro_filters.delivery_method|escape:'htmlall':'UTF-8'}" class="form-control" placeholder="np. InPost" />
-      </div>
-      <div class="col-md-1">
-        <label>Status</label>
-        <input type="text" name="filter_status" value="{$allegropro_filters.status|escape:'htmlall':'UTF-8'}" class="form-control" placeholder="READY" />
+        <label>Dostawa (wielokrotny wybór)</label>
+        <div style="max-height:120px; overflow:auto; border:1px solid #d8e3ef; border-radius:8px; padding:6px; background:#fff;">
+          {foreach from=$allegropro_delivery_options item=delivery}
+            <label style="display:block; margin:0 0 4px 0; font-weight:normal;">
+              <input type="checkbox" name="filter_delivery_methods[]" value="{$delivery|escape:'htmlall':'UTF-8'}" {if in_array($delivery, $allegropro_filters.delivery_methods)}checked{/if} />
+              {$delivery|escape:'htmlall':'UTF-8'}
+            </label>
+          {/foreach}
+        </div>
       </div>
       <div class="col-md-2">
+        <label>Status (wielokrotny wybór)</label>
+        <div style="max-height:120px; overflow:auto; border:1px solid #d8e3ef; border-radius:8px; padding:6px; background:#fff;">
+          {foreach from=$allegropro_status_options item=statusOpt}
+            <label style="display:block; margin:0 0 4px 0; font-weight:normal;">
+              <input type="checkbox" name="filter_statuses[]" value="{$statusOpt|escape:'htmlall':'UTF-8'}" {if in_array($statusOpt, $allegropro_filters.statuses)}checked{/if} />
+              {$statusOpt|escape:'htmlall':'UTF-8'}
+            </label>
+          {/foreach}
+        </div>
+      </div>
+      <div class="col-md-1">
         <label>ID Allegro</label>
         <input type="text" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" class="form-control" placeholder="checkout_form_id" />
       </div>
@@ -91,7 +105,7 @@
           <tr>
             <td><span class="label label-default">{$o.account_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
             <td>{$o.updated_at_allegro|escape:'htmlall':'UTF-8'}</td>
-            <td><span class="label label-info">{$o.status|escape:'htmlall':'UTF-8'}</span></td>
+            <td><span class="label label-{$o.module_status_class|default:'default'|escape:'htmlall':'UTF-8'}">{$o.module_status_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
             <td style="font-size:11px;">
               {if isset($o.shipping_method_name) && $o.shipping_method_name}<strong>{$o.shipping_method_name|truncate:40:'...'}</strong>{else}<span class="text-muted">-</span>{/if}
             </td>
@@ -132,21 +146,31 @@
       Łącznie zamówień: <strong>{$totalRows}</strong>
     </div>
 
-    <div>
+    <form method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" style="display:flex; gap:8px; align-items:center; margin:0;">
+      <input type="hidden" name="controller" value="AdminAllegroProOrders" />
+      <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
+      <input type="hidden" name="per_page" value="{$allegropro_pagination.per_page|intval}" />
+      <input type="hidden" name="filter_account" value="{$allegropro_filters.id_allegropro_account|intval}" />
+      <input type="hidden" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" />
+      <input type="hidden" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" />
+      <input type="hidden" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" />
+      {foreach from=$allegropro_filters.delivery_methods item=dv}
+        <input type="hidden" name="filter_delivery_methods[]" value="{$dv|escape:'htmlall':'UTF-8'}" />
+      {/foreach}
+      {foreach from=$allegropro_filters.statuses item=st}
+        <input type="hidden" name="filter_statuses[]" value="{$st|escape:'htmlall':'UTF-8'}" />
+      {/foreach}
+
       {if $currentPage > 1}
-        <a class="btn btn-default btn-sm" href="{$admin_link|escape:'htmlall':'UTF-8'}&page={$currentPage-1|intval}&per_page={$allegropro_pagination.per_page|intval}&filter_account={$allegropro_filters.id_allegropro_account|intval}&filter_date_from={$allegropro_filters.date_from|escape:'url'}&filter_date_to={$allegropro_filters.date_to|escape:'url'}&filter_delivery_method={$allegropro_filters.delivery_method|escape:'url'}&filter_status={$allegropro_filters.status|escape:'url'}&filter_checkout_form_id={$allegropro_filters.checkout_form_id|escape:'url'}">
-          &laquo; Poprzednia
-        </a>
+        <button class="btn btn-default btn-sm" name="page" value="{$currentPage-1|intval}" type="submit">&laquo; Poprzednia</button>
       {/if}
 
       <span class="btn btn-default btn-sm disabled">Strona {$currentPage} / {$totalPages}</span>
 
       {if $currentPage < $totalPages}
-        <a class="btn btn-default btn-sm" href="{$admin_link|escape:'htmlall':'UTF-8'}&page={$currentPage+1|intval}&per_page={$allegropro_pagination.per_page|intval}&filter_account={$allegropro_filters.id_allegropro_account|intval}&filter_date_from={$allegropro_filters.date_from|escape:'url'}&filter_date_to={$allegropro_filters.date_to|escape:'url'}&filter_delivery_method={$allegropro_filters.delivery_method|escape:'url'}&filter_status={$allegropro_filters.status|escape:'url'}&filter_checkout_form_id={$allegropro_filters.checkout_form_id|escape:'url'}">
-          Następna &raquo;
-        </a>
+        <button class="btn btn-default btn-sm" name="page" value="{$currentPage+1|intval}" type="submit">Następna &raquo;</button>
       {/if}
-    </div>
+    </form>
   </div>
 </div>
 

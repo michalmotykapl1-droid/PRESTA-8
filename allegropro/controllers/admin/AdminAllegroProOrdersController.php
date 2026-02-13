@@ -294,6 +294,34 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         parent::initContent();
     }
 
+    private function mapModuleStatusLabel(string $status): string
+    {
+        $status = strtoupper(trim($status));
+
+        if (in_array($status, ['READY_FOR_PROCESSING', 'BOUGHT', 'FILLED_IN'], true)) {
+            return 'ALLEGRO PRO - OPŁACONE';
+        }
+
+        if ($status === 'CANCELLED') {
+            return 'ALLEGRO PRO - ANULOWANE';
+        }
+
+        return 'ALLEGRO PRO - PRZETWARZANIE';
+    }
+
+    private function mapModuleStatusClass(string $label): string
+    {
+        if ($label === 'ALLEGRO PRO - OPŁACONE') {
+            return 'success';
+        }
+
+        if ($label === 'ALLEGRO PRO - ANULOWANE') {
+            return 'danger';
+        }
+
+        return 'warning';
+    }
+
     public function renderList()
     {
         $accounts = (new AccountRepository())->all();
@@ -309,12 +337,24 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $page = 1;
         }
 
+        $deliveryMethods = Tools::getValue('filter_delivery_methods', []);
+        if (!is_array($deliveryMethods)) {
+            $deliveryMethods = [$deliveryMethods];
+        }
+        $deliveryMethods = array_values(array_filter(array_map('trim', array_map('strval', $deliveryMethods))));
+
+        $statuses = Tools::getValue('filter_statuses', []);
+        if (!is_array($statuses)) {
+            $statuses = [$statuses];
+        }
+        $statuses = array_values(array_filter(array_map('trim', array_map('strval', $statuses))));
+
         $filters = [
             'id_allegropro_account' => (int)Tools::getValue('filter_account'),
             'date_from' => (string)Tools::getValue('filter_date_from'),
             'date_to' => (string)Tools::getValue('filter_date_to'),
-            'delivery_method' => trim((string)Tools::getValue('filter_delivery_method')),
-            'status' => trim((string)Tools::getValue('filter_status')),
+            'delivery_methods' => $deliveryMethods,
+            'statuses' => $statuses,
             'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id')),
         ];
 
@@ -338,6 +378,11 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $offset = ($page - 1) * $perPage;
         $orders = $this->repo->getPaginatedFiltered($filters, $perPage, $offset);
+        foreach ($orders as &$order) {
+            $order['module_status_label'] = $this->mapModuleStatusLabel((string)($order['status'] ?? ''));
+            $order['module_status_class'] = $this->mapModuleStatusClass((string)$order['module_status_label']);
+        }
+        unset($order);
 
         $selectedAccount = (int)Tools::getValue('id_allegropro_account');
         if (!$selectedAccount && !empty($accounts)) {
@@ -356,6 +401,8 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 'total_pages' => $totalPages,
                 'allowed_per_page' => $allowedPerPage,
             ],
+            'allegropro_delivery_options' => $this->repo->getDistinctDeliveryMethods(),
+            'allegropro_status_options' => $this->repo->getDistinctStatuses(),
             'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders')
         ]);
 
