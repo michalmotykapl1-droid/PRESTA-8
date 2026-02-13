@@ -45,10 +45,7 @@ class OrderProcessor
         $items = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."allegropro_order_item WHERE checkout_form_id = '".pSQL($cfId)."'");
         if (empty($items)) return ['success' => false, 'message' => 'Brak produktów.'];
 
-        $existingId = (int)$row['id_order_prestashop'];
-        if ($existingId === 0) {
-            $existingId = (int)Db::getInstance()->getValue("SELECT o.id_order FROM "._DB_PREFIX_."orders o INNER JOIN "._DB_PREFIX_."order_payment op ON o.reference = op.order_reference WHERE op.transaction_id = '".pSQL($cfId)."'");
-        }
+        $existingId = $this->resolveExistingPsOrderId($row, $cfId);
 
         // =========================================================
         // KROK 2: TWORZENIE
@@ -79,40 +76,89 @@ class OrderProcessor
         // KROK 3: NAPRAWA I AKTUALIZACJA STATUSU
         // =========================================================
         if ($step === 'fix') {
-            if ($existingId > 0) {
-                if (method_exists('Cache', 'clean')) Cache::clean('Order::*');
-                if (method_exists('Order', 'clearStaticCache')) Order::clearStaticCache();
-
-                // 1. Sprawdzamy, czy zamówienie jest ANULOWANE
-                if ($row['status'] === 'CANCELLED') {
-                    // Jeli tak -> ustawiamy status ANULOWANE w Preście
-                    $this->setCancelledStatus($existingId);
-                    $action = 'cancelled';
-                } else {
-                    // Jeśli nie (czyli READY lub FILLED_IN) -> Naprawiamy ceny
-                    $this->fixOrderData($existingId, $row, $items);
-                    
-                    // Jeśli status to READY_FOR_PROCESSING (czyli kasa jest) -> ustaw OPŁACONE
-                    if ($row['status'] === 'READY_FOR_PROCESSING' || $row['status'] === 'BOUGHT') {
-                        $this->setFinalStatus($existingId);
+            // Jeżeli zamówienie w Preście zostało usunięte ręcznie lub nie istnieje,
+            // odtwarzamy je automatycznie zamiast kończyć błędem.
+            if ($existingId <= 0) {
+                try {
+                    $paymentModule = $this->getPaymentModule();
+                    if (!$paymentModule) {
+                        return ['success' => false, 'message' => 'Brak modułu płatności.'];
                     }
-                    
-                    $action = 'fixed';
+
+                    $newId = $this->createPsOrder($row, $items, $paymentModule);
+                    if (!$newId) {
+                        return ['success' => false, 'message' => 'Nie udało się odtworzyć zamówienia PrestaShop.'];
+                    }
+
+                    $existingId = (int)$newId;
+                    $this->repo->updatePsOrderId($cfId, $existingId);
+                } catch (\Exception $e) {
+                    return ['success' => false, 'message' => 'Błąd odtwarzania zamówienia: ' . $e->getMessage()];
                 }
-
-                // 2. Oznaczamy w bazie jako "Obsłużone"
-                $this->repo->markAsFinished($cfId);
-
-                return ['success' => true, 'action' => $action, 'id_order' => $existingId];
-            } else {
-                return ['success' => false, 'message' => 'Brak ID zamówienia PrestaShop.'];
             }
+
+            if (method_exists('Cache', 'clean')) Cache::clean('Order::*');
+            if (method_exists('Order', 'clearStaticCache')) Order::clearStaticCache();
+
+            // 1. Sprawdzamy, czy zamówienie jest ANULOWANE
+            if ($row['status'] === 'CANCELLED') {
+                // Jeśli tak -> ustawiamy status ANULOWANE w Preście
+                $this->setCancelledStatus($existingId);
+                $action = 'cancelled';
+            } else {
+                // Jeśli nie (czyli READY lub FILLED_IN) -> Naprawiamy ceny
+                $this->fixOrderData($existingId, $row, $items);
+                
+                // Jeśli status to READY_FOR_PROCESSING (czyli kasa jest) -> ustaw OPŁACONE
+                if ($row['status'] === 'READY_FOR_PROCESSING' || $row['status'] === 'BOUGHT') {
+                    $this->setFinalStatus($existingId);
+                }
+                
+                $action = 'fixed';
+            }
+
+            // 2. Oznaczamy w bazie jako "Obsłużone"
+            $this->repo->markAsFinished($cfId);
+
+            return ['success' => true, 'action' => $action, 'id_order' => $existingId];
         }
 
         return ['success' => false, 'message' => 'Nieznany krok.'];
     }
 
     // --- POMOCNICZE ---
+
+    private function resolveExistingPsOrderId(array $row, string $cfId): int
+    {
+        $idFromRow = isset($row['id_order_prestashop']) ? (int)$row['id_order_prestashop'] : 0;
+        if ($this->isValidPsOrderId($idFromRow)) {
+            return $idFromRow;
+        }
+
+        $idFromPayment = (int)Db::getInstance()->getValue(
+            "SELECT o.id_order
+             FROM "._DB_PREFIX_."orders o
+             INNER JOIN "._DB_PREFIX_."order_payment op ON o.reference = op.order_reference
+             WHERE op.transaction_id = '".pSQL($cfId)."'
+             ORDER BY o.id_order DESC"
+        );
+
+        if ($this->isValidPsOrderId($idFromPayment)) {
+            return $idFromPayment;
+        }
+
+        return 0;
+    }
+
+    private function isValidPsOrderId(int $idOrder): bool
+    {
+        if ($idOrder <= 0) {
+            return false;
+        }
+
+        $order = new Order($idOrder);
+        return Validate::isLoadedObject($order);
+    }
 
     private function getPaymentModule()
     {
