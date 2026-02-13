@@ -85,7 +85,7 @@ class OrderProcessor
 
                 // 1. Sprawdzamy, czy zamówienie jest ANULOWANE
                 if ($row['status'] === 'CANCELLED') {
-                    // Jeśli tak -> ustawiamy status ANULOWANE w Preście
+                    // Jeli tak -> ustawiamy status ANULOWANE w Preście
                     $this->setCancelledStatus($existingId);
                     $action = 'cancelled';
                 } else {
@@ -281,8 +281,30 @@ class OrderProcessor
 
         $totalPaidAllegro = (float)$orderRow['total_amount'];
         $shippingGross = $totalPaidAllegro - $realProductsTotalGross;
-        if ($shippingGross < 0) $shippingGross = 0.00;
-        $shippingNet = $shippingGross / 1.23; 
+        if ($shippingGross < 0) {
+            $shippingGross = 0.00;
+        }
+
+        $productsTotalNet = 0.00;
+        foreach ($orderDetails as $detail) {
+            $productsTotalNet += (float)$detail['total_price_tax_excl'];
+        }
+
+        $effectiveTaxMultiplier = 1.0;
+        if ($productsTotalNet > 0.0 && $realProductsTotalGross >= $productsTotalNet) {
+            $effectiveTaxMultiplier = $realProductsTotalGross / $productsTotalNet;
+        }
+
+        if ($effectiveTaxMultiplier < 1.0) {
+            $effectiveTaxMultiplier = 1.0;
+        }
+
+        $shippingNet = $shippingGross / $effectiveTaxMultiplier;
+        if ($shippingNet > $shippingGross) {
+            $shippingNet = $shippingGross;
+        }
+
+        $totalPaidNet = max(0.00, $productsTotalNet + $shippingNet);
 
         // 1. POBIERZ ID TECHNICZNEGO PRZEWOŹNIKA "WYSYŁKA ALLEGRO"
         $targetCarrierId = (int)Configuration::get('ALLEGROPRO_CARRIER_ID');
@@ -295,7 +317,7 @@ class OrderProcessor
             total_paid = $totalPaidAllegro,
             total_paid_tax_incl = $totalPaidAllegro,
             total_paid_real = $totalPaidAllegro,
-            total_products = " . ($realProductsTotalGross / 1.23) . ",
+            total_products = " . (float)$productsTotalNet . ",
             total_products_wt = $realProductsTotalGross,
             total_shipping = $shippingGross,
             total_shipping_tax_incl = $shippingGross,
@@ -319,8 +341,8 @@ class OrderProcessor
         if ($id_invoice) {
             Db::getInstance()->execute("UPDATE "._DB_PREFIX_."order_invoice SET 
                 total_paid_tax_incl = $totalPaidAllegro,
-                total_paid_tax_excl = " . ($totalPaidAllegro / 1.23) . ",
-                total_products = " . ($realProductsTotalGross / 1.23) . ",
+                total_paid_tax_excl = " . (float)$totalPaidNet . ",
+                total_products = " . (float)$productsTotalNet . ",
                 total_products_wt = $realProductsTotalGross,
                 total_shipping_tax_incl = $shippingGross,
                 total_shipping_tax_excl = $shippingNet

@@ -299,8 +299,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     {
         $status = strtoupper(trim($status));
 
-        if (in_array($status, ['READY_FOR_PROCESSING', 'BOUGHT', 'FILLED_IN'], true)) {
+        if (in_array($status, ['READY_FOR_PROCESSING', 'BOUGHT'], true)) {
             return 'ALLEGRO PRO - OPŁACONE';
+        }
+
+        if ($status === 'FILLED_IN') {
+            return 'ALLEGRO PRO - BRAK WPŁATY';
         }
 
         if ($status === 'CANCELLED') {
@@ -319,6 +323,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 'label' => 'ALLEGRO PRO - OPŁACONE',
                 'raw' => [],
             ],
+            'NO_PAYMENT' => [
+                'label' => 'ALLEGRO PRO - BRAK WPŁATY',
+                'raw' => [],
+            ],
             'PROCESSING' => [
                 'label' => 'ALLEGRO PRO - PRZETWARZANIE',
                 'raw' => [],
@@ -333,6 +341,8 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $label = $this->mapModuleStatusLabel((string)$raw);
             if ($label === 'ALLEGRO PRO - OPŁACONE') {
                 $groups['PAID']['raw'][] = (string)$raw;
+            } elseif ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
+                $groups['NO_PAYMENT']['raw'][] = (string)$raw;
             } elseif ($label === 'ALLEGRO PRO - ANULOWANE') {
                 $groups['CANCELLED']['raw'][] = (string)$raw;
             } else {
@@ -355,6 +365,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         if ($label === 'ALLEGRO PRO - ANULOWANE') {
             return 'danger';
+        }
+
+        if ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
+            return 'default';
         }
 
         return 'warning';
