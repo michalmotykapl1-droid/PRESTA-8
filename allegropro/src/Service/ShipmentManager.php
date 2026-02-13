@@ -104,6 +104,9 @@ class ShipmentManager
         }
 
         $cmdId = $resp['json']['id'] ?? ($resp['json']['commandId'] ?? null);
+        if (empty($cmdId)) {
+            return ['ok' => false, 'message' => 'Allegro nie zwróciło ID komendy tworzenia przesyłki.'];
+        }
         
         // 5. Polling (Pętla sprawdzająca status, wzorowana na działającym kodzie)
         $shipmentId = null;
@@ -165,22 +168,24 @@ class ShipmentManager
 
     public function downloadLabel(array $account, string $checkoutFormId, string $shipmentId): array
     {
-        $isA4Pdf = ($this->config->getPageSize() === 'A4' && $this->config->getFileFormat() === 'PDF');
+        $labelFormat = $this->config->getFileFormat();
+        $isA4Pdf = ($this->config->getPageSize() === 'A4' && $labelFormat === 'PDF');
+        $accept = $labelFormat === 'ZPL' ? 'application/zpl' : 'application/pdf';
 
         $payload = [
             'shipmentIds' => [$shipmentId],
             'pageSize' => $this->config->getPageSize(),
-            'labelFormat' => $this->config->getFileFormat(),
+            'labelFormat' => $labelFormat,
             'cutLine' => $isA4Pdf
         ];
         
-        $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, 'application/pdf');
+        $resp = $this->api->postBinary($account, '/shipment-management/label', $payload, $accept);
         
         if (!$resp['ok']) return ['ok' => false, 'message' => 'Błąd pobierania etykiety'];
 
         $uniqueName = $checkoutFormId . '_' . substr($shipmentId, 0, 8);
-        $path = $this->storage->save($uniqueName, $resp['raw'], $this->config->getFileFormat());
-        $url = $this->storage->getUrl($uniqueName, $this->config->getFileFormat());
+        $path = $this->storage->save($uniqueName, $resp['raw'], $labelFormat);
+        $url = $this->storage->getUrl($uniqueName, $labelFormat);
 
         return ['ok' => true, 'url' => $url];
     }

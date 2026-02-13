@@ -36,7 +36,7 @@ class OrderImporter
             // 1. POBIERANIE (FETCH)
             try {
                 // Limit 5 na start
-                $fetchStats = $fetcher->fetchAndSave($account, 5); 
+                $fetchStats = $fetcher->fetchRecent($account, 5, true); 
                 $report[] = "<div style='color:blue; font-weight:bold;'>⬇️ $lbl: Pobrano/Aktualizowano: {$fetchStats['fetched_count']}</div>";
             } catch (\Exception $e) {
                 $report[] = "<div style='color:red;'>❌ $lbl: Błąd pobierania: " . $e->getMessage() . "</div>";
