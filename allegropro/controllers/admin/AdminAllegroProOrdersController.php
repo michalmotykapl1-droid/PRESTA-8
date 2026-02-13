@@ -87,45 +87,90 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         return $account;
     }
 
+    private function getImportLimit(string $scope): int
+    {
+        return $scope === 'history' ? 100 : 50;
+    }
+
     // ============================================================
     // AJAX: KONSOLA IMPORTU
     // ============================================================
 
-    // Krok 1: Pobieranie z Allegro (INCREMENTAL FETCH)
+    // Krok 1: Pobieranie z Allegro (INCREMENTAL FETCH / HISTORY)
     public function displayAjaxImportFetch() {
-        list($accRepo, $fetcher, ) = $this->getServices();
-        $scope = Tools::getValue('scope');
+        list(, $fetcher, ) = $this->getServices();
+        $scope = (string)Tools::getValue('scope');
 
-        $accounts = $accRepo->all();
-        $totalFetched = 0;
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+        if ((int)$account['active'] !== 1) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Wybrane konto Allegro jest nieaktywne.']));
+        }
+
+        $limit = $this->getImportLimit($scope);
 
         try {
-            foreach ($accounts as $acc) {
-                if (!$acc['active']) continue;
+            if ($scope === 'history') {
+                $dateFrom = (string)Tools::getValue('date_from');
+                $dateTo = (string)Tools::getValue('date_to');
 
-                // ZMIANA: Rozróżnienie trybów pobierania
-                if ($scope === 'history') {
-                    // Tryb historii: pobieramy starsze (np. 100 sztuk) bez patrzenia na datę "ostatniego"
-                    // (To jest dla bezpieczeństwa, gdybyś chciał uzupełnić luki)
-                    $res = $fetcher->fetchRecent($acc, 100);
-                } else {
-                    // Tryb Standard: Inteligentne pobieranie tylko NOWYCH
-                    $res = $fetcher->fetchRecent($acc, 50);
+                if (!$dateFrom || !$dateTo) {
+                    $this->ajaxDie(json_encode(['success' => false, 'message' => 'Dla trybu historii podaj date_from i date_to.']));
                 }
 
-                $totalFetched += $res['fetched_count'];
+                $fromTs = strtotime($dateFrom);
+                $toTs = strtotime($dateTo);
+                if ($fromTs === false || $toTs === false || $fromTs > $toTs) {
+                    $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowy zakres dat historii.']));
+                }
+
+                $res = $fetcher->fetchHistory($account, $dateFrom, $dateTo, $limit);
+            } else {
+                $res = $fetcher->fetchRecent($account, $limit);
             }
-            $this->ajaxDie(json_encode(['success' => true, 'count' => $totalFetched]));
+
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'count' => (int)$res['fetched_count'],
+                'account_id' => (int)$account['id_allegropro_account'],
+                'fetched_ids' => $res['fetched_ids'] ?? [],
+                'limit' => $limit,
+            ]));
         } catch (Exception $e) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => $e->getMessage()]));
         }
     }
 
-    // Krok 2: Pobranie listy ID (SMART SKIP!)
+    // Krok 2: Pobranie listy ID (SMART SKIP, per konto, spójność batcha)
     public function displayAjaxImportGetPending() {
-        // Używamy metody, która zwraca tylko ID gdzie is_finished=0
-        // Czyli Twoje "ALLEGRO PRO - ZAMÓWIENIE PRZETWARZANE"
-        $ids = $this->repo->getPendingIds(50);
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $limit = (int)Tools::getValue('limit');
+        if ($limit <= 0) {
+            $limit = 50;
+        }
+
+        $rawFetchedIds = Tools::getValue('fetched_ids');
+        $fetchedIds = [];
+        if (is_array($rawFetchedIds)) {
+            $fetchedIds = $rawFetchedIds;
+        } elseif (is_string($rawFetchedIds) && $rawFetchedIds !== '') {
+            $decoded = json_decode($rawFetchedIds, true);
+            if (is_array($decoded)) {
+                $fetchedIds = $decoded;
+            }
+        }
+
+        if (!empty($fetchedIds)) {
+            $ids = $this->repo->filterPendingIdsForAccount((int)$account['id_allegropro_account'], $fetchedIds);
+        } else {
+            $ids = $this->repo->getPendingIdsForAccount((int)$account['id_allegropro_account'], $limit);
+        }
 
         $this->ajaxDie(json_encode(['success' => true, 'ids' => $ids]));
     }
@@ -243,7 +288,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $orders = $this->repo->getPaginated(50);
         $accounts = (new AccountRepository())->all();
         $selectedAccount = (int)Tools::getValue('id_allegropro_account');
-        if (!$selectedAccount && !empty($accounts)) $selectedAccount = $accounts[0]['id_allegropro_account'];
+        if (!$selectedAccount && !empty($accounts)) $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
 
         $this->context->smarty->assign([
             'allegropro_orders' => $orders,

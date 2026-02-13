@@ -7,30 +7,44 @@ use DbQuery;
 class OrderRepository
 {
     /**
-     * Pobiera datę ostatniej aktualizacji zamówienia w bazie.
-     * POPRAWKA: Używamy executeS zamiast getValue, aby uniknąć problemu "podwójnego LIMIT 1".
+     * Pobiera datę ostatniej aktualizacji zamówienia w bazie (globalnie).
      */
     public function getLastFetchedDate()
     {
-        // 1. Sprawdzamy czy tabela nie jest pusta
         $count = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order`');
-        
         if ($count === 0) {
-            return null; 
+            return null;
         }
 
-        // 2. Pobieramy ostatnią datę bezpiecznym zapytaniem
-        $sql = 'SELECT `updated_at_allegro` 
-                FROM `' . _DB_PREFIX_ . 'allegropro_order` 
-                ORDER BY `updated_at_allegro` DESC 
+        $sql = 'SELECT `updated_at_allegro`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                ORDER BY `updated_at_allegro` DESC
                 LIMIT 1';
-        
+
         $result = Db::getInstance()->executeS($sql);
-        
         if (!empty($result) && isset($result[0]['updated_at_allegro'])) {
             return $result[0]['updated_at_allegro'];
         }
-        
+
+        return null;
+    }
+
+    /**
+     * Pobiera datę ostatniej aktualizacji zamówienia dla konkretnego konta.
+     */
+    public function getLastFetchedDateForAccount(int $accountId)
+    {
+        $sql = 'SELECT `updated_at_allegro`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `id_allegropro_account` = ' . (int)$accountId . '
+                ORDER BY `updated_at_allegro` DESC
+                LIMIT 1';
+
+        $result = Db::getInstance()->executeS($sql);
+        if (!empty($result) && isset($result[0]['updated_at_allegro'])) {
+            return $result[0]['updated_at_allegro'];
+        }
+
         return null;
     }
 
@@ -47,18 +61,18 @@ class OrderRepository
     }
 
     /**
-     * Zwraca listę ID tylko dla zamówień NIEZAKOŃCZONYCH (is_finished=0)
+     * Zwraca listę ID tylko dla zamówień NIEZAKOŃCZONYCH (is_finished=0) - globalnie.
      */
     public function getPendingIds(int $limit = 50): array
     {
-        $sql = 'SELECT `checkout_form_id` 
-                FROM `' . _DB_PREFIX_ . 'allegropro_order` 
-                WHERE `is_finished` = 0 
-                ORDER BY `updated_at_allegro` DESC 
+        $sql = 'SELECT `checkout_form_id`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `is_finished` = 0
+                ORDER BY `updated_at_allegro` DESC
                 LIMIT ' . (int)$limit;
-        
+
         $rows = Db::getInstance()->executeS($sql);
-        
+
         $ids = [];
         if ($rows) {
             foreach ($rows as $r) {
@@ -66,6 +80,68 @@ class OrderRepository
             }
         }
         return $ids;
+    }
+
+    /**
+     * Zwraca listę ID tylko dla zamówień NIEZAKOŃCZONYCH (is_finished=0) dla danego konta.
+     */
+    public function getPendingIdsForAccount(int $accountId, int $limit = 50): array
+    {
+        $sql = 'SELECT `checkout_form_id`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `is_finished` = 0
+                  AND `id_allegropro_account` = ' . (int)$accountId . '
+                ORDER BY `updated_at_allegro` DESC
+                LIMIT ' . (int)$limit;
+
+        $rows = Db::getInstance()->executeS($sql);
+
+        $ids = [];
+        if ($rows) {
+            foreach ($rows as $r) {
+                $ids[] = $r['checkout_form_id'];
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Filtruje przekazaną listę checkoutFormId do takich, które są pending dla konta.
+     * Zachowuje kolejność z wejścia.
+     */
+    public function filterPendingIdsForAccount(int $accountId, array $checkoutIds): array
+    {
+        $checkoutIds = array_values(array_unique(array_filter(array_map('strval', $checkoutIds))));
+        if (empty($checkoutIds)) {
+            return [];
+        }
+
+        $quoted = [];
+        foreach ($checkoutIds as $id) {
+            $quoted[] = "'" . pSQL($id) . "'";
+        }
+
+        $sql = 'SELECT `checkout_form_id`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `is_finished` = 0
+                  AND `id_allegropro_account` = ' . (int)$accountId . '
+                  AND `checkout_form_id` IN (' . implode(',', $quoted) . ')';
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $pendingMap = [];
+        foreach ($rows as $r) {
+            $pendingMap[(string)$r['checkout_form_id']] = true;
+        }
+
+        $result = [];
+        foreach ($checkoutIds as $id) {
+            if (isset($pendingMap[$id])) {
+                $result[] = $id;
+            }
+        }
+
+        return $result;
     }
 
     public function markAsFinished(string $checkoutFormId)
@@ -85,7 +161,7 @@ class OrderRepository
         $q->where("checkout_form_id = '" . pSQL($checkoutFormId) . "'");
         return (int) Db::getInstance()->getValue($q);
     }
-    
+
     public function updatePsOrderId($checkoutFormId, $psOrderId)
     {
         Db::getInstance()->update('allegropro_order', ['id_order_prestashop' => (int)$psOrderId], "checkout_form_id = '" . pSQL($checkoutFormId) . "'");
@@ -103,17 +179,17 @@ class OrderRepository
         $q->from('allegropro_order');
         $q->where("checkout_form_id = '".pSQL($checkoutFormId)."' AND id_allegropro_account = ".(int)$accountId);
         $order = Db::getInstance()->getRow($q);
-        
+
         if (!$order) return null;
 
         $buyer = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_buyer WHERE checkout_form_id = '".pSQL($checkoutFormId)."'");
         $shipping = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_shipping WHERE checkout_form_id = '".pSQL($checkoutFormId)."'");
-        
+
         $delivery = [
             'method' => ['id' => $shipping['method_id'] ?? null],
             'pickupPoint' => ['id' => $shipping['pickup_point_id'] ?? null],
             'address' => [
-                'firstName' => '', 
+                'firstName' => '',
                 'lastName' => $shipping['addr_name'] ?? '',
                 'street' => $shipping['addr_street'] ?? '',
                 'city' => $shipping['addr_city'] ?? '',
@@ -122,7 +198,7 @@ class OrderRepository
                 'phoneNumber' => $shipping['addr_phone'] ?? '',
             ]
         ];
-        
+
         return [
             'buyer' => [
                 'email' => $buyer['email'] ?? '',
@@ -158,19 +234,17 @@ class OrderRepository
         $existingId = $this->exists($cfId);
 
         if ($existingId) {
-            // DETEKCJA ZMIANY STATUSU
             $oldStatus = $db->getValue("SELECT status FROM "._DB_PREFIX_."allegropro_order WHERE id_allegropro_order = ".(int)$existingId);
-            
+
             if ($oldStatus !== $newStatus) {
-                // Status się zmienił (np. na CANCELLED) -> Resetujemy flagę, aby procesor to obsłużył
                 $orderData['is_finished'] = 0;
             }
-            
+
             unset($orderData['date_add']);
             $db->update('allegropro_order', $orderData, "id_allegropro_order = $existingId");
         } else {
             $orderData['date_add'] = date('Y-m-d H:i:s');
-            $orderData['is_finished'] = 0; 
+            $orderData['is_finished'] = 0;
             $db->insert('allegropro_order', $orderData);
         }
 

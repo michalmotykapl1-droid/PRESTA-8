@@ -20,8 +20,8 @@ class OrderFetcher
     }
 
     /**
-     * INTELIGENTNE POBIERANIE (INCREMENTAL FETCH)
-     * Pobiera tylko zamówienia nowsze niż ostatnie w bazie.
+     * INTELIGENTNE POBIERANIE (INCREMENTAL FETCH) PER KONTO
+     * Pobiera tylko zamówienia nowsze niż ostatnie w bazie dla konkretnego konta.
      */
     public function fetchRecent(array $account, int $limit = 50): array
     {
@@ -30,15 +30,11 @@ class OrderFetcher
             'sort' => '-updatedAt' // Najnowsze na górze
         ];
 
-        // 1. Sprawdź datę ostatniego zamówienia w bazie
-        $lastDate = $this->repo->getLastFetchedDate();
+        $accountId = (int)($account['id_allegropro_account'] ?? 0);
+        $lastDate = $accountId > 0 ? $this->repo->getLastFetchedDateForAccount($accountId) : null;
 
         if ($lastDate) {
-            // Allegro API wymaga formatu ISO 8601 (np. 2024-01-20T10:00:00Z)
-            // Zamieniamy datę z bazy na format akceptowalny przez API
             $isoDate = date('Y-m-d\TH:i:s\Z', strtotime($lastDate));
-            
-            // Dodajemy filtr: "Pobierz tylko zaktualizowane PO tej dacie"
             $params['updatedAt.gte'] = $isoDate;
         }
 
@@ -46,7 +42,7 @@ class OrderFetcher
     }
 
     /**
-     * Pobieranie historyczne (wg zakresu dat)
+     * Prawdziwe pobieranie historyczne (wg zakresu dat)
      */
     public function fetchHistory(array $account, string $dateFrom, string $dateTo, int $limit = 100): array
     {
@@ -68,10 +64,11 @@ class OrderFetcher
 
         $orders = $resp['json']['checkoutForms'] ?? [];
         $count = 0;
+        $fetchedIds = [];
 
         foreach ($orders as $order) {
             $order['account_id'] = $account['id_allegropro_account'];
-            
+
             foreach ($order['lineItems'] as &$item) {
                 // EAN
                 $ean = $item['offer']['ean'] ?? null;
@@ -86,7 +83,7 @@ class OrderFetcher
                 if ($match) {
                     $item['matched_id_product'] = (int)$match['id_product'];
                     $item['matched_id_attribute'] = (int)$match['id_product_attribute'];
-                    $item['matched_tax_rate'] = $this->getTaxRate($match['id_product']); 
+                    $item['matched_tax_rate'] = $this->getTaxRate($match['id_product']);
                 } else {
                     $item['matched_id_product'] = 0;
                     $item['matched_id_attribute'] = 0;
@@ -96,12 +93,14 @@ class OrderFetcher
             unset($item);
 
             $this->repo->saveFullOrder($order);
+            $fetchedIds[] = (string)$order['id'];
             $count++;
         }
 
         return [
             'fetched_count' => $count,
-            'raw_count' => count($orders)
+            'raw_count' => count($orders),
+            'fetched_ids' => $fetchedIds,
         ];
     }
 
@@ -129,10 +128,10 @@ class OrderFetcher
     {
         $sku = isset($item['offer']['external']['id']) ? trim($item['offer']['external']['id']) : null;
         if (empty($sku)) return null;
-        $sql = "SELECT pa.id_product, pa.id_product_attribute FROM "._DB_PREFIX_."product_attribute pa LEFT JOIN "._DB_PREFIX_."product p ON p.id_product = pa.id_product WHERE pa.reference = '".pSQL($sku)."' ORDER BY p.active DESC"; 
+        $sql = "SELECT pa.id_product, pa.id_product_attribute FROM "._DB_PREFIX_."product_attribute pa LEFT JOIN "._DB_PREFIX_."product p ON p.id_product = pa.id_product WHERE pa.reference = '".pSQL($sku)."' ORDER BY p.active DESC";
         $row = Db::getInstance()->getRow($sql);
         if ($row) return $row;
-        $sql = "SELECT p.id_product, 0 as id_product_attribute FROM "._DB_PREFIX_."product p WHERE p.reference = '".pSQL($sku)."' ORDER BY p.active DESC"; 
+        $sql = "SELECT p.id_product, 0 as id_product_attribute FROM "._DB_PREFIX_."product p WHERE p.reference = '".pSQL($sku)."' ORDER BY p.active DESC";
         $row = Db::getInstance()->getRow($sql);
         if ($row) return $row;
         return null;
