@@ -15,60 +15,81 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
             return false;
         }
 
-        $allowedBase = $this->context->link->getAdminLink('AdminAllegroProAccounts');
-        $allowedParts = parse_url($allowedBase);
-        $candidateParts = parse_url($url);
-        if (!is_array($allowedParts) || !is_array($candidateParts)) {
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
             return false;
         }
 
-        $allowedScheme = strtolower((string)($allowedParts['scheme'] ?? ''));
-        $allowedHost = strtolower((string)($allowedParts['host'] ?? ''));
-        $allowedPort = isset($allowedParts['port']) ? (int)$allowedParts['port'] : null;
+        $candidateHost = strtolower((string) ($parts['host'] ?? ''));
+        $candidateScheme = strtolower((string) ($parts['scheme'] ?? ''));
+        if ($candidateHost === '' || ($candidateScheme !== 'https' && $candidateScheme !== 'http')) {
+            return false;
+        }
 
-        $candidateScheme = strtolower((string)($candidateParts['scheme'] ?? ''));
-        $candidateHost = strtolower((string)($candidateParts['host'] ?? ''));
-        $candidatePort = isset($candidateParts['port']) ? (int)$candidateParts['port'] : null;
+        $shopBase = $this->context->shop->getBaseURL(true);
+        $shopHost = strtolower((string) parse_url($shopBase, PHP_URL_HOST));
+        if ($shopHost === '' || $candidateHost !== $shopHost) {
+            return false;
+        }
 
-        return $candidateScheme === $allowedScheme
-            && $candidateHost === $allowedHost
-            && $candidatePort === $allowedPort;
+        $query = [];
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $controller = (string) ($query['controller'] ?? '');
+        $legacyController = (string) ($query['controllerUri'] ?? '');
+
+        if ($controller === 'AdminAllegroProAccounts' || $legacyController === 'AdminAllegroProAccounts') {
+            return true;
+        }
+
+        $path = strtolower((string) ($parts['path'] ?? ''));
+
+        return strpos($path, 'adminallegroproaccounts') !== false;
+    }
+
+    private function renderPopupReturnPage(string $adminReturnUrl, string $msg, bool $isErr): void
+    {
+        $sep = (strpos($adminReturnUrl, '?') !== false) ? '&' : '?';
+        $finalUrl = $adminReturnUrl . $sep . ($isErr ? 'allegropro_err=' : 'allegropro_ok=') . urlencode($msg);
+        $safeFinalUrlJs = json_encode($finalUrl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+        $safeMsg = htmlspecialchars($msg, ENT_QUOTES, 'UTF-8');
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>Allegro Pro</title></head><body>';
+        echo '<p>' . $safeMsg . '</p>';
+        echo '<p>Trwa powrót do listy kont...</p>';
+        echo '<script>';
+        echo 'var u=' . $safeFinalUrlJs . ';';
+        echo 'if(window.opener && !window.opener.closed){window.opener.location.href=u;window.close();}';
+        echo 'else{window.location.href=u;}';
+        echo '</script>';
+        echo '</body></html>';
+        exit;
     }
 
     public function initContent()
     {
         parent::initContent();
 
-        $stateFull = (string)Tools::getValue('state');
+        $stateFull = (string) Tools::getValue('state');
         $code = Tools::getValue('code');
         $error = Tools::getValue('error');
 
-        // Rozdzielamy state na ID bazy i URL powrotny (separator to kropka)
-        // Format: randomId.encodedUrl
+        $adminReturnUrl = $this->context->link->getAdminLink('AdminAllegroProAccounts');
+
         $parts = explode('.', $stateFull);
         $stateDb = $parts[0] ?? '';
         $returnUrlEncoded = $parts[1] ?? '';
-        
-        // Dekodujemy URL powrotu (Base64 URL Safe)
-        $adminReturnUrl = '';
+
         if ($returnUrlEncoded) {
             $base64 = str_replace(['-', '_'], ['+', '/'], $returnUrlEncoded);
             $decoded = base64_decode($base64);
-            if ($this->isAllowedAdminReturnUrl((string)$decoded)) {
-                $adminReturnUrl = $decoded;
+            if ($this->isAllowedAdminReturnUrl((string) $decoded)) {
+                $adminReturnUrl = (string) $decoded;
             }
         }
 
-        // Helper do przekierowania
-        $redirect = function($msg, $isErr) use ($adminReturnUrl) {
-            if ($adminReturnUrl) {
-                $sep = (strpos($adminReturnUrl, '?') !== false) ? '&' : '?';
-                $finalUrl = $adminReturnUrl . $sep . ($isErr ? 'allegropro_err=' : 'allegropro_ok=') . urlencode($msg);
-                Tools::redirect($finalUrl);
-            } else {
-                // Fallback - jeśli nie uda się odzyskać URLa, wyświetl komunikat
-                die('<h1>Allegro Pro</h1><p>' . $msg . '</p><p>Możesz zamknąć to okno i wrócić do panelu sklepu.</p>');
-            }
+        $redirect = function (string $msg, bool $isErr) use ($adminReturnUrl) {
+            $this->renderPopupReturnPage($adminReturnUrl, $msg, $isErr);
         };
 
         if ($error) {
@@ -76,13 +97,12 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
         }
 
         if (!$stateDb || !$code) {
-            $redirect('Brak danych autoryzacyjnych (state/code)', true);
+            $redirect('Brak danych autoryzacyjnych (state/code).', true);
         }
 
         $repo = new AccountRepository();
-        // Szukamy w bazie TYLKO po krótkim ID
         $acc = $repo->findByOauthState($stateDb);
-        
+
         if (!$acc) {
             $redirect('Sesja autoryzacji wygasła lub jest nieprawidłowa. Spróbuj ponownie.', true);
         }
@@ -93,24 +113,22 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
             $redirect('Client ID/Secret nie są skonfigurowane w module.', true);
         }
 
-        $env = ((int)$acc['sandbox'] === 1) ? 'sandbox' : (Config::env());
+        $env = ((int) $acc['sandbox'] === 1) ? 'sandbox' : (Config::env());
         $redirectUri = $this->context->link->getModuleLink($this->module->name, 'oauthcallback', [], true);
 
         $oauth = new OAuthService(new HttpClient(), $repo);
-        // Przekazujemy pełny stateFull, bo Allegro oddaje dokładnie to co dostało (wymagane do weryfikacji przez Allegro czasem)
-        $token = $oauth->exchangeCode($env, $clientId, $clientSecret, $redirectUri, (string)$code);
-        
+        $token = $oauth->exchangeCode($env, $clientId, $clientSecret, $redirectUri, (string) $code);
+
         if (!$token['ok'] || !is_array($token['json']) || empty($token['json']['access_token'])) {
-            $redirect('Błąd wymiany tokena: ' . (int)$token['code'] . ' ' . Tools::substr((string)$token['raw'], 0, 200), true);
+            $redirect('Błąd wymiany tokena: ' . (int) $token['code'] . ' ' . Tools::substr((string) $token['raw'], 0, 200), true);
         }
 
-        $accessToken = (string)$token['json']['access_token'];
-        $refreshToken = (string)($token['json']['refresh_token'] ?? '');
-        $expiresIn = isset($token['json']['expires_in']) ? (int)$token['json']['expires_in'] : null;
+        $accessToken = (string) $token['json']['access_token'];
+        $refreshToken = (string) ($token['json']['refresh_token'] ?? '');
+        $expiresIn = isset($token['json']['expires_in']) ? (int) $token['json']['expires_in'] : null;
 
-        $repo->storeTokens((int)$acc['id_allegropro_account'], $accessToken, $refreshToken, $expiresIn);
+        $repo->storeTokens((int) $acc['id_allegropro_account'], $accessToken, $refreshToken, $expiresIn);
 
-        // Pobieramy dane usera (/me)
         $apiBase = AllegroEndpoints::apiBase($env);
         $http = new HttpClient();
         $me = $http->request('GET', $apiBase . '/me', [
@@ -128,10 +146,10 @@ class AllegroProOauthcallbackModuleFrontController extends ModuleFrontController
             }
         }
 
-        $repo->update((int)$acc['id_allegropro_account'], [
-            'allegro_login' => $login ? pSQL((string)$login) : null,
-            'allegro_user_id' => $userId ? pSQL((string)$userId) : null,
-            'oauth_state' => null, // czyścimy stan
+        $repo->update((int) $acc['id_allegropro_account'], [
+            'allegro_login' => $login ? pSQL((string) $login) : null,
+            'allegro_user_id' => $userId ? pSQL((string) $userId) : null,
+            'oauth_state' => null,
         ]);
 
         $redirect('Konto Allegro zostało poprawnie autoryzowane.', false);

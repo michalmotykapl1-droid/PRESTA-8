@@ -1,4 +1,3 @@
-
 {if isset($smarty.get.allegropro_ok)}
   <div class="alert alert-success">{$smarty.get.allegropro_ok|escape:'htmlall':'UTF-8'}</div>
 {/if}
@@ -102,7 +101,11 @@
               {/if}
             </td>
             <td>
-              <a class="btn btn-default btn-xs" href="{$admin_link|escape:'htmlall':'UTF-8'}&action=authorize&id_allegropro_account={$a.id_allegropro_account|intval}" target="_blank">
+              <a
+                class="btn btn-default btn-xs js-allegropro-auth"
+                href="{$admin_link|escape:'htmlall':'UTF-8'}&action=authorize&id_allegropro_account={$a.id_allegropro_account|intval}"
+                data-auth-url="{$admin_link|escape:'htmlall':'UTF-8'}&action=authorize&id_allegropro_account={$a.id_allegropro_account|intval}"
+              >
                 <i class="icon icon-key"></i> Autoryzuj
               </a>
 
@@ -124,3 +127,96 @@
     </tbody>
   </table>
 </div>
+
+<div class="modal fade" id="allegroproAuthModal" tabindex="-1" role="dialog" aria-labelledby="allegroproAuthModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title" id="allegroproAuthModalLabel"><i class="icon icon-key"></i> Trwa autoryzacja Allegro</h4>
+      </div>
+      <div class="modal-body">
+        <p>Otworzyliśmy okno logowania Allegro.</p>
+        <ol style="padding-left:20px; margin-bottom:10px;">
+          <li>Zaloguj się i potwierdź dostęp.</li>
+          <li>Po zakończeniu wrócisz automatycznie do tej listy kont.</li>
+        </ol>
+        <p class="text-muted" style="margin-bottom:0;">Nie zamykaj tego okna panelu admina do czasu zakończenia.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Ukryj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+{literal}
+(function () {
+  var popup = null;
+  var timer = null;
+
+  function showModal() {
+    if (window.jQuery && typeof jQuery.fn.modal === 'function') {
+      jQuery('#allegroproAuthModal').modal({backdrop: 'static', keyboard: false});
+    }
+  }
+
+  function hideModal() {
+    if (window.jQuery && typeof jQuery.fn.modal === 'function') {
+      jQuery('#allegroproAuthModal').modal('hide');
+    }
+  }
+
+  function watchPopup() {
+    if (timer) {
+      window.clearInterval(timer);
+    }
+
+    timer = window.setInterval(function () {
+      if (!popup || popup.closed) {
+        window.clearInterval(timer);
+        hideModal();
+      }
+    }, 500);
+  }
+
+  function openAuthPopup(url) {
+    var features = [
+      'toolbar=no',
+      'location=yes',
+      'status=no',
+      'menubar=no',
+      'scrollbars=yes',
+      'resizable=yes',
+      'width=980',
+      'height=780'
+    ].join(',');
+
+    popup = window.open(url, 'allegropro_oauth_popup', features);
+
+    if (!popup) {
+      alert('Przeglądarka zablokowała popup. Zezwól na wyskakujące okna dla panelu admina.');
+      hideModal();
+      return;
+    }
+
+    try {
+      popup.focus();
+    } catch (e) {
+    }
+
+    watchPopup();
+  }
+
+  var links = document.querySelectorAll('.js-allegropro-auth');
+  for (var i = 0; i < links.length; i++) {
+    links[i].addEventListener('click', function (e) {
+      e.preventDefault();
+      var url = this.getAttribute('data-auth-url') || this.getAttribute('href');
+      showModal();
+      openAuthPopup(url);
+    });
+  }
+})();
+{/literal}
+</script>
