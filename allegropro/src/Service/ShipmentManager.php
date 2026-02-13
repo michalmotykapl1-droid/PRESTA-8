@@ -17,6 +17,7 @@ class ShipmentManager
     private OrderRepository $orders;
     private DeliveryServiceRepository $deliveryServices;
     private ShipmentRepository $shipments;
+    private array $discoveredShipmentContext = [];
 
     public function __construct(
         AllegroApiClient $api,
@@ -161,6 +162,7 @@ class ShipmentManager
     public function syncOrderShipments(array $account, string $checkoutFormId, int $ttlSeconds = 90, bool $force = false, bool $debug = false): array
     {
         $debugLines = [];
+        $this->discoveredShipmentContext = [];
         $startedAt = microtime(true);
         $accountId = (int)($account['id_allegropro_account'] ?? 0);
         if ($accountId <= 0 || $checkoutFormId === '') {
@@ -203,11 +205,12 @@ class ShipmentManager
                 $debugLines[] = '[SYNC] Smart z checkout-form: package_count=' . var_export($smart['package_count'], true) . ', is_smart=' . var_export($smart['is_smart'], true);
             }
 
-            foreach ($this->extractShipmentIdsFromCheckoutForm($orderResp['json']) as $sid) {
+            $checkoutFormShipmentIds = $this->extractShipmentIdsFromCheckoutForm($orderResp['json']);
+            foreach ($checkoutFormShipmentIds as $sid) {
                 $shipmentIds[$sid] = true;
             }
             if ($debug) {
-                $debugLines[] = '[SYNC] shipment_id z checkout-form: ' . implode(', ', $this->extractShipmentIdsFromCheckoutForm($orderResp['json']));
+                $debugLines[] = '[SYNC] shipment_id z checkout-form: ' . implode(', ', $checkoutFormShipmentIds);
             }
         } elseif ($debug) {
             $debugLines[] = '[SYNC] checkout-form nie zwrócił danych JSON. raw=' . $this->shortRaw($orderResp['raw'] ?? '');
@@ -229,10 +232,27 @@ class ShipmentManager
                 continue;
             }
 
-            $detail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($shipmentId));
-            if (!$detail['ok'] || !is_array($detail['json'])) {
+            $resolvedShipmentId = $this->resolveShipmentIdCandidate($account, $shipmentId, $debugLines);
+            $context = $this->discoveredShipmentContext[$shipmentId] ?? ($this->discoveredShipmentContext[$resolvedShipmentId] ?? null);
+            if ($resolvedShipmentId === null) {
+                if ($this->upsertFromDiscoveredContext($accountId, $checkoutFormId, $shipmentId, $context, $debugLines)) {
+                    $synced++;
+                    continue;
+                }
                 if ($debug) {
-                    $debugLines[] = '[API] GET /shipment-management/shipments/' . $shipmentId . ': HTTP ' . (int)($detail['code'] ?? 0) . ', brak danych; raw=' . $this->shortRaw($detail['raw'] ?? '');
+                    $debugLines[] = '[SYNC] pomijam nierozpoznane shipment_id=' . $shipmentId;
+                }
+                continue;
+            }
+
+            $detail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($resolvedShipmentId));
+            if (!$detail['ok'] || !is_array($detail['json'])) {
+                if ($this->upsertFromDiscoveredContext($accountId, $checkoutFormId, $resolvedShipmentId, $context, $debugLines)) {
+                    $synced++;
+                    continue;
+                }
+                if ($debug) {
+                    $debugLines[] = '[API] GET /shipment-management/shipments/' . $resolvedShipmentId . ': HTTP ' . (int)($detail['code'] ?? 0) . ', brak danych; raw=' . $this->shortRaw($detail['raw'] ?? '');
                 }
                 continue;
             }
@@ -246,7 +266,7 @@ class ShipmentManager
             $this->shipments->upsertFromAllegro(
                 $accountId,
                 $checkoutFormId,
-                $shipmentId,
+                $resolvedShipmentId,
                 $status,
                 $tracking,
                 $isSmart,
@@ -256,7 +276,7 @@ class ShipmentManager
             $synced++;
 
             if ($debug) {
-                $debugLines[] = '[SYNC] shipment=' . $shipmentId . ', status=' . $status . ', tracking=' . ($tracking ?: '-') . ', smart=' . var_export($isSmart, true);
+                $debugLines[] = '[SYNC] shipment=' . $resolvedShipmentId . ', status=' . $status . ', tracking=' . ($tracking ?: '-') . ', smart=' . var_export($isSmart, true);
             }
         }
 
@@ -297,13 +317,28 @@ class ShipmentManager
         $delivery = is_array($cf['delivery'] ?? null) ? $cf['delivery'] : [];
 
         $packageCount = null;
-        if (isset($delivery['calculatedNumberOfPackages'])) {
-            $packageCount = max(0, (int)$delivery['calculatedNumberOfPackages']);
+        $packageCountCandidates = [
+            $delivery['calculatedNumberOfPackages'] ?? null,
+            $delivery['numberOfPackages'] ?? null,
+            $delivery['packagesCount'] ?? null,
+            $cf['calculatedNumberOfPackages'] ?? null,
+            $cf['numberOfPackages'] ?? null,
+        ];
+        foreach ($packageCountCandidates as $candidate) {
+            if ($candidate === null || $candidate === '') {
+                continue;
+            }
+            if (is_numeric($candidate)) {
+                $packageCount = max(0, (int)$candidate);
+                break;
+            }
         }
 
         $isSmart = null;
         if (isset($delivery['smart'])) {
             $isSmart = !empty($delivery['smart']) ? 1 : 0;
+        } elseif (isset($cf['smart'])) {
+            $isSmart = !empty($cf['smart']) ? 1 : 0;
         }
 
         return [
@@ -327,7 +362,7 @@ class ShipmentManager
                     continue;
                 }
                 foreach (['shipmentId', 'id'] as $k) {
-                    if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
+                    if (!empty($row[$k]) && $this->looksLikeShipmentReference((string)$row[$k])) {
                         $ids[(string)$row[$k]] = true;
                     }
                 }
@@ -336,7 +371,7 @@ class ShipmentManager
 
         if (!empty($delivery['shipment']) && is_array($delivery['shipment'])) {
             foreach (['shipmentId', 'id'] as $k) {
-                if (!empty($delivery['shipment'][$k]) && $this->looksLikeShipmentId((string)$delivery['shipment'][$k])) {
+                if (!empty($delivery['shipment'][$k]) && $this->looksLikeShipmentReference((string)$delivery['shipment'][$k])) {
                     $ids[(string)$delivery['shipment'][$k]] = true;
                 }
             }
@@ -348,7 +383,7 @@ class ShipmentManager
                     continue;
                 }
                 foreach (['shipmentId', 'id'] as $k) {
-                    if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
+                    if (!empty($row[$k]) && $this->looksLikeShipmentReference((string)$row[$k])) {
                         $ids[(string)$row[$k]] = true;
                     }
                 }
@@ -358,6 +393,11 @@ class ShipmentManager
         return array_keys($ids);
     }
 
+    private function looksLikeShipmentReference(string $value): bool
+    {
+        return $this->looksLikeShipmentId($value) || $this->looksLikeCreateCommandId($value);
+    }
+
     private function looksLikeShipmentId(string $value): bool
     {
         $value = trim($value);
@@ -365,8 +405,67 @@ class ShipmentManager
             return false;
         }
 
-        // Allegro shipment ids to zwykle UUID lub podobny identyfikator z myślnikami.
-        return (bool)preg_match('/^[a-zA-Z0-9-]{12,}$/', $value);
+        // Odrzuć commandId/identyfikatory techniczne.
+        if ($this->looksLikeCreateCommandId($value)) {
+            return false;
+        }
+
+        // Najczęściej UUID.
+        if ((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value)) {
+            return true;
+        }
+
+        // Fallback: alfanumeryczne + myślniki (ale z wymaganym myślnikiem).
+        return (bool)preg_match('/^(?=.*-)[a-zA-Z0-9-]{12,80}$/', $value);
+    }
+
+    private function looksLikeCreateCommandId(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (strpos($value, ':') !== false) {
+            return true;
+        }
+
+        // Base64-like (np. QUxMRUdSTzpBMDAz...).
+        return (bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0);
+    }
+
+    private function resolveShipmentIdCandidate(array $account, string $candidateId, array &$debugLines = []): ?string
+    {
+        $candidateId = trim($candidateId);
+        if ($candidateId === '') {
+            return null;
+        }
+
+        if ($this->looksLikeShipmentId($candidateId)) {
+            return $candidateId;
+        }
+
+        if (!$this->looksLikeCreateCommandId($candidateId)) {
+            return null;
+        }
+
+        $resp = $this->api->get($account, '/shipment-management/shipments/create-commands/' . rawurlencode($candidateId));
+        if (!empty($debugLines)) {
+            $debugLines[] = '[API] GET /shipment-management/shipments/create-commands/{id}: HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+        }
+        if (!$resp['ok'] || !is_array($resp['json'])) {
+            return null;
+        }
+
+        $shipmentId = (string)($resp['json']['shipmentId'] ?? '');
+        if ($shipmentId !== '' && $this->looksLikeShipmentId($shipmentId)) {
+            if (!empty($debugLines)) {
+                $debugLines[] = '[SYNC] resolve commandId -> shipmentId: ' . $candidateId . ' => ' . $shipmentId;
+            }
+            return $shipmentId;
+        }
+
+        return null;
     }
 
     private function extractTrackingNumber(array $shipment): ?string
@@ -400,6 +499,22 @@ class ShipmentManager
 
         if (isset($shipment['service']['smart'])) {
             return !empty($shipment['service']['smart']) ? 1 : 0;
+        }
+
+        $textCandidates = [
+            $shipment['service']['name'] ?? null,
+            $shipment['service']['id'] ?? null,
+            $shipment['deliveryMethod']['name'] ?? null,
+            $shipment['deliveryMethod']['id'] ?? null,
+            $shipment['summary']['name'] ?? null,
+        ];
+        foreach ($textCandidates as $candidate) {
+            if (!is_string($candidate) || $candidate === '') {
+                continue;
+            }
+            if (mb_stripos($candidate, 'smart') !== false) {
+                return 1;
+            }
         }
 
         return null;
@@ -437,53 +552,112 @@ class ShipmentManager
     {
         $found = [];
 
-        $querySets = [
-            ['limit' => 100, 'checkoutForm.id' => $checkoutFormId],
-            ['limit' => 100, 'checkoutFormId' => $checkoutFormId],
-            ['limit' => 100, 'order.id' => $checkoutFormId],
-            ['limit' => 100, 'orderId' => $checkoutFormId],
-            ['limit' => 100],
-        ];
-
-        foreach ($querySets as $query) {
-            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
-            if (!empty($debugLines)) {
-                $debugLines[] = '[API] GET /shipment-management/shipments?' . http_build_query($query) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
-            }
-            if (!$resp['ok'] || !is_array($resp['json'])) {
-                if (!empty($debugLines)) {
-                    $debugLines[] = '[API] list raw=' . $this->shortRaw($resp['raw'] ?? '');
+        $checkoutShipmentsResp = $this->api->get(
+            $account,
+            '/order/checkout-forms/' . rawurlencode($checkoutFormId) . '/shipments'
+        );
+        if ($checkoutShipmentsResp['ok'] && is_array($checkoutShipmentsResp['json'])) {
+            $rows = $this->extractShipmentRows($checkoutShipmentsResp['json']);
+            foreach ($rows as $idx => $row) {
+                if (!is_array($row)) {
+                    continue;
                 }
-                continue;
-            }
 
-            $rows = $this->extractShipmentRows($resp['json']);
-            if (!empty($debugLines)) {
-                $debugLines[] = '[SYNC] list rows=' . count($rows);
-            }
-            foreach ($rows as $row) {
                 $sid = $this->extractShipmentIdFromRow($row);
-                if ($sid === null) {
-                    continue;
+                if ($sid !== null) {
+                    $found[$sid] = true;
+                    $this->captureDiscoveredRowContext($sid, $row);
                 }
 
-                if (!$this->rowMatchesCheckoutForm($row, $checkoutFormId) && count($query) === 1) {
-                    // Dla zapytania bez filtrów wymagamy jawnego powiązania z checkoutForm
-                    continue;
-                }
-
-                $found[$sid] = true;
-            }
-
-            if (!empty($found)) {
                 if (!empty($debugLines)) {
-                    $debugLines[] = '[SYNC] discovery znalezione shipment_id: ' . implode(', ', array_keys($found));
+                    $refs = $this->extractCandidateReferencesFromArray($row);
+                    $debugLines[] = '[SYNC] /checkout-forms/{id}/shipments row#' . ((int)$idx + 1) . ' refs=' . (empty($refs) ? '-' : implode(', ', $refs)) . ', keys=' . implode(',', array_keys($row));
                 }
+            }
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /order/checkout-forms/{id}/shipments: HTTP ' . (int)($checkoutShipmentsResp['code'] ?? 0) . ', rows=' . count($rows);
+            }
+        } elseif (!empty($debugLines)) {
+            $debugLines[] = '[API] GET /order/checkout-forms/{id}/shipments: HTTP ' . (int)($checkoutShipmentsResp['code'] ?? 0) . ', ok=0, raw=' . $this->shortRaw($checkoutShipmentsResp['raw'] ?? '');
+        }
+
+        if (!empty($found) && !empty($debugLines)) {
+            $debugLines[] = '[SYNC] discovery znalezione shipment_id: ' . implode(', ', array_keys($found));
+        }
+
+        return array_keys($found);
+    }
+
+    private function captureDiscoveredRowContext(string $referenceId, array $row): void
+    {
+        $referenceId = trim($referenceId);
+        if ($referenceId === '') {
+            return;
+        }
+
+        $status = (string)($row['status'] ?? 'CREATED');
+        if ($status === '') {
+            $status = 'CREATED';
+        }
+
+        $tracking = null;
+        $trackingCandidates = [
+            $row['waybill'] ?? null,
+            $row['trackingNumber'] ?? null,
+            $row['tracking']['number'] ?? null,
+            $row['label']['trackingNumber'] ?? null,
+        ];
+        foreach ($trackingCandidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                $tracking = trim($candidate);
                 break;
             }
         }
 
-        return array_keys($found);
+        $isSmart = null;
+        if (isset($row['smart'])) {
+            $isSmart = !empty($row['smart']) ? 1 : 0;
+        }
+
+        $this->discoveredShipmentContext[$referenceId] = [
+            'status' => $status,
+            'tracking' => $tracking,
+            'is_smart' => $isSmart,
+        ];
+    }
+
+    private function upsertFromDiscoveredContext(int $accountId, string $checkoutFormId, string $shipmentId, ?array $context, array &$debugLines = []): bool
+    {
+        if (!is_array($context)) {
+            return false;
+        }
+
+        $tracking = isset($context['tracking']) && is_string($context['tracking']) ? trim($context['tracking']) : '';
+        $status = isset($context['status']) && is_string($context['status']) && trim($context['status']) !== ''
+            ? trim($context['status'])
+            : ($tracking !== '' ? 'CREATED' : 'NEW');
+        $isSmart = isset($context['is_smart']) ? (int)$context['is_smart'] : null;
+
+        if ($tracking === '' && $status === 'NEW') {
+            return false;
+        }
+
+        $this->shipments->upsertFromAllegro(
+            $accountId,
+            $checkoutFormId,
+            $shipmentId,
+            $status,
+            $tracking,
+            $isSmart,
+            null,
+            null
+        );
+
+        if (!empty($debugLines)) {
+            $debugLines[] = '[SYNC] fallback context upsert shipment=' . $shipmentId . ', status=' . $status . ', tracking=' . ($tracking !== '' ? $tracking : '-');
+        }
+
+        return true;
     }
 
     private function shortRaw(string $raw): string
@@ -544,13 +718,55 @@ class ShipmentManager
 
     private function extractShipmentIdFromRow(array $row): ?string
     {
-        foreach (['id', 'shipmentId'] as $k) {
-            if (!empty($row[$k]) && $this->looksLikeShipmentId((string)$row[$k])) {
-                return (string)$row[$k];
+        $candidates = [
+            $row['shipmentId'] ?? null,
+            $row['shipment']['id'] ?? null,
+            $row['shipment']['shipmentId'] ?? null,
+            $row['id'] ?? null,
+            $row['details']['shipmentId'] ?? null,
+            $row['details']['id'] ?? null,
+            $row['commandId'] ?? null,
+            $row['createCommandId'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && $this->looksLikeShipmentReference($candidate)) {
+                return trim($candidate);
+            }
+        }
+
+        foreach ($this->extractCandidateReferencesFromArray($row) as $candidate) {
+            if ($this->looksLikeShipmentReference($candidate)) {
+                return $candidate;
             }
         }
 
         return null;
+    }
+
+    private function extractCandidateReferencesFromArray(array $data): array
+    {
+        $refs = [];
+
+        $walk = function ($value) use (&$walk, &$refs) {
+            if (is_array($value)) {
+                foreach ($value as $k => $v) {
+                    if (is_string($v) && is_string($k)) {
+                        $key = strtolower($k);
+                        if (strpos($key, 'shipment') !== false || strpos($key, 'command') !== false || $key === 'id') {
+                            $candidate = trim($v);
+                            if ($candidate !== '' && ($this->looksLikeShipmentReference($candidate) || $this->looksLikeShipmentId($candidate) || $this->looksLikeCreateCommandId($candidate))) {
+                                $refs[$candidate] = true;
+                            }
+                        }
+                    }
+                    $walk($v);
+                }
+            }
+        };
+
+        $walk($data);
+        return array_keys($refs);
     }
 
     private function rowMatchesCheckoutForm(array $row, string $checkoutFormId): bool

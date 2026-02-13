@@ -150,19 +150,20 @@ class ShipmentRepository
         ?string $trackingNumber,
         ?int $isSmart,
         ?string $carrierMode,
-        ?string $sizeDetails
+        ?string $sizeDetails,
+        ?string $createdAt = null
     ): void {
         $shipmentId = trim($shipmentId);
         if ($shipmentId === '') {
             return;
         }
 
-        $existingId = (int)Db::getInstance()->getValue(
-            'SELECT id_allegropro_shipment FROM `' . $this->table . '` '
-            . 'WHERE id_allegropro_account=' . (int)$accountId
-            . " AND shipment_id='" . pSQL($shipmentId) . "'"
-            . ' LIMIT 1'
-        );
+        $q = new DbQuery();
+        $q->select('id_allegropro_shipment');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . (int)$accountId);
+        $q->where("shipment_id='" . pSQL($shipmentId) . "'");
+        $existingId = (int)Db::getInstance()->getValue($q);
 
         $row = [
             'id_allegropro_account' => (int)$accountId,
@@ -181,7 +182,12 @@ class ShipmentRepository
             return;
         }
 
-        $row['created_at'] = pSQL(date('Y-m-d H:i:s'));
+        $createdAt = is_string($createdAt) ? trim($createdAt) : '';
+        if ($createdAt === '') {
+            $createdAt = date('Y-m-d H:i:s');
+        }
+
+        $row['created_at'] = pSQL($createdAt);
         $row['label_path'] = null;
         Db::getInstance()->insert('allegropro_shipment', $row);
     }

@@ -390,9 +390,15 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (d.success) {
                     if (msg) {
                         msg.className = 'text-success';
-                        msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + (debugEnabled ? '. Tryb debug aktywny.' : '') + '. Odświeżam widok...';
+                        if (debugEnabled) {
+                            msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + '. Tryb debug aktywny — widok NIE zostanie automatycznie odświeżony.';
+                        } else {
+                            msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + '. Odświeżam widok...';
+                        }
                     }
-                    setTimeout(function(){ location.reload(); }, debugEnabled ? 1500 : 800);
+                    if (!debugEnabled) {
+                        setTimeout(function(){ location.reload(); }, 800);
+                    }
                 } else {
                     if (msg) {
                         msg.className = 'text-danger';
