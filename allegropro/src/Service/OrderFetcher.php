@@ -24,7 +24,7 @@ class OrderFetcher
      * 1) Pobiera najnowsze (od ostatniej daty w bazie)
      * 2) Robi backfill starszych luk (zamówień niepobranych wcześniej)
      */
-    public function fetchRecent(array $account, int $limit = 50): array
+    public function fetchRecent(array $account, int $limit = 50, bool $includeOlder = true): array
     {
         $limit = max(1, (int)$limit);
 
@@ -43,9 +43,19 @@ class OrderFetcher
 
         $recentResult = $this->performFetch($account, $params, true);
 
-        // Backfill: sprawdź starsze strony i uzupełnij brakujące zamówienia
-        // (nie nadpisujemy hurtowo już pobranych, szukamy realnych luk)
-        $backfillResult = $this->performBackfillFetch($account, $limit);
+        $missingToLimit = max(0, $limit - (int)$recentResult['fetched_count']);
+
+        // Backfill starszych: opcjonalnie i tylko do domknięcia limitu.
+        // Skanujemy kolejne strony aż znajdziemy brakujące lub skończą się dane.
+        $backfillResult = [
+            'fetched_count' => 0,
+            'raw_count' => 0,
+            'fetched_ids' => [],
+        ];
+
+        if ($includeOlder && $missingToLimit > 0) {
+            $backfillResult = $this->performBackfillFetch($account, $missingToLimit);
+        }
 
         $allIds = array_values(array_unique(array_merge(
             $recentResult['fetched_ids'] ?? [],
@@ -113,15 +123,24 @@ class OrderFetcher
      * Dodatkowe skanowanie starszych stron, aby uzupełnić luki
      * (zamówienia starsze, których nie ma lokalnie).
      */
-    private function performBackfillFetch(array $account, int $limit): array
+    private function performBackfillFetch(array $account, int $targetCount): array
     {
-        $pageLimit = min(100, max(20, $limit));
-        $maxPages = 10;
+        $targetCount = max(0, (int)$targetCount);
+        if ($targetCount <= 0) {
+            return [
+                'fetched_count' => 0,
+                'raw_count' => 0,
+                'fetched_ids' => [],
+            ];
+        }
+
+        $pageLimit = min(100, max(20, $targetCount));
+        $maxPages = 500; // bezpieczny limit techniczny (do 50k rekordów przy pageLimit=100)
 
         $fetchedCount = 0;
         $rawCount = 0;
         $fetchedIds = [];
-        $consecutivePagesWithoutMissing = 0;
+        $seenInRun = [];
 
         for ($page = 0; $page < $maxPages; $page++) {
             $offset = $page * $pageLimit;
@@ -141,14 +160,19 @@ class OrderFetcher
             }
 
             $rawCount += count($orders);
-            $pageFetched = 0;
 
             foreach ($orders as $order) {
                 if (!is_array($order) || empty($order['id'])) {
                     continue;
                 }
 
-                if ($this->repo->existsForAccount((int)$account['id_allegropro_account'], (string)$order['id'])) {
+                $orderId = (string)$order['id'];
+                if (isset($seenInRun[$orderId])) {
+                    continue;
+                }
+                $seenInRun[$orderId] = true;
+
+                if ($this->repo->existsForAccount((int)$account['id_allegropro_account'], $orderId)) {
                     continue;
                 }
 
@@ -157,17 +181,14 @@ class OrderFetcher
 
                 $fetchedIds[] = (string)$prepared['id'];
                 $fetchedCount++;
-                $pageFetched++;
+
+                if ($fetchedCount >= $targetCount) {
+                    break 2;
+                }
             }
 
-            if ($pageFetched === 0) {
-                $consecutivePagesWithoutMissing++;
-            } else {
-                $consecutivePagesWithoutMissing = 0;
-            }
-
-            // Jeśli kolejne strony nie wnoszą braków, kończymy szybciej.
-            if ($consecutivePagesWithoutMissing >= 2) {
+            // Ostatnia strona (API zwróciło mniej niż limit).
+            if (count($orders) < $pageLimit) {
                 break;
             }
         }

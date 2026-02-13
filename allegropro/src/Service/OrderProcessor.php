@@ -45,7 +45,12 @@ class OrderProcessor
         $items = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."allegropro_order_item WHERE checkout_form_id = '".pSQL($cfId)."'");
         if (empty($items)) return ['success' => false, 'message' => 'Brak produktów.'];
 
-        $existingId = $this->resolveExistingPsOrderId($row, $cfId);
+        $itemsForCart = $this->prepareItemsForCart($items, $row);
+
+        $existingId = (int)$row['id_order_prestashop'];
+        if ($existingId === 0) {
+            $existingId = (int)Db::getInstance()->getValue("SELECT o.id_order FROM "._DB_PREFIX_."orders o INNER JOIN "._DB_PREFIX_."order_payment op ON o.reference = op.order_reference WHERE op.transaction_id = '".pSQL($cfId)."'");
+        }
 
         // =========================================================
         // KROK 2: TWORZENIE
@@ -61,7 +66,12 @@ class OrderProcessor
                 if (!$paymentModule) throw new \Exception("Brak modułu płatności.");
 
                 // Tworzymy zamówienie (Status: Przetwarzanie lub Brak Wpłaty)
-                $newId = $this->createPsOrder($row, $items, $paymentModule);
+                if (empty($itemsForCart)) {
+                    $this->repo->markAsFinished($cfId);
+                    return ['success' => true, 'action' => 'skipped_unmapped', 'id_order' => 0, 'message' => 'Pominięto: brak dostępnych produktów do odtworzenia.'];
+                }
+
+                $newId = $this->createPsOrder($row, $itemsForCart, $paymentModule);
                 
                 if ($newId) {
                     $this->repo->updatePsOrderId($cfId, $newId);
@@ -76,89 +86,40 @@ class OrderProcessor
         // KROK 3: NAPRAWA I AKTUALIZACJA STATUSU
         // =========================================================
         if ($step === 'fix') {
-            // Jeżeli zamówienie w Preście zostało usunięte ręcznie lub nie istnieje,
-            // odtwarzamy je automatycznie zamiast kończyć błędem.
-            if ($existingId <= 0) {
-                try {
-                    $paymentModule = $this->getPaymentModule();
-                    if (!$paymentModule) {
-                        return ['success' => false, 'message' => 'Brak modułu płatności.'];
-                    }
+            if ($existingId > 0) {
+                if (method_exists('Cache', 'clean')) Cache::clean('Order::*');
+                if (method_exists('Order', 'clearStaticCache')) Order::clearStaticCache();
 
-                    $newId = $this->createPsOrder($row, $items, $paymentModule);
-                    if (!$newId) {
-                        return ['success' => false, 'message' => 'Nie udało się odtworzyć zamówienia PrestaShop.'];
+                // 1. Sprawdzamy, czy zamówienie jest ANULOWANE
+                if ($row['status'] === 'CANCELLED') {
+                    // Jeli tak -> ustawiamy status ANULOWANE w Preście
+                    $this->setCancelledStatus($existingId);
+                    $action = 'cancelled';
+                } else {
+                    // Jeśli nie (czyli READY lub FILLED_IN) -> Naprawiamy ceny
+                    $this->fixOrderData($existingId, $row, $items);
+                    
+                    // Jeśli status to READY_FOR_PROCESSING (czyli kasa jest) -> ustaw OPŁACONE
+                    if ($row['status'] === 'READY_FOR_PROCESSING' || $row['status'] === 'BOUGHT') {
+                        $this->setFinalStatus($existingId);
                     }
-
-                    $existingId = (int)$newId;
-                    $this->repo->updatePsOrderId($cfId, $existingId);
-                } catch (\Exception $e) {
-                    return ['success' => false, 'message' => 'Błąd odtwarzania zamówienia: ' . $e->getMessage()];
+                    
+                    $action = 'fixed';
                 }
-            }
 
-            if (method_exists('Cache', 'clean')) Cache::clean('Order::*');
-            if (method_exists('Order', 'clearStaticCache')) Order::clearStaticCache();
+                // 2. Oznaczamy w bazie jako "Obsłużone"
+                $this->repo->markAsFinished($cfId);
 
-            // 1. Sprawdzamy, czy zamówienie jest ANULOWANE
-            if ($row['status'] === 'CANCELLED') {
-                // Jeśli tak -> ustawiamy status ANULOWANE w Preście
-                $this->setCancelledStatus($existingId);
-                $action = 'cancelled';
+                return ['success' => true, 'action' => $action, 'id_order' => $existingId];
             } else {
-                // Jeśli nie (czyli READY lub FILLED_IN) -> Naprawiamy ceny
-                $this->fixOrderData($existingId, $row, $items);
-                
-                // Jeśli status to READY_FOR_PROCESSING (czyli kasa jest) -> ustaw OPŁACONE
-                if ($row['status'] === 'READY_FOR_PROCESSING' || $row['status'] === 'BOUGHT') {
-                    $this->setFinalStatus($existingId);
-                }
-                
-                $action = 'fixed';
+                return ['success' => false, 'message' => 'Brak ID zamówienia PrestaShop.'];
             }
-
-            // 2. Oznaczamy w bazie jako "Obsłużone"
-            $this->repo->markAsFinished($cfId);
-
-            return ['success' => true, 'action' => $action, 'id_order' => $existingId];
         }
 
         return ['success' => false, 'message' => 'Nieznany krok.'];
     }
 
     // --- POMOCNICZE ---
-
-    private function resolveExistingPsOrderId(array $row, string $cfId): int
-    {
-        $idFromRow = isset($row['id_order_prestashop']) ? (int)$row['id_order_prestashop'] : 0;
-        if ($this->isValidPsOrderId($idFromRow)) {
-            return $idFromRow;
-        }
-
-        $idFromPayment = (int)Db::getInstance()->getValue(
-            "SELECT o.id_order
-             FROM "._DB_PREFIX_."orders o
-             INNER JOIN "._DB_PREFIX_."order_payment op ON o.reference = op.order_reference
-             WHERE op.transaction_id = '".pSQL($cfId)."'
-             ORDER BY o.id_order DESC"
-        );
-
-        if ($this->isValidPsOrderId($idFromPayment)) {
-            return $idFromPayment;
-        }
-
-        return 0;
-    }
-
-    private function isValidPsOrderId(int $idOrder): bool
-    {
-        if ($idOrder <= 0) {
-            return false;
-        }
-
-        $order = new Order($idOrder);
-        return Validate::isLoadedObject($order);
-    }
 
     private function getPaymentModule()
     {
@@ -238,12 +199,23 @@ class OrderProcessor
         
         if (!$cart->add()) throw new \Exception("Błąd koszyka.");
 
+        $addedAnyProducts = false;
+
         foreach ($items as $item) {
-            $qty = (int)$item['quantity'];
+            $qty = max(1, (int)$item['quantity']);
             $prodId = (int)$item['id_product'];
             $attrId = (int)$item['id_product_attribute'];
-            $res = $cart->updateQty($qty, $prodId, $attrId, false, 'up', 0, null, true, true);
-            
+
+            if (!$this->productExists($prodId, $attrId)) {
+                continue;
+            }
+
+            try {
+                $res = $cart->updateQty($qty, $prodId, $attrId, false, 'up', 0, null, true, true);
+            } catch (\Throwable $e) {
+                $res = false;
+            }
+
             if ($res !== true) {
                 $exists = Db::getInstance()->getValue("SELECT quantity FROM "._DB_PREFIX_."cart_product WHERE id_cart=".(int)$cart->id." AND id_product=".$prodId." AND id_product_attribute=".$attrId);
                 if ($exists) {
@@ -256,6 +228,12 @@ class OrderProcessor
                 }
                 $cart->update();
             }
+
+            $addedAnyProducts = true;
+        }
+
+        if (!$addedAnyProducts) {
+            throw new \Exception('Brak poprawnych produktów do dodania do koszyka.');
         }
 
         $cart->setDeliveryOption([(int)$address->id => (int)$cart->id_carrier . ',']);
@@ -433,6 +411,97 @@ class OrderProcessor
             $history->changeIdOrderState($targetStatus, $id_order);
             $history->addWithemail();
         }
+    }
+
+    private function prepareItemsForCart(array $items, array $orderRow = []): array
+    {
+        $fallbackProductId = (int)Configuration::get('ALLEGROPRO_FALLBACK_PRODUCT_ID');
+        $normalized = [];
+
+        foreach ($items as $item) {
+            $qty = max(1, (int)($item['quantity'] ?? 1));
+            $productId = (int)($item['id_product'] ?? 0);
+            $attributeId = (int)($item['id_product_attribute'] ?? 0);
+
+            if ($productId <= 0 && $fallbackProductId > 0) {
+                $productId = $fallbackProductId;
+                $attributeId = 0;
+            }
+
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $key = $productId . ':' . $attributeId;
+            if (!isset($normalized[$key])) {
+                $normalized[$key] = [
+                    'id_product' => $productId,
+                    'id_product_attribute' => $attributeId,
+                    'quantity' => 0,
+                    'name' => (string)($item['name'] ?? ''),
+                ];
+            }
+
+            $normalized[$key]['quantity'] += $qty;
+        }
+
+        if (empty($normalized)) {
+            $fallbackProductId = $this->resolveFallbackProductId();
+            if ($fallbackProductId > 0) {
+                $normalized[$fallbackProductId . ':0'] = [
+                    'id_product' => $fallbackProductId,
+                    'id_product_attribute' => 0,
+                    'quantity' => 1,
+                    'name' => (string)($orderRow['checkout_form_id'] ?? 'Allegro fallback'),
+                ];
+            }
+        }
+
+        return array_values($normalized);
+    }
+
+    private function resolveFallbackProductId(): int
+    {
+        $configured = (int)Configuration::get('ALLEGROPRO_FALLBACK_PRODUCT_ID');
+        if ($configured > 0 && $this->productExists($configured, 0)) {
+            return $configured;
+        }
+
+        $sql = 'SELECT id_product FROM `' . _DB_PREFIX_ . 'product` ORDER BY id_product ASC LIMIT 1';
+
+        $firstActive = (int)Db::getInstance()->getValue($sql);
+        if ($firstActive > 0 && $this->productExists($firstActive, 0)) {
+            return $firstActive;
+        }
+
+        return 0;
+    }
+
+    private function productExists(int $productId, int $attributeId = 0): bool
+    {
+        if ($productId <= 0) {
+            return false;
+        }
+
+        $existsProduct = (int)Db::getInstance()->getValue(
+            'SELECT id_product FROM `' . _DB_PREFIX_ . 'product` WHERE id_product = ' . (int)$productId
+        );
+
+        if ($existsProduct <= 0) {
+            return false;
+        }
+
+        if ($attributeId > 0) {
+            $existsAttr = (int)Db::getInstance()->getValue(
+                'SELECT id_product_attribute FROM `' . _DB_PREFIX_ . 'product_attribute` WHERE id_product_attribute = ' . (int)$attributeId . ' AND id_product = ' . (int)$productId
+            );
+
+            if ($existsAttr <= 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function cleanName($str) {
