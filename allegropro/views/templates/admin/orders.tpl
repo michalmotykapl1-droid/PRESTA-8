@@ -206,14 +206,12 @@ var ImportManager = {
             return;
         }
 
-        var tokenParts = String(list[index] || '').split('|');
-        var accId = tokenParts.length > 1 ? parseInt(tokenParts[0], 10) : 0;
-        var cfId = tokenParts.length > 1 ? tokenParts.slice(1).join('|') : String(list[index] || '');
+        var cfId = list[index];
 
         $.ajax({
             url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
             type: 'POST',
-            data: { checkout_form_id: cfId, step: 'create', id_allegropro_account: accId }, // STEP CREATE
+            data: { checkout_form_id: cfId, step: 'create' }, // STEP CREATE
             dataType: 'json',
             success: (res) => {
                 if(res.success) {
@@ -252,14 +250,12 @@ var ImportManager = {
             return;
         }
 
-        var tokenParts = String(list[index] || '').split('|');
-        var accId = tokenParts.length > 1 ? parseInt(tokenParts[0], 10) : 0;
-        var cfId = tokenParts.length > 1 ? tokenParts.slice(1).join('|') : String(list[index] || '');
+        var cfId = list[index];
 
         $.ajax({
             url: 'index.php?controller='+this.controller+'&token='+this.token+'&action=import_process_single&ajax=1',
             type: 'POST',
-            data: { checkout_form_id: cfId, step: 'fix', id_allegropro_account: accId }, // STEP FIX
+            data: { checkout_form_id: cfId, step: 'fix' }, // STEP FIX
             dataType: 'json',
             success: (res) => {
                 if(res.success) {
@@ -288,22 +284,12 @@ $(document).ready(function() {
             row.show();
             var url = '{$admin_link|escape:'javascript':'UTF-8'}&action=get_order_details&checkout_form_id=' + cfId;
             fetch(url).then(r=>r.json()).then(data=>{
-                var esc = function(v) {
-                    return String(v === null || v === undefined ? '' : v)
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#039;');
-                };
-
                 var html = '<table class="table" style="background:#fff;"><thead><tr><th>Nazwa</th><th>SKU</th><th>EAN</th><th>Ilość</th><th>Cena</th><th>Mapowanie</th></tr></thead><tbody>';
                 if (data.length === 0) html += '<tr><td colspan="6" class="text-danger">BRAK DANYCH</td></tr>';
                 else {
                     data.forEach(function(item) {
-                        var idProduct = parseInt(item.id_product || 0, 10);
-                        var matchInfo = idProduct > 0 ? '<span class="label label-success">OK (ID: '+idProduct+')</span>' : '<span class="label label-danger">BRAK</span>';
-                        html += '<tr><td>' + esc(item.name) + '</td><td>' + esc(item.reference_number || '-') + '</td><td>' + esc(item.ean || '-') + '</td><td><strong>' + esc(item.quantity) + ' szt.</strong></td><td>' + esc(item.price) + '</td><td>' + matchInfo + '</td></tr>';
+                        var matchInfo = item.id_product > 0 ? '<span class="label label-success">OK (ID: '+item.id_product+')</span>' : '<span class="label label-danger">BRAK</span>';
+                        html += '<tr><td>' + item.name + '</td><td>' + (item.reference_number || '-') + '</td><td>' + (item.ean || '-') + '</td><td><strong>' + item.quantity + ' szt.</strong></td><td>' + item.price + '</td><td>' + matchInfo + '</td></tr>';
                     });
                 }
                 html += '</tbody></table>';

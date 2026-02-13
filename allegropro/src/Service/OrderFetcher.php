@@ -31,7 +31,7 @@ class OrderFetcher
         ];
 
         // 1. Sprawdź datę ostatniego zamówienia w bazie
-        $lastDate = $this->repo->getLastFetchedDate((int)$account['id_allegropro_account']);
+        $lastDate = $this->repo->getLastFetchedDate();
 
         if ($lastDate) {
             // Allegro API wymaga formatu ISO 8601 (np. 2024-01-20T10:00:00Z)

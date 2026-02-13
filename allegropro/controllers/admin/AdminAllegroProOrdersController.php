@@ -90,9 +90,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 
                 // ZMIANA: Rozróżnienie trybów pobierania
                 if ($scope === 'history') {
-                    $dateTo = date('Y-m-d');
-                    $dateFrom = date('Y-m-d', strtotime('-30 days'));
-                    $res = $fetcher->fetchHistory($acc, $dateFrom, $dateTo, 100);
+                    // Tryb historii: pobieramy starsze (np. 100 sztuk) bez patrzenia na datę "ostatniego"
+                    // (To jest dla bezpieczeństwa, gdybyś chciał uzupełnić luki)
+                    $res = $fetcher->fetchRecent($acc, 100); 
                 } else {
                     // Tryb Standard: Inteligentne pobieranie tylko NOWYCH
                     $res = $fetcher->fetchRecent($acc, 50);
@@ -119,7 +119,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     public function displayAjaxImportProcessSingle() {
         $cfId = Tools::getValue('checkout_form_id');
         $step = Tools::getValue('step'); // 'create' lub 'fix'
-        $accId = (int)Tools::getValue('id_allegropro_account');
 
         if (!$cfId) $this->ajaxDie(json_encode(['success' => false, 'message' => 'No ID']));
         if (!$step) $this->ajaxDie(json_encode(['success' => false, 'message' => 'No Step']));
@@ -127,7 +126,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         list(, , $processor) = $this->getServices();
 
         try {
-            $result = $processor->processSingleOrder($cfId, $step, $accId > 0 ? $accId : null);
+            $result = $processor->processSingleOrder($cfId, $step);
             $this->ajaxDie(json_encode($result)); 
         } catch (Exception $e) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => $e->getMessage()]));
