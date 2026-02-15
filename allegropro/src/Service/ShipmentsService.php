@@ -44,6 +44,12 @@ class ShipmentsService
         return $resp;
     }
 
+    /**
+     * Tworzy przesyłkę w Wysyłam z Allegro (create-commands).
+     * Po sukcesie:
+     * - zapisuje commandId + shipmentId(UUID) do tabeli przesyłek (ShipmentRepository::upsert),
+     * - próbuje dociągnąć waybill (tracking) z GET /shipment-management/shipments/{uuid}.
+     */
     public function createShipmentCommand(array $account, string $checkoutFormId): array
     {
         $order = $this->orders->getDecodedOrder((int)$account['id_allegropro_account'], $checkoutFormId);
@@ -123,7 +129,40 @@ class ShipmentsService
             if ($status['ok'] && is_array($status['json'])) {
                 $this->shipments->upsert((int)$account['id_allegropro_account'], $checkoutFormId, $cmd, $status['json']);
                 $shipmentId = $status['json']['shipmentId'] ?? null;
-                $this->orders->markShipment((int)$account['id_allegropro_account'], $checkoutFormId, $shipmentId ? (string)$shipmentId : null, $cmd);
+
+                // Zachowujemy dotychczasowe zachowanie modułu (markShipment)
+                $this->orders->markShipment(
+                    (int)$account['id_allegropro_account'],
+                    $checkoutFormId,
+                    $shipmentId ? (string)$shipmentId : null,
+                    $cmd
+                );
+
+                // NEW: spróbuj dociągnąć waybill (tracking) z shipment-management
+                if (is_string($shipmentId) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $shipmentId)) {
+                    // Waybill bywa uzupełniany asynchronicznie, więc robimy kilka krótkich prób
+                    $waybill = null;
+                    for ($i = 0; $i < 6; $i++) {
+                        $details = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($shipmentId));
+                        if ($details['ok'] && is_array($details['json'])) {
+                            $waybill = $this->extractWaybill($details['json']);
+                            if ($waybill) {
+                                break;
+                            }
+                        }
+                        usleep(400000); // 0.4s
+                    }
+
+                    if ($waybill) {
+                        $this->shipments->updateTrackingForShipmentUuid(
+                            (int)$account['id_allegropro_account'],
+                            $checkoutFormId,
+                            (string)$shipmentId,
+                            $waybill
+                        );
+                    }
+                }
+
             } else {
                 $this->shipments->upsert((int)$account['id_allegropro_account'], $checkoutFormId, $cmd, ['status' => 'UNKNOWN', 'raw' => $status['raw']]);
                 $this->orders->markShipment((int)$account['id_allegropro_account'], $checkoutFormId, null, $cmd);
@@ -133,16 +172,42 @@ class ShipmentsService
         return $resp;
     }
 
+    /**
+     * Pobiera etykietę PDF dla shipmentIds (UUID) przez /shipment-management/label.
+     * Endpoint zwraca binarkę - poprawny Accept to application/octet-stream.
+     */
     public function fetchLabelPdf(array $account, array $shipmentIds): array
     {
         $payload = [
             'shipmentIds' => array_values($shipmentIds),
-            'pageSize' => 'A4',
+            'pageSize' => 'A6',
+            'labelFormat' => Config::labelFormat(),
             'cutLine' => false,
         ];
 
-        // Endpoint returns PDF bytes
-        return $this->api->postBinary($account, '/shipment-management/label', $payload, 'application/pdf');
+        return $this->api->postBinary($account, '/shipment-management/label', $payload, 'application/octet-stream');
+    }
+
+    private function extractWaybill(array $shipment): ?string
+    {
+        // Najczęściej: packages[].waybill
+        if (!empty($shipment['packages']) && is_array($shipment['packages'])) {
+            foreach ($shipment['packages'] as $p) {
+                if (!is_array($p)) continue;
+                $wb = $p['waybill'] ?? ($p['trackingNumber'] ?? null);
+                if (is_string($wb) && trim($wb) !== '') {
+                    return trim($wb);
+                }
+            }
+        }
+
+        // Fallbacki
+        $wb = $shipment['waybill'] ?? ($shipment['trackingNumber'] ?? null);
+        if (is_string($wb) && trim($wb) !== '') {
+            return trim($wb);
+        }
+
+        return null;
     }
 
     private function buildSender(): array
@@ -204,6 +269,7 @@ class ShipmentsService
 
     private function idempotencyKey(array $account, string $checkoutFormId): string
     {
-        return sha1((string)$account['id_allegropro_account'] . ':' . $checkoutFormId);
+        $seed = (string)($account['id_allegropro_account'] ?? '0') . ':' . $checkoutFormId . ':' . date('Y-m-d');
+        return substr(hash('sha256', $seed), 0, 32);
     }
 }

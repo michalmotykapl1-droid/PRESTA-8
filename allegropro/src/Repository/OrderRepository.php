@@ -311,7 +311,7 @@ class OrderRepository
             'SELECT id_allegropro_shipment FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
             . 'WHERE id_allegropro_account = ' . $accountId . " AND checkout_form_id = '" . $checkoutFormIdEsc . "' "
             . "AND (shipment_id = '" . $targetShipmentIdEsc . "' OR shipment_id = '" . $commandIdEsc . "') "
-            . 'ORDER BY id_allegropro_shipment DESC LIMIT 1'
+            . 'ORDER BY id_allegropro_shipment DESC'
         );
 
         $status = $shipmentId ? 'CREATED' : 'NEW';
@@ -397,7 +397,7 @@ class OrderRepository
             . ') shx ON shx.checkout_form_id = o.checkout_form_id '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
             . 'WHERE o.id_allegropro_account = ' . $accountId . " AND o.checkout_form_id = '" . $checkoutFormIdEsc . "' "
-            . 'LIMIT 1';
+            ;
 
         $row = Db::getInstance()->getRow($sql);
         return $row ?: null;

@@ -4,6 +4,12 @@ namespace AllegroPro\Repository;
 use Db;
 use DbQuery;
 
+/**
+ * ShipmentRepository
+ *
+ * UWAGA (PrestaShop): Db::getValue()/getRow() potrafią dopinać własne LIMIT 1,
+ * więc w zapytaniach przekazywanych do tych metod nie używamy ręcznego LIMIT 1.
+ */
 class ShipmentRepository
 {
     private string $table;
@@ -11,58 +17,127 @@ class ShipmentRepository
     public function __construct()
     {
         $this->table = _DB_PREFIX_ . 'allegropro_shipment';
+        // Bezpieczna migracja (jeśli już istnieje - nic nie robi)
+        $this->ensureWzaColumns();
+    }
+
+    /** ---------------------------
+     *  Helpers (DB schema)
+     *  --------------------------- */
+
+    private function columnExists(string $column): bool
+    {
+        // information_schema = stabilny SELECT (PS może dopinać LIMIT 1 bez psucia składni)
+        $sql = "SELECT COUNT(*)
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = '" . pSQL($this->table) . "'
+                  AND COLUMN_NAME = '" . pSQL($column) . "'";
+        return (int) Db::getInstance()->getValue($sql) > 0;
     }
 
     /**
-     * Tworzy nowy wpis lub aktualizuje istniejący
-     * FIX: Dostosowano do istniejącej struktury tabeli (brak kolumny command_id)
+     * Dodaje kolumny potrzebne do Wysyłam z Allegro:
+     * - wza_command_id (UUID komendy create-commands)
+     * - wza_shipment_uuid (UUID shipmentId do /shipment-management/label)
      */
-    public function upsert(int $accountId, string $checkoutFormId, string $commandId, array $payload): void
+    public function ensureWzaColumns(): void
     {
-        // Decydujemy, co jest naszym identyfikatorem.
-        // Jeśli mamy finalne shipmentId z API, używamy go. Jeśli nie, używamy commandId.
-        $finalId = !empty($payload['shipmentId']) ? $payload['shipmentId'] : $commandId;
+        try {
+            $hasCommand = $this->columnExists('wza_command_id');
+            $hasUuid = $this->columnExists('wza_shipment_uuid');
 
-        // Sprawdzamy czy wpis już istnieje (szukamy po shipment_id)
-        $sql = 'SELECT id_allegropro_shipment FROM `'.$this->table.'`
-                WHERE id_allegropro_account='.(int)$accountId."
-                AND shipment_id='".pSQL($finalId)."'";
+            if ($hasCommand && $hasUuid) {
+                return;
+            }
 
-        $existing = Db::getInstance()->getValue($sql);
+            $alterParts = [];
+            if (!$hasCommand) {
+                $alterParts[] = "ADD COLUMN `wza_command_id` VARCHAR(64) NULL";
+                $alterParts[] = "ADD INDEX `idx_wza_command_id` (`wza_command_id`)";
+            }
+            if (!$hasUuid) {
+                $alterParts[] = "ADD COLUMN `wza_shipment_uuid` VARCHAR(64) NULL";
+                $alterParts[] = "ADD INDEX `idx_wza_shipment_uuid` (`wza_shipment_uuid`)";
+            }
 
-        // Mapowanie danych na istniejące kolumny w Twojej bazie
-        // Zgodnie ze zrzutem ekranu: tracking_number, carrier_mode, size_details, is_smart, status, created_at, updated_at
-        $row = [
-            'id_allegropro_account' => (int)$accountId,
-            'checkout_form_id' => pSQL($checkoutFormId),
+            if (empty($alterParts)) {
+                return;
+            }
 
-            // Zapisujemy ID (To jest kluczowe pole z Twojej tabeli)
-            'shipment_id' => pSQL($finalId),
-
-            'status' => isset($payload['status']) ? pSQL((string)$payload['status']) : 'NEW',
-            'is_smart' => isset($payload['is_smart']) ? (int)$payload['is_smart'] : 0,
-
-            // Mapowanie size_type (A/B/C) na odpowiednie kolumny
-            'carrier_mode' => isset($payload['size_type']) && in_array($payload['size_type'], ['A','B','C']) ? 'BOX' : 'COURIER',
-            'size_details' => isset($payload['size_type']) ? pSQL((string)$payload['size_type']) : 'CUSTOM',
-
-            'updated_at' => pSQL(date('Y-m-d H:i:s')),
-        ];
-
-        if ($existing) {
-            Db::getInstance()->update('allegropro_shipment', $row, 'id_allegropro_shipment='.(int)$existing);
-        } else {
-            $row['created_at'] = pSQL(date('Y-m-d H:i:s'));
-            // Domyślne wartości dla kolumn, które mogą nie być w payloadzie
-            $row['tracking_number'] = '';
-            $row['label_path'] = null;
-
-            Db::getInstance()->insert('allegropro_shipment', $row);
+            $sql = "ALTER TABLE `{$this->table}` " . implode(', ', $alterParts);
+            Db::getInstance()->execute($sql);
+        } catch (\Exception $e) {
+            // Nie wysypuj BO, jeśli np. brak uprawnień ALTER na środowisku.
         }
     }
 
+    /** ---------------------------
+     *  Core CRUD
+     *  --------------------------- */
+
     /**
-     * Pobiera pełną historię przesyłek dla danego zamówienia
+     * Tworzy nowy wpis lub aktualizuje istniejący.
+     *
+     * WERSJA: kompatybilna wstecznie
+     * - nadal uzupełnia standardowe kolumny (shipment_id, tracking_number, itp.)
+     * - jeśli w DB są kolumny wza_* to zapisuje też commandId + shipmentUuid.
+     */
+    public function upsert(int $accountId, string $checkoutFormId, string $commandId, array $payload): void
+    {
+        $hasCommand = $this->columnExists('wza_command_id');
+        $hasUuid = $this->columnExists('wza_shipment_uuid');
+
+        $shipmentUuid = null;
+        if (!empty($payload['shipmentId']) && is_string($payload['shipmentId'])) {
+            $candidate = trim((string)$payload['shipmentId']);
+            if ($candidate !== '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $candidate)) {
+                $shipmentUuid = $candidate;
+            }
+        }
+
+        // zachowanie dotychczasowe: jeśli jest shipmentId -> użyj jako finalId, w przeciwnym razie commandId
+        $finalId = $shipmentUuid ?: $commandId;
+
+        // Szukamy po shipment_id (w tej tabeli to główne ID wiersza)
+        $sql = 'SELECT id_allegropro_shipment FROM `' . $this->table . '`'
+            . ' WHERE id_allegropro_account=' . (int)$accountId
+            . " AND shipment_id='" . pSQL($finalId) . "'";
+
+        $existing = (int) Db::getInstance()->getValue($sql);
+
+        $row = [
+            'id_allegropro_account' => (int)$accountId,
+            'checkout_form_id' => pSQL($checkoutFormId),
+            'shipment_id' => pSQL($finalId),
+            'status' => isset($payload['status']) ? pSQL((string)$payload['status']) : 'NEW',
+            'is_smart' => isset($payload['is_smart']) ? (int)$payload['is_smart'] : 0,
+            'carrier_mode' => isset($payload['size_type']) && in_array($payload['size_type'], ['A','B','C'], true) ? 'BOX' : 'COURIER',
+            'size_details' => isset($payload['size_type']) ? pSQL((string)$payload['size_type']) : 'CUSTOM',
+            'updated_at' => pSQL(date('Y-m-d H:i:s')),
+        ];
+
+        if ($hasCommand) {
+            $row['wza_command_id'] = pSQL($commandId);
+        }
+        if ($hasUuid && $shipmentUuid) {
+            $row['wza_shipment_uuid'] = pSQL($shipmentUuid);
+        }
+
+        if ($existing > 0) {
+            Db::getInstance()->update('allegropro_shipment', $row, 'id_allegropro_shipment=' . (int)$existing);
+            return;
+        }
+
+        $row['created_at'] = pSQL(date('Y-m-d H:i:s'));
+        $row['tracking_number'] = '';
+        $row['label_path'] = null;
+
+        Db::getInstance()->insert('allegropro_shipment', $row);
+    }
+
+    /**
+     * Pobiera pełną historię przesyłek dla danego zamówienia.
      */
     public function findAllByOrder(string $checkoutFormId): array
     {
@@ -75,8 +150,6 @@ class ShipmentRepository
         $results = Db::getInstance()->executeS($q);
         return $results ?: [];
     }
-
-
 
     /**
      * Pobiera historię przesyłek dla zamówienia i konta.
@@ -95,7 +168,7 @@ class ShipmentRepository
     }
 
     /**
-     * Aktualizuje status konkretnej przesyłki
+     * Aktualizuje status konkretnej przesyłki.
      */
     public function updateStatus(string $shipmentId, string $newStatus): void
     {
@@ -159,6 +232,7 @@ class ShipmentRepository
 
     /**
      * Upsert danych przesyłki pobranych z Allegro (status/tracking/smart).
+     * Nie nadpisuje pól wza_*.
      */
     public function upsertFromAllegro(
         int $accountId,
@@ -181,7 +255,7 @@ class ShipmentRepository
         $q->from('allegropro_shipment');
         $q->where('id_allegropro_account=' . (int)$accountId);
         $q->where("shipment_id='" . pSQL($shipmentId) . "'");
-        $existingId = (int)Db::getInstance()->getValue($q);
+        $existingId = (int) Db::getInstance()->getValue($q);
 
         $row = [
             'id_allegropro_account' => (int)$accountId,
@@ -211,17 +285,13 @@ class ShipmentRepository
     }
 
     /**
-     * Usuwa duplikaty przesyłek dla zamówienia:
-     * - duplikaty po shipment_id,
-     * - duplikaty po tracking_number (jeśli niepusty).
-     *
-     * Zostawia najnowszy rekord (updated_at/id), starsze kasuje.
+     * Usuwa duplikaty przesyłek dla zamówienia.
      */
     public function removeDuplicatesForOrder(int $accountId, string $checkoutFormId): int
     {
         $rows = Db::getInstance()->executeS(
             'SELECT id_allegropro_shipment, shipment_id, tracking_number, updated_at, created_at '
-            . 'FROM `'.$this->table.'` '
+            . 'FROM `' . $this->table . '` '
             . 'WHERE id_allegropro_account=' . (int)$accountId
             . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
             . ' ORDER BY id_allegropro_shipment DESC'
@@ -235,10 +305,7 @@ class ShipmentRepository
         $seenTracking = [];
         $toDelete = [];
 
-        // Najpierw sortujemy rekordy wg jakości identyfikatora i świeżości:
-        // 1) preferuj prawdziwy shipment UUID,
-        // 2) potem zwykłe shipment_id,
-        // 3) na końcu commandId/base64.
+        // Preferuj lepsze identyfikatory
         usort($rows, function (array $a, array $b): int {
             $score = function (array $row): int {
                 $sid = trim((string)($row['shipment_id'] ?? ''));
@@ -317,4 +384,76 @@ class ShipmentRepository
         return count($toDelete);
     }
 
+    /** ---------------------------
+     *  WZA helpers (UUID/command/waybill)
+     *  --------------------------- */
+
+    public function getWzaShipmentUuidForOrder(int $accountId, string $checkoutFormId): ?string
+    {
+        if (!$this->columnExists('wza_shipment_uuid')) {
+            return null;
+        }
+
+        $q = new DbQuery();
+        $q->select('wza_shipment_uuid');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . (int)$accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("wza_shipment_uuid IS NOT NULL AND wza_shipment_uuid != ''");
+        $q->orderBy('id_allegropro_shipment DESC');
+
+        $val = Db::getInstance()->getValue($q);
+        $val = is_string($val) ? trim($val) : '';
+        return $val !== '' ? $val : null;
+    }
+
+    public function getWzaCommandIdForOrder(int $accountId, string $checkoutFormId): ?string
+    {
+        if (!$this->columnExists('wza_command_id')) {
+            return null;
+        }
+
+        $q = new DbQuery();
+        $q->select('wza_command_id');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . (int)$accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("wza_command_id IS NOT NULL AND wza_command_id != ''");
+        $q->orderBy('id_allegropro_shipment DESC');
+
+        $val = Db::getInstance()->getValue($q);
+        $val = is_string($val) ? trim($val) : '';
+        return $val !== '' ? $val : null;
+    }
+
+    /**
+     * Uzupełnia tracking_number (waybill) dla konkretnej paczki (shipmentUuid).
+     * W pierwszej kolejności po wza_shipment_uuid (jeśli kolumna istnieje), w przeciwnym razie po shipment_id.
+     */
+    public function updateTrackingForShipmentUuid(int $accountId, string $checkoutFormId, string $shipmentUuid, string $trackingNumber): void
+    {
+        $trackingNumber = trim($trackingNumber);
+        $shipmentUuid = trim($shipmentUuid);
+        if ($trackingNumber === '' || $shipmentUuid === '') {
+            return;
+        }
+
+        $where = 'id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'";
+
+        if ($this->columnExists('wza_shipment_uuid')) {
+            $where .= " AND (wza_shipment_uuid='" . pSQL($shipmentUuid) . "' OR shipment_id='" . pSQL($shipmentUuid) . "')";
+        } else {
+            $where .= " AND shipment_id='" . pSQL($shipmentUuid) . "'";
+        }
+
+        Db::getInstance()->update(
+            'allegropro_shipment',
+            [
+                'tracking_number' => pSQL($trackingNumber),
+                'updated_at' => pSQL(date('Y-m-d H:i:s')),
+            ],
+            $where
+        );
+    }
 }

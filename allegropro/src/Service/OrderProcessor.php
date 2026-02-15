@@ -467,7 +467,7 @@ class OrderProcessor
             return $configured;
         }
 
-        $sql = 'SELECT id_product FROM `' . _DB_PREFIX_ . 'product` ORDER BY id_product ASC LIMIT 1';
+        $sql = 'SELECT id_product FROM `' . _DB_PREFIX_ . 'product` ORDER BY id_product ASC';
 
         $firstActive = (int)Db::getInstance()->getValue($sql);
         if ($firstActive > 0 && $this->productExists($firstActive, 0)) {
