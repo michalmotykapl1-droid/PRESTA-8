@@ -84,7 +84,7 @@ class AllegroApiClient
         return $account;
     }
 
-    public function get(array $account, string $path, array $query = []): array
+    public function get(array $account, string $path, array $query = [], string $accept = 'application/vnd.allegro.public.v1+json'): array
     {
         $account = $this->ensureAccessToken($account);
         $base = $this->apiBaseForAccount($account);
@@ -92,7 +92,7 @@ class AllegroApiClient
 
         $headers = [
             'Authorization' => 'Bearer ' . (string)($account['access_token'] ?? ''),
-            'Accept' => 'application/vnd.allegro.public.v1+json',
+            'Accept' => $accept,
         ];
 
         $res = $this->http->request('GET', $url, $headers, null);
@@ -103,6 +103,37 @@ class AllegroApiClient
             'raw' => $res['body'],
             'json' => is_array($json) ? $json : null,
         ];
+    }
+
+    public function getWithAcceptFallbacks(array $account, string $path, array $query = [], array $acceptCandidates = []): array
+    {
+        $acceptCandidates = array_values(array_unique(array_filter(array_map('strval', $acceptCandidates))));
+        if (empty($acceptCandidates)) {
+            $acceptCandidates = ['application/vnd.allegro.public.v1+json', 'application/json', '*/*'];
+        }
+
+        $attempts = [];
+        $last = ['ok' => false, 'code' => 0, 'raw' => '', 'json' => null];
+
+        foreach ($acceptCandidates as $accept) {
+            $resp = $this->get($account, $path, $query, $accept);
+            $resp['accept'] = $accept;
+            $attempts[] = $resp;
+            $last = $resp;
+
+            if (!empty($resp['ok'])) {
+                $last['attempts'] = $attempts;
+                return $last;
+            }
+
+            if ((int)($resp['code'] ?? 0) !== 406) {
+                $last['attempts'] = $attempts;
+                return $last;
+            }
+        }
+
+        $last['attempts'] = $attempts;
+        return $last;
     }
 
     public function postJson(array $account, string $path, array $payload, array $headersExtra = []): array
