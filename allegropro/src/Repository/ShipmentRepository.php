@@ -631,4 +631,79 @@ class ShipmentRepository
         return $updatedTotal;
     }
 
+
+    /**
+     * Koryguje flagi SMART tak, aby nie oznaczać większej liczby przesyłek niż limit paczek.
+     * Zwraca liczbę zaktualizowanych rekordów.
+     */
+    public function rebalanceSmartFlagsForOrder(int $accountId, string $checkoutFormId, ?int $smartLimit, ?int $orderIsSmart): int
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        if ($accountId <= 0 || $checkoutFormId === '') {
+            return 0;
+        }
+
+        $smartLimit = $smartLimit === null ? null : max(0, (int)$smartLimit);
+        $orderIsSmart = $orderIsSmart === null ? null : (int)$orderIsSmart;
+
+        // Gdy zamówienie nie jest SMART lub nie ma limitu paczek, wszystkie przesyłki powinny mieć 0.
+        if ($orderIsSmart !== 1 || $smartLimit === null || $smartLimit <= 0) {
+            Db::getInstance()->update(
+                'allegropro_shipment',
+                [
+                    'is_smart' => 0,
+                    'updated_at' => pSQL(date('Y-m-d H:i:s')),
+                ],
+                'id_allegropro_account=' . $accountId
+                    . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+                    . " AND is_smart != 0"
+            );
+            return (int)Db::getInstance()->Affected_Rows();
+        }
+
+        $statuses = ["CANCELLED", "CANCELED", "DELETED"];
+        $statusSql = "'" . implode("','", array_map('pSQL', $statuses)) . "'";
+
+        $rows = Db::getInstance()->executeS(
+            'SELECT id_allegropro_shipment, is_smart, created_at, updated_at '
+            . 'FROM `' . $this->table . '` '
+            . 'WHERE id_allegropro_account=' . $accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . ' AND (status IS NULL OR UPPER(status) NOT IN (' . $statusSql . ')) '
+            . 'ORDER BY COALESCE(created_at, updated_at) ASC, id_allegropro_shipment ASC'
+        ) ?: [];
+
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $updated = 0;
+        $allowed = $smartLimit;
+        foreach ($rows as $idx => $row) {
+            $id = (int)($row['id_allegropro_shipment'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            $expected = $idx < $allowed ? 1 : 0;
+            $current = (int)($row['is_smart'] ?? 0);
+            if ($current === $expected) {
+                continue;
+            }
+
+            Db::getInstance()->update(
+                'allegropro_shipment',
+                [
+                    'is_smart' => $expected,
+                    'updated_at' => pSQL(date('Y-m-d H:i:s')),
+                ],
+                'id_allegropro_shipment=' . $id
+            );
+            $updated++;
+        }
+
+        return $updated;
+    }
+
 }

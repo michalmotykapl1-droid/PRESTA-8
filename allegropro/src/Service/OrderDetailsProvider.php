@@ -99,24 +99,13 @@ class OrderDetailsProvider
         // Smart: liczymy po zsynchronizowanej historii
         $smartLimit = (int)($shipping['package_count'] ?? 0);
         $smartUsed = 0;
-        $orderSmartFlag = (int)($shipping['is_smart'] ?? 0) === 1;
         foreach ($shipmentsHistory as $sh) {
             if ((string)($sh['status'] ?? '') === 'CANCELLED') {
                 continue;
             }
 
-            $shipmentSmart = (int)($sh['is_smart'] ?? 0) === 1;
-            if ($shipmentSmart) {
+            if ((int)($sh['is_smart'] ?? 0) === 1) {
                 $smartUsed++;
-                continue;
-            }
-
-            if ($orderSmartFlag) {
-                $status = strtoupper((string)($sh['status'] ?? ''));
-                $tracking = trim((string)($sh['tracking_number'] ?? ''));
-                if ($status === 'CREATED' || $tracking !== '') {
-                    $smartUsed++;
-                }
             }
         }
         $smartLeft = max(0, $smartLimit - $smartUsed);
