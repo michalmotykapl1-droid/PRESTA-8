@@ -80,6 +80,34 @@ class ShipmentManager
 
         // Pobieramy ID metody bezpośrednio z zamówienia (tak jak w działającym kodzie)
         $deliveryMethodId = $order['delivery']['method']['id'] ?? null;
+
+        $accountId = (int)($account['id_allegropro_account'] ?? 0);
+
+        // LIMIT PACZEK: nie pozwól utworzyć więcej przesyłek niż wynika z checkout-form (delivery.calculatedNumberOfPackages).
+        // To zabezpiecza przed sytuacją "3 SMART przy limicie 2".
+        try {
+            $cfResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
+            if (!empty($cfResp['ok']) && is_array($cfResp['json'])) {
+                $smartData = $this->extractSmartDataFromCheckoutForm($cfResp['json']);
+                $packageLimit = $smartData['package_count'] ?? null;
+
+                if (is_int($packageLimit) && $packageLimit > 0) {
+                    $activeCount = method_exists($this->shipments, 'countActiveShipmentsForOrder')
+                        ? (int)$this->shipments->countActiveShipmentsForOrder($accountId, $checkoutFormId)
+                        : (int)count($this->shipments->findAllByOrderForAccount($accountId, $checkoutFormId));
+
+                    if ($activeCount >= $packageLimit) {
+                        return [
+                            'ok' => false,
+                            'message' => 'Limit paczek dla tej przesyłki został osiągnięty (' . $activeCount . '/' . $packageLimit . '). Usuń nadmiarową przesyłkę (czerwony X) i spróbuj ponownie.'
+                        ];
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // Bez blokowania — jeśli API chwilowo nie odpowie, nie przerywamy tworzenia.
+        }
+
         
         // 2. Wymiary
         $pkgDims = $this->resolvePackageDimensions($params);
@@ -148,6 +176,77 @@ class ShipmentManager
         
         if ($shipmentId) {
             $this->orders->markShipment((int)$account['id_allegropro_account'], $checkoutFormId, $shipmentId, $cmdId);
+            // NEW: dociągnij waybill (tracking_number) z shipment-management i zapisz do DB,
+            // aby numer nadania był widoczny możliwie szybko po utworzeniu przesyłki.
+                        $tracking2 = null;
+            try {
+                $detailJson = null;
+
+                // Waybill bywa ustawiany asynchronicznie, więc próbujemy kilka razy.
+                for ($i = 0; $i < 6; $i++) {
+                    $detail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($shipmentId));
+                    if (!empty($detail['ok']) && is_array($detail['json'])) {
+                        $detailJson = $detail['json'];
+                        $tracking2 = $this->extractTrackingNumber($detailJson);
+                        if (is_string($tracking2) && trim($tracking2) !== '') {
+                            $tracking2 = trim($tracking2);
+                            break;
+                        }
+                    }
+                    usleep(400000); // 0.4s
+                }
+
+                if (is_array($detailJson)) {
+                    $status2 = (string)($detailJson['status'] ?? 'CREATED');
+                    $isSmart2 = $this->extractIsSmart($detailJson);
+                    $carrierMode2 = $this->extractCarrierMode($detailJson);
+                    $sizeDetails2 = $this->extractSizeDetails($detailJson);
+
+                    if (method_exists($this->shipments, 'upsertFromAllegro')) {
+                        $this->shipments->upsertFromAllegro(
+                            (int)$account['id_allegropro_account'],
+                            $checkoutFormId,
+                            $shipmentId,
+                            $status2,
+                            $tracking2,
+                            $isSmart2,
+                            $carrierMode2,
+                            $sizeDetails2,
+                            $this->normalizeDateTime($detailJson['createdAt'] ?? null)
+                        );
+                    } elseif (is_string($tracking2) && $tracking2 !== '') {
+                        Db::getInstance()->update(
+                            'allegropro_shipment',
+                            [
+                                'tracking_number' => pSQL($tracking2),
+                                'updated_at' => pSQL(date('Y-m-d H:i:s')),
+                            ],
+                            'id_allegropro_account='.(int)$account['id_allegropro_account']
+                                ." AND checkout_form_id='".pSQL($checkoutFormId)."'"
+                                ." AND shipment_id='".pSQL($shipmentId)."'"
+                        );
+                    }
+                }
+            } catch (Exception $e) {
+                // brak blokowania utworzenia przesyłki — tracking może pojawić się później po odświeżeniu
+            }
+
+
+            // WZA: spróbuj uzupełnić kolumny wza_* dla rekordów "order shipment" (base64) na podstawie tracking_number.
+            // Dzięki temu etykieta/UUID nie "ginie" i jest widoczna w tabeli dla przesyłek utworzonych przez moduł.
+            if (is_string($tracking2) && trim($tracking2) !== '' && method_exists($this->shipments, 'backfillWzaForTrackingNumber')) {
+                $this->shipments->backfillWzaForTrackingNumber(
+                    (int)$account['id_allegropro_account'],
+                    $checkoutFormId,
+                    trim($tracking2),
+                    $cmdId,
+                    $shipmentId
+                );
+            }
+            if (method_exists($this->shipments, 'mergeWzaFieldsForOrder')) {
+                $this->shipments->mergeWzaFieldsForOrder((int)$account['id_allegropro_account'], $checkoutFormId);
+            }
+
             return ['ok' => true, 'shipmentId' => $shipmentId];
         } else {
             return ['ok' => true, 'message' => 'Przesyłka w trakcie przetwarzania (Command ID: '.$cmdId.')'];
@@ -294,6 +393,16 @@ class ShipmentManager
             $this->persistSyncDebug($checkoutFormId, $debugLines);
         }
 
+
+        // Backfill: jeżeli mamy wiersze z WZA UUID (shipment_id=UUID) i osobne wiersze z order API (shipment_id=base64),
+        // spróbuj skopiować wza_* do wierszy widocznych w historii (po tracking_number).
+        if (method_exists($this->shipments, 'mergeWzaFieldsForOrder')) {
+            $this->shipments->mergeWzaFieldsForOrder($accountId, $checkoutFormId);
+            if ($debug) {
+                $debugLines[] = '[SYNC] mergeWzaFieldsForOrder: wykonano';
+            }
+        }
+
         return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'duplicates_removed' => $removedDuplicates, 'debug_lines' => $debugLines];
     }
 
@@ -435,10 +544,13 @@ class ShipmentManager
             return false;
         }
 
-        // Wysyłam z Allegro: create-command id ma format UUID.
-        return (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value);
-    }
+        if (strpos($value, ':') !== false) {
+            return true;
+        }
 
+        // Base64-like (np. QUxMRUdSTzpBMDAz...).
+        return (bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0);
+    }
 
     private function resolveShipmentIdCandidate(array $account, string $candidateId, array &$debugLines = []): ?string
     {
@@ -476,6 +588,19 @@ class ShipmentManager
 
     private function extractTrackingNumber(array $shipment): ?string
     {
+        // Najczęściej: packages[].waybill / packages[].trackingNumber
+        if (!empty($shipment['packages']) && is_array($shipment['packages'])) {
+            foreach ($shipment['packages'] as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $wb = $p['waybill'] ?? ($p['trackingNumber'] ?? ($p['waybillNumber'] ?? null));
+                if (is_string($wb) && trim($wb) !== '') {
+                    return trim($wb);
+                }
+            }
+        }
+
         $candidates = [
             $shipment['trackingNumber'] ?? null,
             $shipment['waybill'] ?? null,
@@ -810,14 +935,48 @@ class ShipmentManager
 
     private function resolveShipmentIdByWaybill(array $account, string $waybill, array &$debugLines = []): ?string
     {
-        // Publiczne Allegro REST nie udostępnia stabilnego endpointu "lookup by waybill" dla shipment-management.
-        // Jeśli nie masz WZA shipment UUID (albo commandId -> shipmentId), nie da się pobrać etykiety przez /shipment-management/label.
         $waybill = trim($waybill);
         if ($waybill === '') {
             return null;
         }
 
-        $debugLines[] = '[LABEL] resolveShipmentIdByWaybill skipped: brak publicznego lookup po waybillu (waybill=' . $waybill . ')';
+        $queries = [
+            ['waybill' => $waybill],
+            ['trackingNumber' => $waybill],
+            ['phrase' => $waybill],
+            ['query' => $waybill],
+        ];
+
+        foreach ($queries as $query) {
+            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+            }
+
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                continue;
+            }
+
+            $rows = $this->extractShipmentRows($resp['json']);
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowWaybill = $this->extractWaybillFromRow($row);
+                $rowId = isset($row['id']) ? trim((string)$row['id']) : '';
+
+                if ($rowId !== '' && $this->looksLikeShipmentId($rowId)) {
+                    if ($rowWaybill === null || strcasecmp($rowWaybill, $waybill) === 0) {
+                        if (!empty($debugLines)) {
+                            $debugLines[] = '[SYNC] resolve waybill -> shipmentId: ' . $waybill . ' => ' . $rowId;
+                        }
+                        return $rowId;
+                    }
+                }
+            }
+        }
+
         return null;
     }
 
@@ -914,136 +1073,90 @@ class ShipmentManager
             $debug[] = '[LABEL] usunięto duplikaty lokalnych przesyłek: ' . $removedDuplicates;
         }
 
-        $accountId = (int)$account['id_allegropro_account'];
+        // 1) TRYB ŚCISŁY: pobieramy etykietę dokładnie dla przesyłki klikniętej w historii.
+// Nie wybieramy innej przesyłki z tego samego zamówienia (to powodowało pobieranie w kółko tej samej etykiety).
+        $primaryCandidate = trim($shipmentId);
 
-        // Najważniejsze: jeśli mamy zapisany WZA shipment UUID / commandId, używamy tego do pobrania etykiety.
-        $wzaUuid = $this->shipments->getWzaShipmentUuidForOrder($accountId, $checkoutFormId);
-        if (is_string($wzaUuid) && trim($wzaUuid) !== '') {
-            $debug[] = '[LABEL] DB wza_shipment_uuid=' . $wzaUuid;
+        // Jeśli kliknięty wiersz ma przypięty WZA shipment UUID w DB, użyj go jako faktycznego shipmentId do etykiety.
+        if (method_exists($this->shipments, 'getWzaShipmentUuidForShipmentRow')) {
+            $wzaUuidForRow = $this->shipments->getWzaShipmentUuidForShipmentRow((int)$account['id_allegropro_account'], $checkoutFormId, $primaryCandidate);
+            if (is_string($wzaUuidForRow)) {
+                $wzaUuidForRow = trim($wzaUuidForRow);
+            }
+            if (!empty($wzaUuidForRow) && $wzaUuidForRow !== $primaryCandidate) {
+                $debug[] = '[LABEL] row has wza_shipment_uuid, override candidate: ' . $primaryCandidate . ' -> ' . $wzaUuidForRow;
+                $primaryCandidate = $wzaUuidForRow;
+            }
         }
 
-        $wzaCmd = $this->shipments->getWzaCommandIdForOrder($accountId, $checkoutFormId);
-        if (is_string($wzaCmd) && trim($wzaCmd) !== '') {
-            $debug[] = '[LABEL] DB wza_command_id=' . $wzaCmd;
+        $debug[] = '[LABEL] strict candidate=' . $primaryCandidate;
+
+        if ($primaryCandidate === '') {
+            return [
+                'ok' => false,
+                'message' => 'Brak shipmentId w żądaniu.',
+                'debug_lines' => $debug,
+                'http_code' => 400,
+            ];
         }
 
-        // 1) Zbuduj listę kandydatów shipmentId (lokalny + wykryte z API).
         $candidateIds = [];
         $candidatePriority = [];
 
-        $appendCandidate = function (string $value, int $priority = 10) use (&$candidateIds, &$candidatePriority) {
-            $value = trim($value);
-            if ($value === '') {
-                return;
-            }
-
-            $candidateIds[$value] = true;
-            if (!isset($candidatePriority[$value]) || $priority < $candidatePriority[$value]) {
-                $candidatePriority[$value] = $priority;
-            }
-        };
-
-        // Preferuj zapisany WZA shipment UUID (to jedyny pewny klucz do /shipment-management/label)
-        if (is_string($wzaUuid) && trim($wzaUuid) !== '') {
-            $appendCandidate($wzaUuid, 0);
+        // 1a) Kliknięto UUID shipmentId (WZA) – użyj go wprost.
+        if ($this->looksLikeShipmentId($primaryCandidate)) {
+            $candidateIds = [$primaryCandidate];
+            $candidatePriority[$primaryCandidate] = 0;
         }
-
-        // Jeśli mamy commandId (UUID), spróbuj od razu rozwiązać go do shipment UUID i zapisać w DB
-        if (is_string($wzaCmd) && trim($wzaCmd) !== '' && $this->looksLikeCreateCommandId($wzaCmd)) {
-            $resolved = $this->resolveShipmentIdCandidate($account, $wzaCmd, $debug);
-            if (is_string($resolved) && trim($resolved) !== '') {
-                $appendCandidate($resolved, 0);
-                // jeśli schema wspiera, zapisz do DB (przyda się na przyszłość)
-                $this->shipments->attachWzaIdsToOrder($accountId, $checkoutFormId, $wzaCmd, $resolved);
+        // 1b) Kliknięto UUID create-command – spróbuj rozwiązać do shipmentId(UUID).
+        elseif ($this->looksLikeCreateCommandId($primaryCandidate)) {
+            $resolved = $this->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
+            if (is_string($resolved) && $resolved !== '' && $this->looksLikeShipmentId($resolved)) {
+                $debug[] = '[LABEL] resolved create-command to shipmentId=' . $resolved;
+                $candidateIds = [$resolved];
+                $candidatePriority[$resolved] = 0;
             } else {
-                $appendCandidate($wzaCmd, 5);
+                $debug[] = '[LABEL] create-command unresolved for clicked shipment: ' . $primaryCandidate;
+                return [
+                    'ok' => false,
+                    'message' => 'Nie udało się rozwiązać create-command do shipmentId(UUID).',
+                    'debug_lines' => $debug,
+                    'http_code' => 404,
+                ];
             }
         }
-
-        $primaryCandidate = trim($shipmentId);
-        if ($primaryCandidate !== '') {
-            $appendCandidate($primaryCandidate, 20);
-
-            if ($this->looksLikeCreateCommandId($primaryCandidate)) {
-                $resolved = $this->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
-                if (is_string($resolved) && $resolved !== '') {
-                    $appendCandidate($resolved, 5);
-                    $debug[] = '[LABEL] resolved create-command to shipmentId=' . $resolved;
-                } else {
-                    $debug[] = '[LABEL] create-command unresolved (zostawiam jako kandydata): ' . $primaryCandidate;
-                }
+        // 1c) Kliknięto ID techniczne (Base64 / ALLEGRO:WAYBILL / sam waybill) – publiczne /shipment-management/label tego nie obsługuje.
+        else {
+            $decoded = $this->decodeShipmentReference($primaryCandidate);
+            if (is_string($decoded) && $decoded !== '') {
+                $debug[] = '[LABEL] decoded shipment reference=' . $decoded;
             }
+            return [
+                'ok' => false,
+                'message' => 'Ta przesyłka nie ma shipmentId(UUID) w API (to ID techniczne/waybill). Nie można pobrać etykiety przez /shipment-management/label.',
+                'debug_lines' => $debug,
+                'http_code' => 404,
+            ];
         }
-
-        foreach ($this->discoverShipmentIdsFromApi($account, $checkoutFormId, $debug) as $discoveredId) {
-            $resolvedDiscoveredId = trim((string)$discoveredId);
-            if ($resolvedDiscoveredId === '') {
-                continue;
-            }
-
-            $appendCandidate($resolvedDiscoveredId, 15);
-
-            if ($this->looksLikeCreateCommandId($resolvedDiscoveredId)) {
-                $resolved = $this->resolveShipmentIdCandidate($account, $resolvedDiscoveredId, $debug);
-                if (is_string($resolved) && $resolved !== '') {
-                    $appendCandidate($resolved, 5);
-                }
-            }
-        }
-
-        // Dodatkowy fallback: lokalne rekordy dla zamówienia (po deduplikacji w locie).
-        foreach ($this->shipments->getOrderShipmentIds((int)$account['id_allegropro_account'], $checkoutFormId) as $localShipmentId) {
-            $appendCandidate((string)$localShipmentId, 12);
-        }
-
-        // Fallback: jeśli lokalny rekord ma tracking/waybill, spróbuj rozwiązać go do UUID shipmentId.
-        $historyRows = $this->shipments->findAllByOrderForAccount((int)$account['id_allegropro_account'], $checkoutFormId);
-        foreach ($historyRows as $historyRow) {
-            if (!is_array($historyRow)) {
-                continue;
-            }
-
-            $rowShipmentId = trim((string)($historyRow['shipment_id'] ?? ''));
-            $rowTracking = trim((string)($historyRow['tracking_number'] ?? ''));
-            if ($rowTracking === '') {
-                continue;
-            }
-
-            if ($rowShipmentId !== '' && $this->looksLikeCreateCommandId($rowShipmentId)) {
-                $resolvedFromWaybill = $this->resolveShipmentIdByWaybill($account, $rowTracking, $debug);
-                if (is_string($resolvedFromWaybill) && $resolvedFromWaybill !== '') {
-                    $appendCandidate($resolvedFromWaybill, 1);
-                }
-            }
-        }
-
-        $candidateIds = array_keys($candidateIds);
-        usort($candidateIds, function (string $a, string $b) use ($candidatePriority): int {
-            $pa = $candidatePriority[$a] ?? 999;
-            $pb = $candidatePriority[$b] ?? 999;
-            if ($pa !== $pb) {
-                return $pa <=> $pb;
-            }
-            return strcmp($a, $b);
-        });
 
         if (empty($candidateIds)) {
             return [
                 'ok' => false,
                 'message' => 'Nie udało się ustalić poprawnego shipmentId do pobrania etykiety.',
                 'debug_lines' => $debug,
+                'http_code' => 404,
             ];
         }
 
         $debug[] = '[LABEL] shipment candidates=' . implode(', ', $candidateIds);
         $debug[] = '[LABEL] shipment candidates priority=' . json_encode($candidatePriority, JSON_UNESCAPED_UNICODE);
 
-        $labelFormat = $this->config->getFileFormat();
+$labelFormat = $this->config->getFileFormat();
         $isA4Pdf = ($this->config->getPageSize() === 'A4' && $labelFormat === 'PDF');
 
         $acceptCandidates = $labelFormat === 'ZPL'
             ? ['application/zpl', 'text/plain', 'application/octet-stream', '*/*']
-            : ['application/octet-stream', 'application/pdf', '*/*'];
+            : ['application/pdf', 'application/octet-stream', '*/*'];
 
         $lastResp = ['ok' => false, 'code' => 0, 'raw' => ''];
         $usedShipmentId = null;

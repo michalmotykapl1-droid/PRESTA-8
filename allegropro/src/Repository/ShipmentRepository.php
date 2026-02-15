@@ -456,4 +456,179 @@ class ShipmentRepository
             $where
         );
     }
+
+    /**
+     * Liczy aktywne przesyłki/paczki dla zamówienia.
+     * Używane do blokady tworzenia > limit paczek (delivery.calculatedNumberOfPackages).
+     */
+    public function countActiveShipmentsForOrder(int $accountId, string $checkoutFormId): int
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        if ($accountId <= 0 || $checkoutFormId === '') {
+            return 0;
+        }
+
+        $statuses = ["CANCELLED", "CANCELED", "DELETED"];
+        $statusSql = "'" . implode("','", array_map('pSQL', $statuses)) . "'";
+
+        $expr = 'shipment_id';
+        if ($this->columnExists('wza_shipment_uuid')) {
+            $expr = "IF(wza_shipment_uuid IS NOT NULL AND wza_shipment_uuid != '', wza_shipment_uuid, shipment_id)";
+        }
+
+        $sql = "SELECT COUNT(DISTINCT {$expr})
+                FROM `{$this->table}`
+                WHERE id_allegropro_account = {$accountId}
+                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
+                  AND (status IS NULL OR UPPER(status) NOT IN ({$statusSql}))";
+
+        return (int)Db::getInstance()->getValue($sql);
+    }
+
+    /**
+     * Zwraca wza_shipment_uuid przypięty do konkretnego wiersza (shipment_id) w historii zamówienia.
+     */
+    public function getWzaShipmentUuidForShipmentRow(int $accountId, string $checkoutFormId, string $shipmentId): ?string
+    {
+        if (!$this->columnExists('wza_shipment_uuid')) {
+            return null;
+        }
+
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        $shipmentId = trim($shipmentId);
+
+        if ($accountId <= 0 || $checkoutFormId === '' || $shipmentId === '') {
+            return null;
+        }
+
+        $sql = "SELECT wza_shipment_uuid
+                FROM `{$this->table}`
+                WHERE id_allegropro_account = {$accountId}
+                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
+                  AND shipment_id = '" . pSQL($shipmentId) . "'";
+        $val = Db::getInstance()->getValue($sql);
+        $val = is_string($val) ? trim($val) : '';
+        return $val !== '' ? $val : null;
+    }
+
+    /**
+     * Uzupełnia wza_command_id / wza_shipment_uuid dla rekordów z danym tracking_number (waybill).
+     * To pozwala "przypiąć" UUID do wiersza z order API (base64 shipment_id).
+     */
+    public function backfillWzaForTrackingNumber(int $accountId, string $checkoutFormId, string $trackingNumber, ?string $wzaCommandId, ?string $wzaShipmentUuid): int
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        $trackingNumber = trim($trackingNumber);
+        $wzaCommandId = is_string($wzaCommandId) ? trim($wzaCommandId) : '';
+        $wzaShipmentUuid = is_string($wzaShipmentUuid) ? trim($wzaShipmentUuid) : '';
+
+        if ($accountId <= 0 || $checkoutFormId === '' || $trackingNumber === '') {
+            return 0;
+        }
+
+        if (!$this->columnExists('wza_command_id') && !$this->columnExists('wza_shipment_uuid')) {
+            return 0;
+        }
+
+        $q = new DbQuery();
+        $q->select('id_allegropro_shipment, wza_command_id, wza_shipment_uuid');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . $accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("tracking_number='" . pSQL($trackingNumber) . "'");
+
+        $rows = Db::getInstance()->executeS($q) ?: [];
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $updated = 0;
+        foreach ($rows as $row) {
+            $id = (int)($row['id_allegropro_shipment'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            $upd = [];
+            if ($this->columnExists('wza_command_id')) {
+                $cur = trim((string)($row['wza_command_id'] ?? ''));
+                if ($cur === '' && $wzaCommandId !== '') {
+                    $upd['wza_command_id'] = pSQL($wzaCommandId);
+                }
+            }
+            if ($this->columnExists('wza_shipment_uuid')) {
+                $cur = trim((string)($row['wza_shipment_uuid'] ?? ''));
+                if ($cur === '' && $wzaShipmentUuid !== '') {
+                    $upd['wza_shipment_uuid'] = pSQL($wzaShipmentUuid);
+                }
+            }
+
+            if (!empty($upd)) {
+                $upd['updated_at'] = pSQL(date('Y-m-d H:i:s'));
+                Db::getInstance()->update('allegropro_shipment', $upd, 'id_allegropro_shipment=' . $id);
+                $updated++;
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Próbuje skopiować WZA dane (commandId/UUID) do wierszy historii utworzonych z order API (base64),
+     * na podstawie wspólnego tracking_number (waybill).
+     */
+    public function mergeWzaFieldsForOrder(int $accountId, string $checkoutFormId): int
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        if ($accountId <= 0 || $checkoutFormId === '') {
+            return 0;
+        }
+
+        if (!$this->columnExists('wza_shipment_uuid') && !$this->columnExists('wza_command_id')) {
+            return 0;
+        }
+
+        $q = new DbQuery();
+        $q->select('id_allegropro_shipment, shipment_id, tracking_number, wza_command_id, wza_shipment_uuid');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . $accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("tracking_number IS NOT NULL AND tracking_number != ''");
+        $q->orderBy('id_allegropro_shipment DESC');
+
+        $rows = Db::getInstance()->executeS($q) ?: [];
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $updatedTotal = 0;
+        foreach ($rows as $row) {
+            $tracking = trim((string)($row['tracking_number'] ?? ''));
+            if ($tracking === '') {
+                continue;
+            }
+
+            $cmd = trim((string)($row['wza_command_id'] ?? ''));
+            $uuid = trim((string)($row['wza_shipment_uuid'] ?? ''));
+
+            // jeśli brak uuid w kolumnie, ale shipment_id wygląda jak UUID, potraktuj jako uuid WZA
+            $sid = trim((string)($row['shipment_id'] ?? ''));
+            if ($uuid === '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $sid)) {
+                $uuid = $sid;
+            }
+
+            if ($cmd === '' && $uuid === '') {
+                continue;
+            }
+
+            $updatedTotal += $this->backfillWzaForTrackingNumber($accountId, $checkoutFormId, $tracking, $cmd ?: null, $uuid ?: null);
+        }
+
+        return $updatedTotal;
+    }
+
 }
