@@ -953,22 +953,28 @@ class ShipmentManager
 
         // 1) Zbuduj listę kandydatów shipmentId (lokalny + wykryte z API).
         $candidateIds = [];
+        $candidatePriority = [];
 
-        $appendCandidate = function (string $value) use (&$candidateIds) {
+        $appendCandidate = function (string $value, int $priority = 10) use (&$candidateIds, &$candidatePriority) {
             $value = trim($value);
-            if ($value !== '') {
-                $candidateIds[$value] = true;
+            if ($value === '') {
+                return;
+            }
+
+            $candidateIds[$value] = true;
+            if (!isset($candidatePriority[$value]) || $priority < $candidatePriority[$value]) {
+                $candidatePriority[$value] = $priority;
             }
         };
 
         $primaryCandidate = trim($shipmentId);
         if ($primaryCandidate !== '') {
-            $appendCandidate($primaryCandidate);
+            $appendCandidate($primaryCandidate, 20);
 
             if ($this->looksLikeCreateCommandId($primaryCandidate)) {
                 $resolved = $this->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
                 if (is_string($resolved) && $resolved !== '') {
-                    $appendCandidate($resolved);
+                    $appendCandidate($resolved, 5);
                     $debug[] = '[LABEL] resolved create-command to shipmentId=' . $resolved;
                 } else {
                     $debug[] = '[LABEL] create-command unresolved (zostawiam jako kandydata): ' . $primaryCandidate;
@@ -982,19 +988,19 @@ class ShipmentManager
                 continue;
             }
 
-            $appendCandidate($resolvedDiscoveredId);
+            $appendCandidate($resolvedDiscoveredId, 15);
 
             if ($this->looksLikeCreateCommandId($resolvedDiscoveredId)) {
                 $resolved = $this->resolveShipmentIdCandidate($account, $resolvedDiscoveredId, $debug);
                 if (is_string($resolved) && $resolved !== '') {
-                    $appendCandidate($resolved);
+                    $appendCandidate($resolved, 5);
                 }
             }
         }
 
         // Dodatkowy fallback: lokalne rekordy dla zamówienia (po deduplikacji w locie).
         foreach ($this->shipments->getOrderShipmentIds((int)$account['id_allegropro_account'], $checkoutFormId) as $localShipmentId) {
-            $appendCandidate((string)$localShipmentId);
+            $appendCandidate((string)$localShipmentId, 12);
         }
 
         // Fallback: jeśli lokalny rekord ma tracking/waybill, spróbuj rozwiązać go do UUID shipmentId.
@@ -1013,12 +1019,21 @@ class ShipmentManager
             if ($rowShipmentId !== '' && $this->looksLikeCreateCommandId($rowShipmentId)) {
                 $resolvedFromWaybill = $this->resolveShipmentIdByWaybill($account, $rowTracking, $debug);
                 if (is_string($resolvedFromWaybill) && $resolvedFromWaybill !== '') {
-                    $appendCandidate($resolvedFromWaybill);
+                    $appendCandidate($resolvedFromWaybill, 1);
                 }
             }
         }
 
         $candidateIds = array_keys($candidateIds);
+        usort($candidateIds, function (string $a, string $b) use ($candidatePriority): int {
+            $pa = $candidatePriority[$a] ?? 999;
+            $pb = $candidatePriority[$b] ?? 999;
+            if ($pa !== $pb) {
+                return $pa <=> $pb;
+            }
+            return strcmp($a, $b);
+        });
+
         if (empty($candidateIds)) {
             return [
                 'ok' => false,
@@ -1028,6 +1043,7 @@ class ShipmentManager
         }
 
         $debug[] = '[LABEL] shipment candidates=' . implode(', ', $candidateIds);
+        $debug[] = '[LABEL] shipment candidates priority=' . json_encode($candidatePriority, JSON_UNESCAPED_UNICODE);
 
         $labelFormat = $this->config->getFileFormat();
         $isA4Pdf = ($this->config->getPageSize() === 'A4' && $labelFormat === 'PDF');

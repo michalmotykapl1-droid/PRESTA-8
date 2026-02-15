@@ -224,7 +224,7 @@ class ShipmentRepository
             . 'FROM `'.$this->table.'` '
             . 'WHERE id_allegropro_account=' . (int)$accountId
             . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
-            . ' ORDER BY COALESCE(updated_at, created_at) DESC, id_allegropro_shipment DESC'
+            . ' ORDER BY id_allegropro_shipment DESC'
         ) ?: [];
 
         if (count($rows) <= 1) {
@@ -234,6 +234,46 @@ class ShipmentRepository
         $seenShipment = [];
         $seenTracking = [];
         $toDelete = [];
+
+        // Najpierw sortujemy rekordy wg jakości identyfikatora i świeżości:
+        // 1) preferuj prawdziwy shipment UUID,
+        // 2) potem zwykłe shipment_id,
+        // 3) na końcu commandId/base64.
+        usort($rows, function (array $a, array $b): int {
+            $score = function (array $row): int {
+                $sid = trim((string)($row['shipment_id'] ?? ''));
+                if ($sid === '') {
+                    return 0;
+                }
+
+                $isCommand = (strpos($sid, ':') !== false)
+                    || ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $sid) && strlen($sid) >= 16 && (strlen($sid) % 4 === 0));
+                if ($isCommand) {
+                    return 1;
+                }
+
+                $isUuid = (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $sid);
+                if ($isUuid) {
+                    return 3;
+                }
+
+                return 2;
+            };
+
+            $sa = $score($a);
+            $sb = $score($b);
+            if ($sa !== $sb) {
+                return $sb <=> $sa;
+            }
+
+            $ta = strtotime((string)($a['updated_at'] ?? $a['created_at'] ?? '')) ?: 0;
+            $tb = strtotime((string)($b['updated_at'] ?? $b['created_at'] ?? '')) ?: 0;
+            if ($ta !== $tb) {
+                return $tb <=> $ta;
+            }
+
+            return ((int)($b['id_allegropro_shipment'] ?? 0)) <=> ((int)($a['id_allegropro_shipment'] ?? 0));
+        });
 
         foreach ($rows as $row) {
             $id = (int)($row['id_allegropro_shipment'] ?? 0);
