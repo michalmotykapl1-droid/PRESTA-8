@@ -138,6 +138,10 @@ class ShipmentCreatorService
                     $sizeDetails2 = $this->extractSizeDetails($detailJson);
 
                     if (method_exists($this->shipments, 'upsertFromAllegro')) {
+                                                $createdAt2 = $this->normalizeDateTime($detailJson['createdAt'] ?? null);
+                        $statusChangedAt2 = $this->normalizeDateTime($detailJson['statusChangedAt'] ?? ($detailJson['updatedAt'] ?? null))
+                            ?: $createdAt2;
+
                         $this->shipments->upsertFromAllegro(
                             (int)$account['id_allegropro_account'],
                             $checkoutFormId,
@@ -147,7 +151,8 @@ class ShipmentCreatorService
                             $isSmart2,
                             $carrierMode2,
                             $sizeDetails2,
-                            $this->normalizeDateTime($detailJson['createdAt'] ?? null)
+                            $createdAt2,
+                            $statusChangedAt2
                         );
                     } elseif (is_string($tracking2) && $tracking2 !== '') {
                         Db::getInstance()->update(

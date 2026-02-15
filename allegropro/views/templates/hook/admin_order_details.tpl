@@ -34,7 +34,7 @@
             </div>
 
             {* 2. Kupujący *}
-            <div class="col-md-3">
+            <div class="col-md-9">
                 <h4 class="text-muted mb-2">Kupujący</h4>
                 <div class="row mb-1">
                     <div class="col-4 text-muted">Login:</div>
@@ -53,8 +53,11 @@
                 {/if}
             </div>
 
+        </div>
+
+        <div class="row mt-3">
             {* 3. WYSYŁKA - PANEL STEROWANIA *}
-            <div class="col-md-6">
+            <div class="col-12">
                 <div class="card bg-light border-0">
                     <div class="card-body p-3">
                         <h4 class="text-muted mb-3">Zarządzanie Wysyłką</h4>
@@ -90,57 +93,35 @@
                         
                         {* BANER SMART *}
                         {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
-                             <div style="background-color: #ffece5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display:flex; align-items:center; justify-content:space-between;">
-                                <div style="display:flex; align-items:center;">
-                                    <i class="material-icons" style="color: #ff5a00; font-size: 28px; margin-right: 12px;">local_shipping</i>
-                                    <div>
-                                        <strong style="color: #222; font-size: 14px; display:block;">ALLEGRO SMART!</strong>
-                                        <span style="font-size:11px; color:#666;">Wysyłka opłacona przez Allegro.</span>
-                                    </div>
+                             <div style="background-color: #ffece5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color:#ff5a00;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
+                                    <small>Wysyłka opłacona przez Allegro.</small>
                                 </div>
-                                <div style="text-align:right; background:white; padding:5px 10px; border-radius:4px; border:1px solid #ffdec2;">
-                                    <div style="font-size:10px; color:#888; text-transform:uppercase;">Pozostało:</div>
-                                    <div style="font-size:18px; font-weight:bold; color:{if $allegro_data.smart_left > 0}#28a745{else}#dc3545{/if};">
-                                        {$allegro_data.smart_left} <span style="font-size:12px; color:#aaa;">/ {$allegro_data.smart_limit}</span>
-                                    </div>
+                                <div style="text-align:right; border: 1px solid #f4d5c6; padding: 5px 8px; background: #fff4ef;">
+                                    <small style="display:block;color:#999;">POZOSTAŁO:</small>
+                                    <strong style="font-size:22px; color:#ff5a00;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
                                 </div>
                             </div>
                         {/if}
+                        
+                        <p><strong>Metoda:</strong> {$allegro_data.shipping.method_name|default:'-'}</p>
 
-                        <div class="mb-2"><strong>Metoda:</strong> {$allegro_data.shipping.method_name}</div>
-                        {if $allegro_data.shipping.pickup_point_id}
-                            <div class="mb-3 text-muted" style="font-size:12px;">
-                                Punkt: <strong>{$allegro_data.shipping.pickup_point_id}</strong>
-                            </div>
-                        {/if}
-
-                        {* KREATOR PRZESYŁKI *}
-                        <div class="shipment-creator mb-3" style="border:1px solid #ddd; padding:10px; background:#fff; border-radius:4px;">
-                            <h5 style="margin-top:0; font-size:13px; color:#555;">Nadaj nową paczkę:</h5>
-                            <div class="row">
-                                {if $allegro_data.carrier_mode == 'BOX'}
-                                    <div class="col-sm-4"><button class="btn btn-outline-primary btn-block btn-create-shipment" data-size="A">Gabaryt <strong>A</strong></button></div>
-                                    <div class="col-sm-4"><button class="btn btn-outline-primary btn-block btn-create-shipment" data-size="B">Gabaryt <strong>B</strong></button></div>
-                                    <div class="col-sm-4"><button class="btn btn-outline-primary btn-block btn-create-shipment" data-size="C">Gabaryt <strong>C</strong></button></div>
-                                {else}
-                                    <div class="col-sm-8">
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" id="courier_weight" placeholder="Waga (kg)" value="1.0">
-                                            <div class="input-group-append">
-                                                <button class="btn btn-primary btn-create-shipment" data-mode="courier">Nadaj Kurierem</button>
-                                            </div>
-                                        </div>
+                        {* FORMULARZ NADAWANIA *}
+                        <div class="card border mb-3">
+                            <div class="card-body p-2">
+                                <label class="mb-1"><strong>Nadaj nową paczkę:</strong></label>
+                                <div class="input-group mb-2">
+                                    <input type="text" id="shipment_weight_input" class="form-control" value="1.0" placeholder="Waga (kg)">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-info" type="button" id="btnCreateShipment">Nadaj Kurierem</button>
                                     </div>
-                                {/if}
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="is_smart_shipment" class="form-check-input" {if $allegro_data.smart_left <= 0}disabled{/if}>
+                                    <label for="is_smart_shipment" class="form-check-label">Użyj Allegro Smart! (jeśli dostępny)</label>
+                                </div>
                             </div>
-                            {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
-                            <div class="mt-2">
-                                <label style="font-weight:normal; font-size:12px;">
-                                    <input type="checkbox" id="use_smart" {if $allegro_data.smart_left > 0}checked{/if}> Użyj Allegro Smart! (jeśli dostępny)
-                                </label>
-                            </div>
-                            {/if}
-                            <div id="creator_msg" class="mt-2 text-info" style="font-size:12px;"></div>
                         </div>
 
                         {* HISTORIA *}
@@ -149,7 +130,8 @@
                             <table class="table table-sm table-striped" style="font-size:11px; margin-bottom:0;">
                                 <thead>
                                     <tr>
-                                        <th>Status</th>
+                                        <th>Status lokalny</th>
+                                        <th>Status aktualny</th>
                                         <th>Typ</th>
                                         <th>Data</th>
                                         <th>Nr nadania</th>
@@ -160,12 +142,39 @@
                                 {foreach from=$allegro_data.shipments item=ship}
                                     <tr>
                                         <td>
-                                            {if $ship.status == 'CREATED'}<span class="badge badge-success">UTWORZONA</span>
-                                            {elseif $ship.status == 'CANCELLED'}<span class="badge badge-secondary">ANULOWANA</span>
-                                            {elseif $ship.status == 'NEW'}<span class="badge badge-info">W TOKU...</span>
-                                            {else}<span class="badge badge-warning">{$ship.status}</span>{/if}
-                                            
+                                            {assign var=ship_status value=$ship.status|default:''}
+                                            {if $ship_status == 'CREATED'}<span class="badge badge-success">UTWORZONA</span>
+                                            {elseif $ship_status == 'CANCELLED'}<span class="badge badge-secondary">ANULOWANA</span>
+                                            {elseif $ship_status == 'NEW'}<span class="badge badge-info">W TOKU</span>
+                                            {elseif $ship_status == 'IN_PROGRESS'}<span class="badge badge-info">PRZETWARZANIE</span>
+                                            {elseif $ship_status == 'SENT'}<span class="badge badge-primary">NADANA</span>
+                                            {elseif $ship_status == 'DELIVERED'}<span class="badge badge-primary">DORĘCZONA</span>
+                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'ON_THE_WAY'}<span class="badge badge-primary">W DRODZE</span>
+                                            {elseif $ship_status == 'OUT_FOR_DELIVERY'}<span class="badge badge-primary">W DORĘCZENIU</span>
+                                            {elseif $ship_status == 'READY_FOR_PICKUP'}<span class="badge badge-primary">DO ODBIORU</span>
+                                            {elseif $ship_status == 'PICKED_UP'}<span class="badge badge-primary">ODEBRANA</span>
+                                            {elseif $ship_status == 'RETURNED'}<span class="badge badge-danger">ZWROT</span>
+                                            {else}<span class="badge badge-warning">{$ship_status|escape:'htmlall':'UTF-8'}</span>{/if}
+
+                                            <br><span class="text-muted" style="font-size:9px;">{$ship.origin_label|default:'POBRANA Z ALLEGRO'|escape:'htmlall':'UTF-8'}</span>
                                             {if $ship.is_smart}<br><span style="color:#ff5a00; font-weight:bold; font-size:9px;">SMART</span>{/if}
+                                        </td>
+                                        <td>
+                                            {if $ship_status == 'CREATED'}Oczekuje na nadanie
+                                            {elseif $ship_status == 'NEW' || $ship_status == 'IN_PROGRESS'}W trakcie tworzenia
+                                            {elseif $ship_status == 'SENT' || $ship_status == 'IN_TRANSIT' || $ship_status == 'ON_THE_WAY'}W drodze
+                                            {elseif $ship_status == 'OUT_FOR_DELIVERY'}W doręczeniu
+                                            {elseif $ship_status == 'READY_FOR_PICKUP'}Gotowa do odbioru
+                                            {elseif $ship_status == 'DELIVERED' || $ship_status == 'PICKED_UP'}Przesyłka odebrana
+                                            {elseif $ship_status == 'RETURNED'}Zwrot
+                                            {elseif $ship_status == 'CANCELLED'}Anulowana
+                                            {else}{$ship_status|escape:'htmlall':'UTF-8'}{/if}
+
+                                            {assign var=ship_changed_at value=$ship.status_changed_at|default:''}
+                                            {if !$ship_changed_at}{assign var=ship_changed_at value=$ship.updated_at|default:''}{/if}
+                                            {if $ship_changed_at}
+                                                <div class="text-muted" style="font-size:10px; margin-top:2px;">{$ship_changed_at|date_format:"%H:%M %d-%m-%Y"}</div>
+                                            {/if}
                                         </td>
                                         <td>{$ship.size_details}</td>
                                         <td>{$ship.created_at|date_format:"%H:%M %d-%m"}</td>
@@ -178,13 +187,15 @@
                                         </td>
                                         <td class="text-right">
                                             {if $ship.status == 'CREATED'}
-                                                <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
+                                                {if $ship.can_download_label}
+                                                    <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
+                                                {/if}
                                                 <button class="btn btn-xs btn-danger btn-cancel-shipment" data-id="{$ship.shipment_id}" title="Anuluj przesyłkę w Allegro"><i class="material-icons">cancel</i></button>
                                             {/if}
                                         </td>
                                     </tr>
                                 {foreachelse}
-                                    <tr><td colspan="5" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
                                 {/foreach}
                                 </tbody>
                             </table>
@@ -260,100 +271,98 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append('id_allegropro_account', accId);
             formData.append('new_status', status);
 
-            var url = 'index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=update_allegro_status&ajax=1';
-
-            fetch(url, { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(d => {
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=update_status&ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success){
+                    msg.className = 'form-text text-success';
+                    msg.innerText = data.message || 'Status zaktualizowany!';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    msg.className = 'form-text text-danger';
+                    msg.innerText = data.message || 'Błąd.';
+                }
+            })
+            .catch(() => {
+                msg.className = 'form-text text-danger';
+                msg.innerText = 'Błąd połączenia.';
+            })
+            .finally(() => {
                 btnStatus.disabled = false;
                 btnStatus.innerText = 'Zaktualizuj';
-                if (d.success) {
-                    msg.innerText = 'Status zmieniony!';
-                    msg.className = 'form-text text-success';
-                } else {
-                    msg.innerText = 'Błąd: ' + (d.message || 'Error');
-                    msg.className = 'form-text text-danger';
-                }
-            }).catch(e => { console.error(e); btnStatus.disabled = false; });
+            });
         });
     }
 
-    // --- 2. TWORZENIE PRZESYŁKI (A/B/C/Kurier) ---
-    var creatorMsg = document.getElementById('creator_msg');
-    
-    document.querySelectorAll('.btn-create-shipment').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
+    // --- 2. Tworzenie Przesyłki ---
+    var btnCreate = document.getElementById('btnCreateShipment');
+    if(btnCreate){
+        btnCreate.addEventListener('click', function(e){
             e.preventDefault();
-            var size = this.getAttribute('data-size');
-            var mode = this.getAttribute('data-mode');
-            var weight = 1.0;
-            
-            if (mode === 'courier') {
-                var wInput = document.getElementById('courier_weight');
-                if(wInput) weight = wInput.value;
-            }
-            
-            // Obsługa checkboxa Smart
-            var isSmart = 0;
-            var smartCheck = document.getElementById('use_smart');
-            if (smartCheck && smartCheck.checked) isSmart = 1;
+            var weight = document.getElementById('shipment_weight_input').value;
+            var isSmart = document.getElementById('is_smart_shipment').checked;
+            var thisBtn = this;
+            thisBtn.disabled = true;
+            thisBtn.innerText = 'Tworzenie...';
 
-            if(!confirm('Czy na pewno utworzyć etykietę?')) return;
+            var formData = new FormData();
+            formData.append('checkout_form_id', cfId);
+            formData.append('id_allegropro_account', accId);
+            formData.append('weight', weight);
+            formData.append('is_smart', isSmart ? 1 : 0);
 
-            creatorMsg.innerText = 'Przetwarzanie... proszę czekać.';
-            creatorMsg.className = 'mt-2 text-info';
-
-            var fd = new FormData();
-            fd.append('checkout_form_id', cfId);
-            fd.append('id_allegropro_account', accId);
-            fd.append('is_smart', isSmart);
-            if(size) fd.append('size_code', size);
-            if(weight) fd.append('weight', weight);
-
-            var url = 'index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=create_shipment&ajax=1';
-
-            // POPRAWKA: Dodano spacje w obiekcie { method:... }
-            fetch(url, { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                if(d.success) {
-                    creatorMsg.innerText = 'Sukces! Odświeżam...';
-                    creatorMsg.className = 'mt-2 text-success';
-                    location.reload();
-                } else {
-                    creatorMsg.innerText = 'Błąd: ' + d.message;
-                    creatorMsg.className = 'mt-2 text-danger';
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=create_shipment&ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message || (data.success ? 'Sukces!' : 'Błąd.'));
+                if(data.success){
+                    setTimeout(() => location.reload(), 1500); 
                 }
             })
-            .catch(e => {
-                creatorMsg.innerText = 'Błąd połączenia.';
-                creatorMsg.className = 'mt-2 text-danger';
+            .catch(() => alert('Błąd połączenia.'))
+            .finally(() => {
+                thisBtn.disabled = false;
+                thisBtn.innerText = 'Nadaj Kurierem';
             });
         });
-    });
+    }
 
-    // --- 3. ANULOWANIE ---
-    document.querySelectorAll('.btn-cancel-shipment').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
+    // --- 3. Anulowanie Przesyłki ---
+    document.querySelectorAll('.btn-cancel-shipment').forEach(function(btn){
+        btn.addEventListener('click', function(e){
             e.preventDefault();
-            if(!confirm('Czy na pewno ANULOWAĆ tę przesyłkę w Allegro? Spowoduje to zwolnienie slotu Smart.')) return;
+            if(!confirm('Czy na pewno anulować tę przesyłkę w Allegro?')) return;
             
             var shipId = this.getAttribute('data-id');
-            var fd = new FormData();
-            fd.append('shipment_id', shipId);
-            fd.append('id_allegropro_account', accId);
+            var thisBtn = this;
+            thisBtn.disabled = true;
 
-            // POPRAWKA: Dodano spacje w obiekcie { method:... }
-            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=cancel_shipment&ajax=1', { method: 'POST', body: fd })
-            .then(r=>r.json()).then(d=>{
-                if(d.success) location.reload();
-                else alert('Błąd anulowania: '+d.message);
-            });
+            var formData = new FormData();
+            formData.append('shipment_id', shipId);
+            formData.append('checkout_form_id', cfId);
+            formData.append('id_allegropro_account', accId);
+
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=cancel_shipment&ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message || (data.success ? 'Anulowano' : 'Błąd'));
+                if(data.success) location.reload();
+            })
+            .catch(() => alert('Błąd połączenia.'))
+            .finally(() => thisBtn.disabled = false);
         });
     });
 
-
-    // --- 5. RĘCZNY SYNC PRZESYŁEK ---
+    // --- 3b. Ręczne odświeżenie przesyłek z Allegro ---
     var btnSync = document.getElementById('btnSyncShipmentsNow');
     if (btnSync) {
         btnSync.addEventListener('click', function(e) {

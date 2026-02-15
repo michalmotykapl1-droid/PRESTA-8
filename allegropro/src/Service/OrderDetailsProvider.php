@@ -86,13 +86,13 @@ class OrderDetailsProvider
 
         $shipmentsHistory = $this->shipmentManager->getHistory($cfId);
         foreach ($shipmentsHistory as &$sh) {
-            $sid = trim((string)($sh['shipment_id'] ?? ''));
-            $isUuid = (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $sid);
-            $isCreateCommand = (bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $sid) && strlen($sid) >= 16 && (strlen($sid) % 4 === 0);
-            if (!$isCreateCommand && strpos($sid, ':') !== false) {
-                $isCreateCommand = true;
-            }
-            $sh['can_download_label'] = $isUuid || $isCreateCommand;
+            $wzaCommand = trim((string)($sh['wza_command_id'] ?? ''));
+            $wzaUuid = trim((string)($sh['wza_shipment_uuid'] ?? ''));
+            $isModuleShipment = ($wzaCommand !== '' || $wzaUuid !== '');
+
+            $sh['can_download_label'] = $isModuleShipment;
+            $sh['origin_is_module'] = $isModuleShipment ? 1 : 0;
+            $sh['origin_label'] = $isModuleShipment ? 'UTWORZONA W MODULE' : 'POBRANA Z ALLEGRO';
         }
         unset($sh);
 

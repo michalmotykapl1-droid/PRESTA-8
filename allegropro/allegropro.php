@@ -2,7 +2,7 @@
 /**
  * ALLEGRO PRO - PrestaShop 8.x
  * (c) BigBio
- * Wersja 2.1.1 - Added "No Payment" Status
+ * Wersja 2.1.2 - Shipment status_changed_at + tracking timeline
  */
 if (!defined('_PS_VERSION_')) {
     exit;
@@ -16,7 +16,7 @@ class AllegroPro extends Module
     {
         $this->name = 'allegropro';
         $this->tab = 'administration';
-        $this->version = '2.1.1';
+        $this->version = '2.1.2';
         $this->author = 'BigBio';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -244,13 +244,15 @@ class AllegroPro extends Module
             `size_details` VARCHAR(32) NULL,
             `is_smart` TINYINT(1) DEFAULT 0,
             `status` VARCHAR(32) DEFAULT 'CREATED',
+            `status_changed_at` DATETIME NULL,
             `label_path` VARCHAR(255) NULL,
             `created_at` DATETIME NOT NULL,
             `updated_at` DATETIME NOT NULL,
             PRIMARY KEY (`id_allegropro_shipment`),
             KEY `idx_cf` (`checkout_form_id`),
             KEY `idx_wza_cmd` (`wza_command_id`),
-            KEY `idx_wza_uuid` (`wza_shipment_uuid`)
+            KEY `idx_wza_uuid` (`wza_shipment_uuid`),
+            KEY `idx_status_changed_at` (`status_changed_at`)
         ) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
         
         // 9. METODY DOSTAWY

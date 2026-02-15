@@ -92,7 +92,9 @@ class ShipmentSyncService
 
             $resolvedShipmentId = $this->resolver->resolveShipmentIdCandidate($account, $shipmentId, $debugLines);
             $context = $this->discoveredShipmentContext[$shipmentId] ?? ($this->discoveredShipmentContext[$resolvedShipmentId] ?? null);
+
             if ($resolvedShipmentId === null) {
+                $context = $this->enrichDiscoveredContextWithOrderShipmentProgress($account, $checkoutFormId, $shipmentId, $context, $debugLines);
                 if ($this->upsertFromDiscoveredContext($accountId, $checkoutFormId, $shipmentId, $context, $debugLines)) {
                     $synced++;
                 }
@@ -107,11 +109,38 @@ class ShipmentSyncService
                 continue;
             }
 
-            $status = (string)($detail['json']['status'] ?? 'CREATED');
+                        $status = (string)($detail['json']['status'] ?? 'CREATED');
             $tracking = $this->extractTrackingNumber($detail['json']);
             $isSmart = $this->extractIsSmart($detail['json']);
             $carrierMode = $this->extractCarrierMode($detail['json']);
             $sizeDetails = $this->extractSizeDetails($detail['json']);
+
+            $createdAt = $this->normalizeDateTime($detail['json']['createdAt'] ?? null);
+            $statusChangedAt = $this->normalizeDateTime($detail['json']['statusChangedAt'] ?? ($detail['json']['updatedAt'] ?? null));
+
+            // Preferuj realny status z timeline/events (jeśli payload go zawiera)
+            $progress = $this->extractLatestStatusEvent($detail['json']);
+            if (is_array($progress) && !empty($progress['status'])) {
+                $status = (string)$progress['status'];
+                if (!empty($progress['at'])) {
+                    $statusChangedAt = (string)$progress['at'];
+                }
+            }
+
+            // Jeśli nadal mamy status bazowy (CREATED/NEW), spróbuj dociągnąć tracking/timeline z osobnego endpointu
+            if ($this->isBaseShipmentStatus($status)) {
+                $progress2 = $this->fetchShipmentProgressFromTrackingEndpoint($account, $resolvedShipmentId, $debugLines);
+                if (is_array($progress2) && !empty($progress2['status'])) {
+                    $status = (string)$progress2['status'];
+                    if (!empty($progress2['at'])) {
+                        $statusChangedAt = (string)$progress2['at'];
+                    }
+                }
+            }
+
+            if (!$statusChangedAt) {
+                $statusChangedAt = $createdAt ?: date('Y-m-d H:i:s');
+            }
 
             $this->shipments->upsertFromAllegro(
                 $accountId,
@@ -122,7 +151,8 @@ class ShipmentSyncService
                 $isSmart,
                 $carrierMode,
                 $sizeDetails,
-                $this->normalizeDateTime($detail['json']['createdAt'] ?? null)
+                $createdAt,
+                $statusChangedAt
             );
 
             if (is_string($tracking) && trim($tracking) !== '' && method_exists($this->shipments, 'backfillWzaForTrackingNumber')) {
@@ -225,11 +255,23 @@ class ShipmentSyncService
             $isSmart = !empty($row['smart']) ? 1 : 0;
         }
 
+        $createdAt = $this->normalizeDateTime($row['createdAt'] ?? null);
+        $statusChangedAt = $this->normalizeDateTime($row['statusChangedAt'] ?? ($row['updatedAt'] ?? null));
+
+        $progress = $this->extractLatestStatusEvent($row);
+        if (is_array($progress) && !empty($progress['status'])) {
+            $status = (string)$progress['status'];
+            if (!empty($progress['at'])) {
+                $statusChangedAt = (string)$progress['at'];
+            }
+        }
+
         $this->discoveredShipmentContext[$referenceId] = [
             'status' => $status,
             'tracking' => $tracking,
             'is_smart' => $isSmart,
-            'created_at' => $this->normalizeDateTime($row['createdAt'] ?? null),
+            'created_at' => $createdAt,
+            'status_changed_at' => $statusChangedAt,
         ];
     }
 
@@ -249,6 +291,19 @@ class ShipmentSyncService
             return false;
         }
 
+                $createdAt = $this->normalizeDateTime($context['created_at'] ?? null);
+        $statusChangedAt = $this->normalizeDateTime($context['status_changed_at'] ?? null)
+            ?: $this->normalizeDateTime($context['updated_at'] ?? null)
+            ?: $createdAt;
+
+        $progress = $this->extractLatestStatusEvent($context);
+        if (is_array($progress) && !empty($progress['status'])) {
+            $status = (string)$progress['status'];
+            if (!empty($progress['at'])) {
+                $statusChangedAt = (string)$progress['at'];
+            }
+        }
+
         $this->shipments->upsertFromAllegro(
             $accountId,
             $checkoutFormId,
@@ -258,7 +313,8 @@ class ShipmentSyncService
             $isSmart,
             null,
             null,
-            $this->normalizeDateTime($context['created_at'] ?? null)
+            $createdAt,
+            $statusChangedAt
         );
 
         return true;

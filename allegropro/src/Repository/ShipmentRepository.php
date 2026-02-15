@@ -19,6 +19,7 @@ class ShipmentRepository
         $this->table = _DB_PREFIX_ . 'allegropro_shipment';
         // Bezpieczna migracja (jeśli już istnieje - nic nie robi)
         $this->ensureWzaColumns();
+        $this->ensureStatusChangedAtColumn();
     }
 
     /** ---------------------------
@@ -66,6 +67,26 @@ class ShipmentRepository
             }
 
             $sql = "ALTER TABLE `{$this->table}` " . implode(', ', $alterParts);
+            Db::getInstance()->execute($sql);
+        } catch (\Exception $e) {
+            // Nie wysypuj BO, jeśli np. brak uprawnień ALTER na środowisku.
+        }
+    }
+
+    /**
+     * Dodaje kolumnę status_changed_at (DATETIME) do trwałego przechowywania
+     * czasu ostatniej zmiany statusu przesyłki.
+     */
+    public function ensureStatusChangedAtColumn(): void
+    {
+        try {
+            if ($this->columnExists('status_changed_at')) {
+                return;
+            }
+
+            $sql = "ALTER TABLE `{$this->table}` "
+                . "ADD COLUMN `status_changed_at` DATETIME NULL, "
+                . "ADD INDEX `idx_status_changed_at` (`status_changed_at`)";
             Db::getInstance()->execute($sql);
         } catch (\Exception $e) {
             // Nie wysypuj BO, jeśli np. brak uprawnień ALTER na środowisku.
@@ -243,7 +264,8 @@ class ShipmentRepository
         ?int $isSmart,
         ?string $carrierMode,
         ?string $sizeDetails,
-        ?string $createdAt = null
+        ?string $createdAt = null,
+        ?string $statusChangedAt = null
     ): void {
         $shipmentId = trim($shipmentId);
         if ($shipmentId === '') {
@@ -268,6 +290,14 @@ class ShipmentRepository
             'size_details' => pSQL((string)($sizeDetails ?: 'CUSTOM')),
             'updated_at' => pSQL(date('Y-m-d H:i:s')),
         ];
+
+        if ($this->columnExists('status_changed_at')) {
+            $sca = is_string($statusChangedAt) ? trim($statusChangedAt) : '';
+            if ($sca === '') {
+                $sca = date('Y-m-d H:i:s');
+            }
+            $row['status_changed_at'] = pSQL($sca);
+        }
 
         if ($existingId > 0) {
             Db::getInstance()->update('allegropro_shipment', $row, 'id_allegropro_shipment=' . $existingId);
