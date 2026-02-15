@@ -76,6 +76,24 @@ class ShipmentRepository
         return $results ?: [];
     }
 
+
+
+    /**
+     * Pobiera historię przesyłek dla zamówienia i konta.
+     */
+    public function findAllByOrderForAccount(int $accountId, string $checkoutFormId): array
+    {
+        $q = new DbQuery();
+        $q->select('*');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account = ' . (int)$accountId);
+        $q->where("checkout_form_id = '" . pSQL($checkoutFormId) . "'");
+        $q->orderBy('created_at DESC');
+
+        $results = Db::getInstance()->executeS($q);
+        return $results ?: [];
+    }
+
     /**
      * Aktualizuje status konkretnej przesyłki
      */
@@ -191,4 +209,72 @@ class ShipmentRepository
         $row['label_path'] = null;
         Db::getInstance()->insert('allegropro_shipment', $row);
     }
+
+    /**
+     * Usuwa duplikaty przesyłek dla zamówienia:
+     * - duplikaty po shipment_id,
+     * - duplikaty po tracking_number (jeśli niepusty).
+     *
+     * Zostawia najnowszy rekord (updated_at/id), starsze kasuje.
+     */
+    public function removeDuplicatesForOrder(int $accountId, string $checkoutFormId): int
+    {
+        $rows = Db::getInstance()->executeS(
+            'SELECT id_allegropro_shipment, shipment_id, tracking_number, updated_at, created_at '
+            . 'FROM `'.$this->table.'` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . ' ORDER BY COALESCE(updated_at, created_at) DESC, id_allegropro_shipment DESC'
+        ) ?: [];
+
+        if (count($rows) <= 1) {
+            return 0;
+        }
+
+        $seenShipment = [];
+        $seenTracking = [];
+        $toDelete = [];
+
+        foreach ($rows as $row) {
+            $id = (int)($row['id_allegropro_shipment'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            $shipmentId = trim((string)($row['shipment_id'] ?? ''));
+            $tracking = strtoupper(trim((string)($row['tracking_number'] ?? '')));
+
+            $duplicate = false;
+            if ($shipmentId !== '' && isset($seenShipment[$shipmentId])) {
+                $duplicate = true;
+            }
+            if ($tracking !== '' && isset($seenTracking[$tracking])) {
+                $duplicate = true;
+            }
+
+            if ($duplicate) {
+                $toDelete[] = $id;
+                continue;
+            }
+
+            if ($shipmentId !== '') {
+                $seenShipment[$shipmentId] = true;
+            }
+            if ($tracking !== '') {
+                $seenTracking[$tracking] = true;
+            }
+        }
+
+        if (empty($toDelete)) {
+            return 0;
+        }
+
+        Db::getInstance()->delete(
+            'allegropro_shipment',
+            'id_allegropro_shipment IN (' . implode(',', array_map('intval', $toDelete)) . ')'
+        );
+
+        return count($toDelete);
+    }
+
 }

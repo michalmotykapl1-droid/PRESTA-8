@@ -284,12 +284,17 @@ class ShipmentManager
             }
         }
 
+        $removedDuplicates = $this->shipments->removeDuplicatesForOrder($accountId, $checkoutFormId);
+        if ($removedDuplicates > 0 && $debug) {
+            $debugLines[] = '[SYNC] usunięto duplikaty lokalnych przesyłek: ' . $removedDuplicates;
+        }
+
         if ($debug) {
             $debugLines[] = '[SYNC] koniec, synced=' . $synced . ', time=' . round(microtime(true) - $startedAt, 3) . 's';
             $this->persistSyncDebug($checkoutFormId, $debugLines);
         }
 
-        return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'debug_lines' => $debugLines];
+        return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'duplicates_removed' => $removedDuplicates, 'debug_lines' => $debugLines];
     }
 
 
@@ -573,8 +578,26 @@ class ShipmentManager
                 }
 
                 $sid = $this->extractShipmentIdFromRow($row);
+                $waybill = $this->extractWaybillFromRow($row);
+
                 if ($sid !== null) {
-                    $found[$sid] = true;
+                    if ($this->looksLikeCreateCommandId($sid)) {
+                        $resolvedFromCommand = $this->resolveShipmentIdCandidate($account, $sid, $debugLines);
+                        if (is_string($resolvedFromCommand) && $resolvedFromCommand !== '') {
+                            $found[$resolvedFromCommand] = true;
+                        } elseif ($waybill !== null) {
+                            $resolvedFromWaybill = $this->resolveShipmentIdByWaybill($account, $waybill, $debugLines);
+                            if (is_string($resolvedFromWaybill) && $resolvedFromWaybill !== '') {
+                                $found[$resolvedFromWaybill] = true;
+                            } else {
+                                $found[$sid] = true;
+                            }
+                        } else {
+                            $found[$sid] = true;
+                        }
+                    } else {
+                        $found[$sid] = true;
+                    }
                 }
 
                 if (!empty($debugLines)) {
@@ -753,14 +776,82 @@ class ShipmentManager
         $refs = $this->extractCandidateReferencesFromArray($row);
 
         foreach ($refs as $candidate) {
-            if ($this->looksLikeShipmentId($candidate)) {
+            if ($this->looksLikeCreateCommandId($candidate)) {
                 return $candidate;
             }
         }
 
         foreach ($refs as $candidate) {
-            if ($this->looksLikeCreateCommandId($candidate)) {
+            if ($this->looksLikeShipmentId($candidate)) {
                 return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractWaybillFromRow(array $row): ?string
+    {
+        $candidates = [
+            $row['waybill'] ?? null,
+            $row['trackingNumber'] ?? null,
+            $row['tracking']['number'] ?? null,
+            $row['label']['trackingNumber'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate)) {
+                $candidate = trim($candidate);
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveShipmentIdByWaybill(array $account, string $waybill, array &$debugLines = []): ?string
+    {
+        $waybill = trim($waybill);
+        if ($waybill === '') {
+            return null;
+        }
+
+        $queries = [
+            ['waybill' => $waybill],
+            ['trackingNumber' => $waybill],
+            ['phrase' => $waybill],
+            ['query' => $waybill],
+        ];
+
+        foreach ($queries as $query) {
+            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+            }
+
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                continue;
+            }
+
+            $rows = $this->extractShipmentRows($resp['json']);
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowWaybill = $this->extractWaybillFromRow($row);
+                $rowId = isset($row['id']) ? trim((string)$row['id']) : '';
+
+                if ($rowId !== '' && $this->looksLikeShipmentId($rowId)) {
+                    if ($rowWaybill === null || strcasecmp($rowWaybill, $waybill) === 0) {
+                        if (!empty($debugLines)) {
+                            $debugLines[] = '[SYNC] resolve waybill -> shipmentId: ' . $waybill . ' => ' . $rowId;
+                        }
+                        return $rowId;
+                    }
+                }
             }
         }
 
@@ -771,25 +862,50 @@ class ShipmentManager
     {
         $refs = [];
 
-        $walk = function ($value) use (&$walk, &$refs) {
-            if (is_array($value)) {
-                foreach ($value as $k => $v) {
-                    if (is_string($v) && is_string($k)) {
-                        $key = strtolower($k);
-                        if (strpos($key, 'shipment') !== false || strpos($key, 'command') !== false || $key === 'id') {
-                            $candidate = trim($v);
-                            if ($candidate !== '' && ($this->looksLikeShipmentReference($candidate) || $this->looksLikeShipmentId($candidate) || $this->looksLikeCreateCommandId($candidate))) {
-                                $refs[$candidate] = true;
-                            }
-                        }
-                    }
-                    $walk($v);
+        $walk = function ($value, array $path = []) use (&$walk, &$refs) {
+            if (!is_array($value)) {
+                return;
+            }
+
+            foreach ($value as $k => $v) {
+                $childPath = $path;
+                if (is_string($k)) {
+                    $childPath[] = strtolower($k);
                 }
+
+                if (is_string($v) && is_string($k) && $this->isLikelyShipmentReferenceKey($k, $path)) {
+                    $candidate = trim($v);
+                    if ($candidate !== '' && $this->looksLikeShipmentReference($candidate)) {
+                        $refs[$candidate] = true;
+                    }
+                }
+
+                $walk($v, $childPath);
             }
         };
 
-        $walk($data);
+        $walk($data, []);
         return array_keys($refs);
+    }
+
+    private function isLikelyShipmentReferenceKey(string $key, array $parentPath): bool
+    {
+        $key = strtolower($key);
+
+        if (strpos($key, 'shipment') !== false || strpos($key, 'command') !== false) {
+            return true;
+        }
+
+        if ($key !== 'id') {
+            return false;
+        }
+
+        if (empty($parentPath)) {
+            return true;
+        }
+
+        $parent = implode('.', $parentPath);
+        return strpos($parent, 'shipment') !== false || strpos($parent, 'command') !== false;
     }
 
     private function rowMatchesCheckoutForm(array $row, string $checkoutFormId): bool
@@ -830,20 +946,33 @@ class ShipmentManager
         $debug = [];
         $debug[] = '[LABEL] input shipmentId=' . $shipmentId . ', checkoutFormId=' . $checkoutFormId;
 
+        $removedDuplicates = $this->shipments->removeDuplicatesForOrder((int)$account['id_allegropro_account'], $checkoutFormId);
+        if ($removedDuplicates > 0) {
+            $debug[] = '[LABEL] usunięto duplikaty lokalnych przesyłek: ' . $removedDuplicates;
+        }
+
         // 1) Zbuduj listę kandydatów shipmentId (lokalny + wykryte z API).
         $candidateIds = [];
 
+        $appendCandidate = function (string $value) use (&$candidateIds) {
+            $value = trim($value);
+            if ($value !== '') {
+                $candidateIds[$value] = true;
+            }
+        };
+
         $primaryCandidate = trim($shipmentId);
         if ($primaryCandidate !== '') {
-            if (!$this->looksLikeShipmentId($primaryCandidate) && $this->looksLikeCreateCommandId($primaryCandidate)) {
+            $appendCandidate($primaryCandidate);
+
+            if ($this->looksLikeCreateCommandId($primaryCandidate)) {
                 $resolved = $this->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
                 if (is_string($resolved) && $resolved !== '') {
-                    $primaryCandidate = $resolved;
-                    $debug[] = '[LABEL] resolved create-command to shipmentId=' . $primaryCandidate;
+                    $appendCandidate($resolved);
+                    $debug[] = '[LABEL] resolved create-command to shipmentId=' . $resolved;
+                } else {
+                    $debug[] = '[LABEL] create-command unresolved (zostawiam jako kandydata): ' . $primaryCandidate;
                 }
-            }
-            if ($this->looksLikeShipmentId($primaryCandidate)) {
-                $candidateIds[$primaryCandidate] = true;
             }
         }
 
@@ -853,15 +982,39 @@ class ShipmentManager
                 continue;
             }
 
-            if (!$this->looksLikeShipmentId($resolvedDiscoveredId) && $this->looksLikeCreateCommandId($resolvedDiscoveredId)) {
+            $appendCandidate($resolvedDiscoveredId);
+
+            if ($this->looksLikeCreateCommandId($resolvedDiscoveredId)) {
                 $resolved = $this->resolveShipmentIdCandidate($account, $resolvedDiscoveredId, $debug);
                 if (is_string($resolved) && $resolved !== '') {
-                    $resolvedDiscoveredId = $resolved;
+                    $appendCandidate($resolved);
                 }
             }
+        }
 
-            if ($this->looksLikeShipmentId($resolvedDiscoveredId)) {
-                $candidateIds[$resolvedDiscoveredId] = true;
+        // Dodatkowy fallback: lokalne rekordy dla zamówienia (po deduplikacji w locie).
+        foreach ($this->shipments->getOrderShipmentIds((int)$account['id_allegropro_account'], $checkoutFormId) as $localShipmentId) {
+            $appendCandidate((string)$localShipmentId);
+        }
+
+        // Fallback: jeśli lokalny rekord ma tracking/waybill, spróbuj rozwiązać go do UUID shipmentId.
+        $historyRows = $this->shipments->findAllByOrderForAccount((int)$account['id_allegropro_account'], $checkoutFormId);
+        foreach ($historyRows as $historyRow) {
+            if (!is_array($historyRow)) {
+                continue;
+            }
+
+            $rowShipmentId = trim((string)($historyRow['shipment_id'] ?? ''));
+            $rowTracking = trim((string)($historyRow['tracking_number'] ?? ''));
+            if ($rowTracking === '') {
+                continue;
+            }
+
+            if ($rowShipmentId !== '' && $this->looksLikeCreateCommandId($rowShipmentId)) {
+                $resolvedFromWaybill = $this->resolveShipmentIdByWaybill($account, $rowTracking, $debug);
+                if (is_string($resolvedFromWaybill) && $resolvedFromWaybill !== '') {
+                    $appendCandidate($resolvedFromWaybill);
+                }
             }
         }
 
@@ -896,11 +1049,15 @@ class ShipmentManager
             ];
             $debug[] = '[LABEL] trying shipmentId=' . $candidateShipmentId . ' payload=' . json_encode($payload, JSON_UNESCAPED_UNICODE);
 
-            // Debug preflight: sprawdź, czy Allegro widzi shipment po ID.
-            $shipmentDetail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($candidateShipmentId));
-            $debug[] = '[LABEL] API GET /shipment-management/shipments/{id} shipmentId=' . $candidateShipmentId . ' code=' . (int)($shipmentDetail['code'] ?? 0) . ', ok=' . (!empty($shipmentDetail['ok']) ? '1' : '0');
-            if (!empty($shipmentDetail['ok']) && is_array($shipmentDetail['json'])) {
-                $debug[] = '[LABEL] shipment detail status=' . (string)($shipmentDetail['json']['status'] ?? '-') . ', waybill=' . (string)($shipmentDetail['json']['waybill'] ?? '-');
+            // Debug preflight: dla UUID sprawdź, czy Allegro widzi shipment po ID.
+            if ($this->looksLikeShipmentId($candidateShipmentId)) {
+                $shipmentDetail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($candidateShipmentId));
+                $debug[] = '[LABEL] API GET /shipment-management/shipments/{id} shipmentId=' . $candidateShipmentId . ' code=' . (int)($shipmentDetail['code'] ?? 0) . ', ok=' . (!empty($shipmentDetail['ok']) ? '1' : '0');
+                if (!empty($shipmentDetail['ok']) && is_array($shipmentDetail['json'])) {
+                    $debug[] = '[LABEL] shipment detail status=' . (string)($shipmentDetail['json']['status'] ?? '-') . ', waybill=' . (string)($shipmentDetail['json']['waybill'] ?? '-');
+                }
+            } else {
+                $debug[] = '[LABEL] skip shipment detail check for non-uuid candidate=' . $candidateShipmentId;
             }
 
             $resp = ['ok' => false, 'code' => 0, 'raw' => ''];
