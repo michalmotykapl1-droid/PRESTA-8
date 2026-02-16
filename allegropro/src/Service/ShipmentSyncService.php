@@ -192,6 +192,17 @@ class ShipmentSyncService
             $this->shipments->mergeWzaFieldsForOrder($accountId, $checkoutFormId);
         }
 
+        // Dodatkowa korekta historycznych rekordów: dla size_details=CUSTOM kopiuj shipment_id -> wza_shipment_uuid,
+        // jeśli wza_shipment_uuid jest puste. Dzięki temu dane są spójne dla dalszych operacji w module.
+        if (method_exists($this->shipments, 'backfillWzaUuidFromShipmentIdForCustom')) {
+            $fixed = $this->shipments->backfillWzaUuidFromShipmentIdForCustom($accountId, $checkoutFormId);
+            if ($debug) {
+                $debugLines[] = '[SYNC] backfill CUSTOM: wza_shipment_uuid <- shipment_id, updated=' . (int)$fixed;
+                // jeżeli debug był włączony, dopiszemy te linie jeszcze raz do cache debug, bo wcześniejszy persist mógł już zajść
+                $this->persistSyncDebug($checkoutFormId, $debugLines);
+            }
+        }
+
         if (method_exists($this->shipments, 'rebalanceSmartFlagsForOrder')) {
             $this->shipments->rebalanceSmartFlagsForOrder(
                 $accountId,

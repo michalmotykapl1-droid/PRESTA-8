@@ -88,7 +88,12 @@ class OrderDetailsProvider
         foreach ($shipmentsHistory as &$sh) {
             $wzaCommand = trim((string)($sh['wza_command_id'] ?? ''));
             $wzaUuid = trim((string)($sh['wza_shipment_uuid'] ?? ''));
-            $isModuleShipment = ($wzaCommand !== '' || $wzaUuid !== '');
+            // Za "utworzoną w module" uznajemy przesyłkę gdy:
+            // - mamy commandId (WZA create-command) lub
+            // - mamy prawdziwy UUID shipmentu (do etykiet WZA). 
+            // (Nie traktujemy dowolnego stringa w wza_shipment_uuid jako modułowego, bo czasem trzymamy tam kopię shipment_id.)
+            $isUuid = ($wzaUuid !== '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $wzaUuid));
+            $isModuleShipment = ($wzaCommand !== '' || $isUuid);
 
             $sh['can_download_label'] = $isModuleShipment;
             $sh['origin_is_module'] = $isModuleShipment ? 1 : 0;

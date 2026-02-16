@@ -700,6 +700,45 @@ class ShipmentRepository
         return $updatedTotal;
     }
 
+    /**
+     * Uzupełnia wza_shipment_uuid kopiując wartość z shipment_id
+     * WYŁĄCZNIE dla rekordów z size_details = CUSTOM.
+     *
+     * Użyteczne, gdy historycznie shipment_id zawiera identyfikator potrzebny później
+     * w innych operacjach Allegro, a kolumna wza_shipment_uuid pozostała pusta.
+     */
+    public function backfillWzaUuidFromShipmentIdForCustom(?int $accountId = null, ?string $checkoutFormId = null): int
+    {
+        if (!$this->columnExists('wza_shipment_uuid')) {
+            return 0;
+        }
+
+        $where = [];
+        if ($accountId !== null) {
+            $accountId = (int)$accountId;
+            if ($accountId > 0) {
+                $where[] = 'id_allegropro_account=' . $accountId;
+            }
+        }
+        if ($checkoutFormId !== null) {
+            $checkoutFormId = trim((string)$checkoutFormId);
+            if ($checkoutFormId !== '') {
+                $where[] = "checkout_form_id='" . pSQL($checkoutFormId) . "'";
+            }
+        }
+
+        $where[] = "(wza_shipment_uuid IS NULL OR wza_shipment_uuid='')";
+        $where[] = "shipment_id IS NOT NULL AND shipment_id != ''";
+        $where[] = "UPPER(size_details)='CUSTOM'";
+
+        $sql = 'UPDATE `' . $this->table . '` '
+            . 'SET wza_shipment_uuid = shipment_id, updated_at = \'' . pSQL(date('Y-m-d H:i:s')) . '\' '
+            . 'WHERE ' . implode(' AND ', $where);
+
+        Db::getInstance()->execute($sql);
+        return (int)Db::getInstance()->Affected_Rows();
+    }
+
 
     /**
      * Koryguje flagi SMART tak, aby nie oznaczać większej liczby przesyłek niż limit paczek.

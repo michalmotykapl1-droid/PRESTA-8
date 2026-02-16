@@ -130,6 +130,24 @@ $this->handleActions();
             }
             return;
         }
+
+        // Bulk fix: backfill wza_shipment_uuid from shipment_id for size_details=CUSTOM
+        if (Tools::isSubmit('allegropro_fix_custom_wza_uuid')) {
+            $id = (int)Tools::getValue('id_allegropro_account');
+            if ($id <= 0) {
+                $this->errors[] = $this->l('Wybierz konto.');
+                return;
+            }
+
+            if (!method_exists($this->shipments, 'backfillWzaUuidFromShipmentIdForCustom')) {
+                $this->errors[] = $this->l('Brak funkcji naprawy w tej wersji modułu.');
+                return;
+            }
+
+            $updated = (int)$this->shipments->backfillWzaUuidFromShipmentIdForCustom($id, null);
+            $this->confirmations[] = $this->l('Zaktualizowano rekordy: ') . (int)$updated;
+            return;
+        }
     }
 
     private function handleDownloadLabel()

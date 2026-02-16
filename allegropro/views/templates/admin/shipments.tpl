@@ -28,6 +28,21 @@
     </form>
   </div>
 
+  <div class="alert alert-warning">
+    <div><strong>Naprawa danych historycznych (CUSTOM):</strong></div>
+    <div class="help-block" style="margin-top:6px;">
+      Jeśli część starszych rekordów ma puste <code>wza_shipment_uuid</code>, a w <code>shipment_id</code> jest identyfikator potrzebny dalej w module,
+      możesz uzupełnić <code>wza_shipment_uuid = shipment_id</code> (tylko dla <code>size_details=CUSTOM</code>). 
+    </div>
+    <form method="post" action="{$admin_link|escape:'htmlall':'UTF-8'}" style="margin-top:8px;">
+      <input type="hidden" name="allegropro_fix_custom_wza_uuid" value="1" />
+      <input type="hidden" name="id_allegropro_account" value="{$allegropro_selected_account|intval}" />
+      <button class="btn btn-default" type="submit" onclick="return confirm('Uzupełnić wza_shipment_uuid = shipment_id dla size_details=CUSTOM (konto)?');">
+        <i class="icon icon-wrench"></i> Uzupełnij wza_shipment_uuid (CUSTOM)
+      </button>
+    </form>
+  </div>
+
   <h4>Oczekujące na przesyłkę</h4>
   <table class="table">
     <thead>
