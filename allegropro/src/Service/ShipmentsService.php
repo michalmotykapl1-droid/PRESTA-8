@@ -33,7 +33,8 @@ class ShipmentsService
         if (!$resp['ok'] || !is_array($resp['json'])) {
             return $resp;
         }
-        $services = $resp['json']['deliveryServices'] ?? [];
+        // Allegro: w dokumentacji lista jest w polu "services".
+        $services = $resp['json']['services'] ?? ($resp['json']['deliveryServices'] ?? $resp['json']);
         if (is_array($services)) {
             foreach ($services as $s) {
                 if (is_array($s)) {

@@ -215,24 +215,55 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     // ============================================================
 
     public function displayAjaxCreateShipment() {
-        $cfId = Tools::getValue('checkout_form_id');
-        $sizeCode = Tools::getValue('size_code');
-        $weight = Tools::getValue('weight');
+        $cfId = (string)Tools::getValue('checkout_form_id');
+        $sizeCode = (string)Tools::getValue('size_code');
+        $weight = (string)Tools::getValue('weight');
         $isSmart = (int)Tools::getValue('is_smart');
+        $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
 
-        if (!$cfId) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id.']));
+        if ($cfId === '') {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Brak checkout_form_id.',
+                'debug_enabled' => $debug,
+                'debug_lines' => $debug ? ['[CREATE] brak checkout_form_id'] : [],
+            ]));
         }
 
         $account = $this->getValidAccountFromRequest();
         if (!$account) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Nieprawidłowe konto Allegro.',
+                'debug_enabled' => $debug,
+                'debug_lines' => $debug ? ['[CREATE] nieprawidłowe konto Allegro'] : [],
+            ]));
         }
 
         $manager = $this->getShipmentManager();
-        $res = $manager->createShipment($account, $cfId, ['size_code' => $sizeCode, 'weight' => $weight, 'smart' => $isSmart]);
-        if ($res['ok']) $this->ajaxDie(json_encode(['success' => true]));
-        else $this->ajaxDie(json_encode(['success' => false, 'message' => $res['message']]));
+        $res = $manager->createShipment($account, $cfId, [
+            'size_code' => $sizeCode,
+            'weight' => $weight,
+            'smart' => $isSmart,
+            'debug' => $debug ? 1 : 0,
+        ]);
+
+        if (!empty($res['ok'])) {
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'message' => (string)($res['message'] ?? 'Przesyłka została utworzona.'),
+                'shipment_id' => (string)($res['shipmentId'] ?? ''),
+                'debug_enabled' => $debug,
+                'debug_lines' => is_array($res['debug_lines'] ?? null) ? array_values($res['debug_lines']) : [],
+            ]));
+        }
+
+        $this->ajaxDie(json_encode([
+            'success' => false,
+            'message' => (string)($res['message'] ?? 'Nie udało się utworzyć przesyłki.'),
+            'debug_enabled' => $debug,
+            'debug_lines' => is_array($res['debug_lines'] ?? null) ? array_values($res['debug_lines']) : [],
+        ]));
     }
 
     public function displayAjaxCancelShipment() {

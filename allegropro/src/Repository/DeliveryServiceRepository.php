@@ -15,9 +15,40 @@ class DeliveryServiceRepository
 
     public function upsert(int $accountId, array $service): void
     {
-        $dmId = (string)($service['deliveryMethodId'] ?? '');
-        $dsId = (string)($service['id'] ?? '');
-        if (!$dmId || !$dsId) return;
+        // API /shipment-management/delivery-services
+        // Zależnie od wersji dokumentacji/zmian Allegro, pojedynczy rekord może wyglądać np.:
+        // 1) {"id": {"deliveryMethodId": "...", "credentialsId": "..."}, "carrierId": "INPOST", ...}
+        // 2) starsze warianty: {"deliveryMethodId": "...", "credentials": {"id": "..."}, "additionalProperties": {...}}
+        $idObj = $service['id'] ?? null;
+
+        $dmId = '';
+        if (isset($service['deliveryMethodId'])) {
+            $dmId = (string)$service['deliveryMethodId'];
+        } elseif (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
+            $dmId = (string)$idObj['deliveryMethodId'];
+        } elseif (is_array($service['deliveryMethod'] ?? null) && isset($service['deliveryMethod']['id'])) {
+            $dmId = (string)$service['deliveryMethod']['id'];
+        }
+
+        $credentialsId = null;
+        if (isset($service['credentialsId'])) {
+            $credentialsId = (string)$service['credentialsId'];
+        } elseif (is_array($idObj) && isset($idObj['credentialsId'])) {
+            $credentialsId = (string)$idObj['credentialsId'];
+        } elseif (is_array($service['credentials'] ?? null) && isset($service['credentials']['id'])) {
+            $credentialsId = (string)$service['credentials']['id'];
+        }
+
+        // "delivery_service_id" trzymamy jako stabilny identyfikator techniczny w DB.
+        // W nowym kształcie API nie ma jednego stringowego id – jest para (deliveryMethodId, credentialsId).
+        $dsId = $dmId;
+        if (is_string($credentialsId) && $credentialsId !== '' && strtolower($credentialsId) !== 'null') {
+            $dsId .= ':' . $credentialsId;
+        }
+
+        if (!$dmId || !$dsId) {
+            return;
+        }
 
         $existing = Db::getInstance()->getValue(
             'SELECT id_allegropro_delivery_service FROM `'.$this->table.'` WHERE id_allegropro_account='.(int)$accountId." AND delivery_method_id='".pSQL($dmId)."'"
@@ -27,11 +58,13 @@ class DeliveryServiceRepository
             'id_allegropro_account' => (int)$accountId,
             'delivery_method_id' => pSQL($dmId),
             'delivery_service_id' => pSQL($dsId),
-            'credentials_id' => isset($service['credentials']['id']) ? pSQL((string)$service['credentials']['id']) : null,
+            'credentials_id' => ($credentialsId && strtolower($credentialsId) !== 'null') ? pSQL((string)$credentialsId) : null,
             'name' => isset($service['name']) ? pSQL((string)$service['name']) : null,
             'carrier_id' => isset($service['carrierId']) ? pSQL((string)$service['carrierId']) : null,
             'owner' => isset($service['owner']) ? pSQL((string)$service['owner']) : null,
-            'additional_properties_json' => isset($service['additionalProperties']) ? pSQL(json_encode($service['additionalProperties'], JSON_UNESCAPED_UNICODE), true) : null,
+            'additional_properties_json' => isset($service['additionalProperties'])
+                ? pSQL(json_encode($service['additionalProperties'], JSON_UNESCAPED_UNICODE), true)
+                : (isset($service['additional_properties']) ? pSQL(json_encode($service['additional_properties'], JSON_UNESCAPED_UNICODE), true) : null),
             'updated_at' => pSQL(date('Y-m-d H:i:s')),
         ];
 

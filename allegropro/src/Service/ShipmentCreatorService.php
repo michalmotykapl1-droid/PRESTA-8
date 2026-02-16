@@ -2,6 +2,7 @@
 namespace AllegroPro\Service;
 
 use AllegroPro\Repository\OrderRepository;
+use AllegroPro\Repository\DeliveryServiceRepository;
 use AllegroPro\Repository\ShipmentRepository;
 use Configuration;
 use Db;
@@ -12,25 +13,86 @@ class ShipmentCreatorService
     private AllegroApiClient $api;
     private LabelConfig $config;
     private OrderRepository $orders;
+    private DeliveryServiceRepository $deliveryServices;
     private ShipmentRepository $shipments;
 
-    public function __construct(AllegroApiClient $api, LabelConfig $config, OrderRepository $orders, ShipmentRepository $shipments)
+    public function __construct(
+        AllegroApiClient $api,
+        LabelConfig $config,
+        OrderRepository $orders,
+        DeliveryServiceRepository $deliveryServices,
+        ShipmentRepository $shipments
+    )
     {
         $this->api = $api;
         $this->config = $config;
         $this->orders = $orders;
+        $this->deliveryServices = $deliveryServices;
         $this->shipments = $shipments;
     }
 
     public function createShipment(array $account, string $checkoutFormId, array $params): array
     {
+        $debug = !empty($params['debug']);
+        $debugLines = [];
+
         $order = $this->orders->getDecodedOrder((int)$account['id_allegropro_account'], $checkoutFormId);
         if (!$order) {
-            return ['ok' => false, 'message' => 'Nie znaleziono zamówienia w bazie.'];
+            return ['ok' => false, 'message' => 'Nie znaleziono zamówienia w bazie.', 'debug_lines' => $debug ? ['[CREATE] Brak zamówienia w bazie. Najpierw pobierz zamówienia z Allegro.'] : []];
         }
 
         $deliveryMethodId = $order['delivery']['method']['id'] ?? null;
         $accountId = (int)($account['id_allegropro_account'] ?? 0);
+
+        if ($debug) {
+            $debugLines[] = '[CREATE] start checkoutFormId=' . $checkoutFormId . ', accountId=' . $accountId;
+            $debugLines[] = '[CREATE] delivery.method.id=' . (string)$deliveryMethodId;
+            $debugLines[] = '[CREATE] delivery.method.name=' . (string)($order['delivery']['method']['name'] ?? '');
+        }
+
+        // Dociągnij ustawienia delivery-service (credentialsId / additionalProperties)
+        $service = null;
+        if (is_string($deliveryMethodId) && $deliveryMethodId !== '') {
+            $service = $this->deliveryServices->findByDeliveryMethod($accountId, (string)$deliveryMethodId);
+            if (!$service) {
+                // Fallback: automatycznie odśwież delivery-services, jeśli nie ma mapowania.
+                if ($debug) {
+                    $debugLines[] = '[CREATE] Brak delivery-service w bazie dla deliveryMethodId. Próbuję auto-refresh /shipment-management/delivery-services...';
+                }
+                $before = $this->deliveryServices->countForAccount($accountId);
+                $refreshInfo = $this->refreshDeliveryServices($account);
+                $after = $this->deliveryServices->countForAccount($accountId);
+                if ($debug) {
+                    $debugLines[] = '[CREATE] delivery-services refresh: HTTP ' . (int)($refreshInfo['code'] ?? 0)
+                        . ', ok=' . (!empty($refreshInfo['ok']) ? '1' : '0')
+                        . ', records: ' . $before . ' → ' . $after
+                        . (!empty($refreshInfo['shape']) ? (', shape=' . $refreshInfo['shape']) : '');
+                }
+                $service = $this->deliveryServices->findByDeliveryMethod($accountId, (string)$deliveryMethodId);
+            }
+        }
+
+        $credentialsId = null;
+        $additionalProps = null;
+        if (is_array($service)) {
+            $credentialsId = !empty($service['credentials_id']) ? (string)$service['credentials_id'] : null;
+            if (!empty($service['additional_properties_json'])) {
+                $decoded = json_decode((string)$service['additional_properties_json'], true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    $additionalProps = $decoded;
+                }
+            }
+        }
+
+        if ($debug) {
+            $debugLines[] = '[CREATE] delivery-service: ' . ($service ? 'OK' : 'BRAK') . (
+                $service ? (' (owner=' . (string)($service['owner'] ?? '-') . ', carrier_id=' . (string)($service['carrier_id'] ?? '-') . ')') : ''
+            );
+            $debugLines[] = '[CREATE] credentialsId: ' . ($credentialsId ? $credentialsId : '(brak)');
+            if ($additionalProps) {
+                $debugLines[] = '[CREATE] additionalProperties (z delivery-services): ' . json_encode($additionalProps, JSON_UNESCAPED_UNICODE);
+            }
+        }
 
         try {
             $cfResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
@@ -38,7 +100,10 @@ class ShipmentCreatorService
                 $smartData = $this->extractSmartDataFromCheckoutForm($cfResp['json']);
                 $packageLimit = $smartData['package_count'] ?? null;
 
-                if (is_int($packageLimit) && $packageLimit > 0) {
+                // Ograniczenie liczby paczek z checkout-form dotyczy wyłącznie przesyłek SMART.
+                // Dla zwykłych przesyłek (smart=0) Allegro pozwala tworzyć kolejne etykiety.
+                $requestIsSmart = !empty($params['smart']);
+                if ($requestIsSmart && is_int($packageLimit) && $packageLimit > 0) {
                     $activeCount = method_exists($this->shipments, 'countActiveShipmentsForOrder')
                         ? (int)$this->shipments->countActiveShipmentsForOrder($accountId, $checkoutFormId)
                         : (int)count($this->shipments->findAllByOrderForAccount($accountId, $checkoutFormId));
@@ -46,7 +111,7 @@ class ShipmentCreatorService
                     if ($activeCount >= $packageLimit) {
                         return [
                             'ok' => false,
-                            'message' => 'Limit paczek dla tej przesyłki został osiągnięty (' . $activeCount . '/' . $packageLimit . '). Usuń nadmiarową przesyłkę (czerwony X) i spróbuj ponownie.'
+                            'message' => 'Limit paczek SMART dla tej przesyłki został osiągnięty (' . $activeCount . '/' . $packageLimit . '). Wyłącz SMART albo usuń nadmiarową przesyłkę (czerwony X) i spróbuj ponownie.'
                         ];
                     }
                 }
@@ -58,8 +123,21 @@ class ShipmentCreatorService
 
         try {
             $payload = $this->buildPayload($deliveryMethodId, $order, $pkgDims);
+
+            // Dla części metod (np. InPost na umowie własnej) Allegro wymaga credentialsId.
+            if ($credentialsId) {
+                $payload['credentialsId'] = $credentialsId;
+            }
+
+            // InPost: wymagane przekazanie metody nadania (inpost#sendingMethod), jeśli zwrócone w delivery-services.
+            $payload = $this->applyInpostSendingMethod($payload, $order, $additionalProps, $debug, $debugLines);
         } catch (Exception $e) {
-            return ['ok' => false, 'message' => $e->getMessage()];
+            return ['ok' => false, 'message' => $e->getMessage(), 'debug_lines' => $debug ? $debugLines : []];
+        }
+
+        if ($debug) {
+            $debugLines[] = '[API] POST /shipment-management/shipments/create-commands';
+            $debugLines[] = '[API] payload.input=' . json_encode($payload, JSON_UNESCAPED_UNICODE);
         }
 
         $resp = $this->api->postJson($account, '/shipment-management/shipments/create-commands', ['input' => $payload]);
@@ -72,7 +150,12 @@ class ShipmentCreatorService
             if (isset($resp['json']['errors'][0]['path'])) {
                 $err .= ' [Pole: ' . $resp['json']['errors'][0]['path'] . ']';
             }
-            return ['ok' => false, 'message' => 'Błąd Allegro: ' . $err];
+            if ($debug) {
+                $debugLines[] = '[API] HTTP ' . (int)$resp['code'] . ' ok=0';
+                $debugLines[] = '[API] response=' . (is_string($resp['raw'] ?? null) ? (string)$resp['raw'] : json_encode($resp['json'], JSON_UNESCAPED_UNICODE));
+                $debugLines = array_merge($debugLines, $this->troubleshootHints($err, $service));
+            }
+            return ['ok' => false, 'message' => 'Błąd Allegro: ' . $err, 'debug_lines' => $debug ? $debugLines : []];
         }
 
         $cmdId = $resp['json']['id'] ?? ($resp['json']['commandId'] ?? null);
@@ -100,7 +183,13 @@ class ShipmentCreatorService
 
             if ($status === 'ERROR') {
                 $errMsg = $statusResp['json']['errors'][0]['message'] ?? 'Błąd tworzenia';
-                return ['ok' => false, 'message' => 'Błąd Allegro (Async): ' . $errMsg];
+                if ($debug) {
+                    $debugLines[] = '[API] GET /shipment-management/shipments/create-commands/{commandId}: status=ERROR';
+                    $debugLines[] = '[API] error=' . $errMsg;
+                    $debugLines[] = '[API] response=' . json_encode($statusResp['json'], JSON_UNESCAPED_UNICODE);
+                    $debugLines = array_merge($debugLines, $this->troubleshootHints($errMsg, $service));
+                }
+                return ['ok' => false, 'message' => 'Błąd Allegro (Async): ' . $errMsg, 'debug_lines' => $debug ? $debugLines : []];
             }
         }
 
@@ -183,10 +272,113 @@ class ShipmentCreatorService
                 $this->shipments->mergeWzaFieldsForOrder((int)$account['id_allegropro_account'], $checkoutFormId);
             }
 
-            return ['ok' => true, 'shipmentId' => $shipmentId];
+            return ['ok' => true, 'shipmentId' => $shipmentId, 'debug_lines' => $debug ? $debugLines : []];
         }
 
-        return ['ok' => true, 'message' => 'Przesyłka w trakcie przetwarzania (Command ID: '.$cmdId.')'];
+        return ['ok' => true, 'message' => 'Przesyłka w trakcie przetwarzania (Command ID: '.$cmdId.')', 'debug_lines' => $debug ? $debugLines : []];
+    }
+
+    private function refreshDeliveryServices(array $account): array
+    {
+        try {
+            $resp = $this->api->get($account, '/shipment-management/delivery-services', ['limit' => 500]);
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                return $resp;
+            }
+            // Allegro w dokumentacji pokazuje klucz "services" (nie "deliveryServices").
+            $services = null;
+            $shape = '';
+            if (isset($resp['json']['services'])) {
+                $services = $resp['json']['services'];
+                $shape = 'services';
+            } elseif (isset($resp['json']['deliveryServices'])) {
+                $services = $resp['json']['deliveryServices'];
+                $shape = 'deliveryServices';
+            } else {
+                // awaryjnie: jeśli API zwróciło listę bez obudowy
+                $services = $resp['json'];
+                $shape = 'raw';
+            }
+            if (!is_array($services)) {
+                $resp['shape'] = $shape;
+                return $resp;
+            }
+            foreach ($services as $s) {
+                if (is_array($s)) {
+                    $this->deliveryServices->upsert((int)($account['id_allegropro_account'] ?? 0), $s);
+                }
+            }
+            $resp['shape'] = $shape;
+            return $resp;
+        } catch (Exception $e) {
+            return ['ok' => false, 'code' => 0, 'raw' => (string)$e->getMessage(), 'json' => null];
+        }
+    }
+
+    /**
+     * InPost od 2024/2025 wymaga jawnego wskazania metody nadania.
+     * Do końca lutego 2026 wspierane jest additionalProperties.inpost#sendingMethod.
+     */
+    private function applyInpostSendingMethod(array $payload, array $order, ?array $additionalProps, bool $debug, array &$debugLines): array
+    {
+        $hasPickup = !empty($order['delivery']['pickupPoint']['id']);
+
+        // Jeżeli delivery-services zwróciło klucz inpost#sendingMethod (często jako lista), wybierz sensowną wartość.
+        if (is_array($additionalProps) && array_key_exists('inpost#sendingMethod', $additionalProps)) {
+            $supported = $additionalProps['inpost#sendingMethod'];
+            $chosen = null;
+
+            if (is_array($supported)) {
+                // Preferencje: paczkomat -> parcel_locker / any_point, kurier -> dispatch_order
+                $pref = $hasPickup ? ['parcel_locker', 'any_point', 'pop'] : ['dispatch_order'];
+                foreach ($pref as $p) {
+                    if (in_array($p, $supported, true)) {
+                        $chosen = $p;
+                        break;
+                    }
+                }
+                if (!$chosen && !empty($supported)) {
+                    $chosen = (string)reset($supported);
+                }
+            } elseif (is_string($supported) && $supported !== '') {
+                $chosen = $supported;
+            }
+
+            if ($chosen) {
+                $payload['additionalProperties'] = $payload['additionalProperties'] ?? [];
+                if (!is_array($payload['additionalProperties'])) {
+                    $payload['additionalProperties'] = [];
+                }
+                $payload['additionalProperties']['inpost#sendingMethod'] = $chosen;
+
+                if ($debug) {
+                    $debugLines[] = '[CREATE] InPost: ustawiono additionalProperties.inpost#sendingMethod=' . $chosen;
+                }
+            }
+        }
+
+        return $payload;
+    }
+
+    private function troubleshootHints(string $errMsg, ?array $service): array
+    {
+        $hints = [];
+        $msgLower = mb_strtolower($errMsg);
+
+        // Najczęstszy problem: brak credentialsId dla metod z umową własną (często InPost).
+        if (strpos($msgLower, 'no inpost credentials') !== false || strpos($msgLower, 'credentials') !== false) {
+            $hints[] = '';
+            $hints[] = '[HINT] Ten błąd zwykle oznacza brak poprawnie dodanej integracji/poświadczeń do Wysyłam z Allegro dla InPost.';
+            $hints[] = '[HINT] 1) Allegro Sales Center → Wysyłam z Allegro → Integracja z InPost → dodaj token ShipX (InPost) i zapisz.';
+            $hints[] = '[HINT] 2) W module AllegroPro: wejdź w „Przesyłki” i kliknij „Odśwież delivery services” dla tego konta.';
+            $hints[] = '[HINT] 3) Upewnij się, że dla tej metody dostawy w tabeli dxna_allegropro_delivery_service pole credentials_id NIE jest puste (wtedy API wie jaką umowę wybrać).';
+            if (is_array($service)) {
+                $hints[] = '[HINT] delivery-service owner=' . (string)($service['owner'] ?? '-') . ', carrier_id=' . (string)($service['carrier_id'] ?? '-') . ', credentials_id=' . (string)($service['credentials_id'] ?? '(brak)');
+            }
+            $hints[] = '[HINT] Jeżeli to Paczkomat/Punkt InPost: upewnij się, że w delivery-services jest zwrócone additionalProperties.inpost#sendingMethod i że moduł je przekazuje (parcel_locker/any_point).';
+        }
+
+        return $hints;
     }
 
     private function normalizeDateTime($value): ?string
@@ -344,9 +536,11 @@ class ShipmentCreatorService
     {
         if (!empty($params['size_code'])) {
             switch ($params['size_code']) {
-                case 'A': return ['height' => 8, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'BOX'];
-                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'BOX'];
-                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'BOX'];
+                // Allegro API akceptuje tylko: DOX|PACKAGE|PALLET|OTHER.
+                // Dla gabarytów A/B/C (np. paczkomaty) przekazujemy PACKAGE + wymiary.
+                case 'A': return ['height' => 8, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
+                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
+                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
             }
         }
 
@@ -395,10 +589,12 @@ class ShipmentCreatorService
             'phone' => $addr['phoneNumber'] ?? $order['buyer']['phoneNumber']
         ];
 
-        $receiver['phone'] = preg_replace('/[^0-9+]/', '', $receiver['phone']);
-        if (strlen($receiver['phone']) == 9) {
-            $receiver['phone'] = '+48' . $receiver['phone'];
+        $receiverPhone = (string)($receiver['phone'] ?? '');
+        $receiverPhone = preg_replace('/[^0-9+]/', '', $receiverPhone);
+        if (strlen($receiverPhone) == 9) {
+            $receiverPhone = '+48' . $receiverPhone;
         }
+        $receiver['phone'] = $receiverPhone;
 
         if (!empty($addr['companyName'])) {
             $receiver['company'] = $addr['companyName'];

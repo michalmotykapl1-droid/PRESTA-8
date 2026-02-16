@@ -111,12 +111,23 @@
                         <div class="card border mb-3">
                             <div class="card-body p-2">
                                 <label class="mb-1"><strong>Nadaj nową paczkę:</strong></label>
-                                <div class="input-group mb-2">
-                                    <input type="text" id="shipment_weight_input" class="form-control" value="1.0" placeholder="Waga (kg)">
-                                    <div class="input-group-append">
-                                        <button class="btn btn-info" type="button" id="btnCreateShipment">Nadaj Kurierem</button>
+                                <div class="form-row mb-2">
+                                    <div class="col-md-4 mb-2 mb-md-0">
+                                        <select id="shipment_size_select" class="form-control">
+                                            <option value="CUSTOM" selected>Własny gabaryt (waga)</option>
+                                            <option value="A">Gabaryt A (Allegro)</option>
+                                            <option value="B">Gabaryt B (Allegro)</option>
+                                            <option value="C">Gabaryt C (Allegro)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2 mb-md-0">
+                                        <input type="text" id="shipment_weight_input" class="form-control" value="1.0" placeholder="Waga (kg)">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
                                     </div>
                                 </div>
+                                <small class="form-text text-muted mb-2">Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.</small>
                                 <div class="form-check">
                                     <input type="checkbox" id="is_smart_shipment" class="form-check-input" {if $allegro_data.smart_left <= 0}disabled{/if}>
                                     <label for="is_smart_shipment" class="form-check-label">Użyj Allegro Smart! (jeśli dostępny)</label>
@@ -291,8 +302,13 @@ document.addEventListener("DOMContentLoaded", function() {
     if(btnCreate){
         btnCreate.addEventListener('click', function(e){
             e.preventDefault();
-            var weight = document.getElementById('shipment_weight_input').value;
+            var weightInput = document.getElementById('shipment_weight_input');
+            var sizeSelect = document.getElementById('shipment_size_select');
+            var weight = weightInput ? weightInput.value : '';
+            var sizeCode = sizeSelect ? sizeSelect.value : 'CUSTOM';
             var isSmart = document.getElementById('is_smart_shipment').checked;
+            var dbgToggle = document.getElementById('sync_shipments_debug');
+            var debugEnabled = dbgToggle ? dbgToggle.checked : false;
             var thisBtn = this;
             thisBtn.disabled = true;
             thisBtn.innerText = 'Tworzenie...';
@@ -301,7 +317,9 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append('checkout_form_id', cfId);
             formData.append('id_allegropro_account', accId);
             formData.append('weight', weight);
+            formData.append('size_code', sizeCode);
             formData.append('is_smart', isSmart ? 1 : 0);
+            formData.append('debug', debugEnabled ? 1 : 0);
 
             fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=create_shipment&ajax=1', {
                 method: 'POST',
@@ -309,6 +327,15 @@ document.addEventListener("DOMContentLoaded", function() {
             })
             .then(res => res.json())
             .then(data => {
+                // Debug box (używamy tego samego panelu co dla "Odśwież przesyłki")
+                if(debugEnabled){
+                    var dbgBox = document.getElementById('ship_sync_debug');
+                    if(dbgBox && Array.isArray(data.debug_lines) && data.debug_lines.length){
+                        dbgBox.style.display = 'block';
+                        dbgBox.innerText = data.debug_lines.join("\n");
+                    }
+                }
+
                 alert(data.message || (data.success ? 'Sukces!' : 'Błąd.'));
                 if(data.success){
                     setTimeout(() => location.reload(), 1500); 
@@ -317,9 +344,25 @@ document.addEventListener("DOMContentLoaded", function() {
             .catch(() => alert('Błąd połączenia.'))
             .finally(() => {
                 thisBtn.disabled = false;
-                thisBtn.innerText = 'Nadaj Kurierem';
+                thisBtn.innerText = 'Utwórz przesyłkę';
             });
         });
+    }
+
+    var sizeSelect = document.getElementById('shipment_size_select');
+    var weightInput = document.getElementById('shipment_weight_input');
+    if (sizeSelect && weightInput) {
+        var updateWeightAvailability = function() {
+            var isCustom = sizeSelect.value === 'CUSTOM';
+            weightInput.disabled = !isCustom;
+            if (!isCustom) {
+                weightInput.classList.add('bg-light');
+            } else {
+                weightInput.classList.remove('bg-light');
+            }
+        };
+        sizeSelect.addEventListener('change', updateWeightAvailability);
+        updateWeightAvailability();
     }
 
     // --- 3. Anulowanie Przesyłki ---

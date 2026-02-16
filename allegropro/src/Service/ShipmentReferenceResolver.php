@@ -24,7 +24,9 @@ class ShipmentReferenceResolver
             $value = $decoded;
         }
 
-        return $this->looksLikeShipmentId($value) || $this->looksLikeCreateCommandId($value);
+        return $this->looksLikeShipmentId($value)
+            || $this->looksLikeCreateCommandId($value)
+            || $this->looksLikeWaybill($value);
     }
 
     public function looksLikeShipmentId(string $value): bool
