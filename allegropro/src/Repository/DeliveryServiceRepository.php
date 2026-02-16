@@ -89,4 +89,43 @@ class DeliveryServiceRepository
     {
         return (int) Db::getInstance()->getValue('SELECT COUNT(*) FROM `'.$this->table.'` WHERE id_allegropro_account='.(int)$accountId);
     }
+
+    /**
+     * Zwraca przykładową usługę dla danego przewoźnika z niepustym credentials_id (jeśli istnieje).
+     * Używane jako fallback, gdy nie potrafimy zmapować deliveryMethodId z zamówienia.
+     */
+    public function findFirstWithCredentialsByCarrier(int $accountId, string $carrierId): ?array
+    {
+        $carrierId = strtoupper(trim($carrierId));
+        if ($carrierId === '') {
+            return null;
+        }
+        $q = new DbQuery();
+        $q->select('*')
+            ->from('allegropro_delivery_service')
+            ->where('id_allegropro_account='.(int)$accountId)
+            ->where("carrier_id='".pSQL($carrierId)."'")
+            ->where("credentials_id IS NOT NULL AND credentials_id != ''")
+            ->orderBy('updated_at DESC');
+        $row = Db::getInstance()->getRow($q);
+        return $row ?: null;
+    }
+
+    /**
+     * Szybkie statystyki w debug: ile usług ma dany carrier i ile z nich ma credentials_id.
+     */
+    public function getCarrierStats(int $accountId, string $carrierId): array
+    {
+        $carrierId = strtoupper(trim($carrierId));
+        if ($carrierId === '') {
+            return ['total' => 0, 'with_credentials' => 0];
+        }
+        $total = (int)Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM `'.$this->table.'` WHERE id_allegropro_account='.(int)$accountId." AND carrier_id='".pSQL($carrierId)."'"
+        );
+        $withCred = (int)Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM `'.$this->table.'` WHERE id_allegropro_account='.(int)$accountId." AND carrier_id='".pSQL($carrierId)."' AND credentials_id IS NOT NULL AND credentials_id != ''"
+        );
+        return ['total' => $total, 'with_credentials' => $withCred];
+    }
 }

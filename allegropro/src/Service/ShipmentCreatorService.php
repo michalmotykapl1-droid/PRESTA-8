@@ -42,12 +42,32 @@ class ShipmentCreatorService
         }
 
         $deliveryMethodId = $order['delivery']['method']['id'] ?? null;
+        $hasPickupPoint = !empty($order['delivery']['pickupPoint']['id']);
         $accountId = (int)($account['id_allegropro_account'] ?? 0);
+
+        // Zawsze pobieramy checkout-form (to jest źródło prawdy) – przyda się też do limitów SMART.
+        $cfJson = null;
+        try {
+            $cfResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
+            if (!empty($cfResp['ok']) && is_array($cfResp['json'])) {
+                $cfJson = $cfResp['json'];
+                $liveMethodId = $cfJson['delivery']['method']['id'] ?? null;
+                if (is_string($liveMethodId) && $liveMethodId !== '' && $liveMethodId !== $deliveryMethodId) {
+                    if ($debug) {
+                        $debugLines[] = '[CREATE] delivery.method.id (DB)=' . (string)$deliveryMethodId;
+                        $debugLines[] = '[CREATE] delivery.method.id (checkout-form)=' . (string)$liveMethodId . ' → używam wartości z checkout-form';
+                    }
+                    $deliveryMethodId = $liveMethodId;
+                }
+            }
+        } catch (Exception $e) {
+            // silent
+        }
 
         if ($debug) {
             $debugLines[] = '[CREATE] start checkoutFormId=' . $checkoutFormId . ', accountId=' . $accountId;
             $debugLines[] = '[CREATE] delivery.method.id=' . (string)$deliveryMethodId;
-            $debugLines[] = '[CREATE] delivery.method.name=' . (string)($order['delivery']['method']['name'] ?? '');
+            $debugLines[] = '[CREATE] delivery.method.name=' . (string)($order['delivery']['method']['name'] ?? ($cfJson['delivery']['method']['name'] ?? ''));
         }
 
         // Dociągnij ustawienia delivery-service (credentialsId / additionalProperties)
@@ -95,9 +115,8 @@ class ShipmentCreatorService
         }
 
         try {
-            $cfResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
-            if (!empty($cfResp['ok']) && is_array($cfResp['json'])) {
-                $smartData = $this->extractSmartDataFromCheckoutForm($cfResp['json']);
+            if (is_array($cfJson)) {
+                $smartData = $this->extractSmartDataFromCheckoutForm($cfJson);
                 $packageLimit = $smartData['package_count'] ?? null;
 
                 // Ograniczenie liczby paczek z checkout-form dotyczy wyłącznie przesyłek SMART.
@@ -121,76 +140,152 @@ class ShipmentCreatorService
 
         $pkgDims = $this->resolvePackageDimensions($params);
 
-        try {
-            $payload = $this->buildPayload($deliveryMethodId, $order, $pkgDims);
-
-            // Dla części metod (np. InPost na umowie własnej) Allegro wymaga credentialsId.
-            if ($credentialsId) {
-                $payload['credentialsId'] = $credentialsId;
+        // Fallback: jeśli nie znaleźliśmy mapowania dla deliveryMethodId, to dla debug pokaż statystyki INPOST.
+        $inpostStats = $debug ? $this->deliveryServices->getCarrierStats($accountId, 'INPOST') : null;
+        $inpostCandidate = null;
+        if (($debug || $hasPickupPoint) && is_array($inpostStats) && (int)($inpostStats['with_credentials'] ?? 0) > 0) {
+            $inpostCandidate = $this->deliveryServices->findFirstWithCredentialsByCarrier($accountId, 'INPOST');
+        }
+        if ($debug && is_array($inpostStats)) {
+            $debugLines[] = '[CREATE] INPOST delivery-services in DB: total=' . (int)$inpostStats['total'] . ', with_credentials=' . (int)$inpostStats['with_credentials'];
+            if (is_array($inpostCandidate)) {
+                $debugLines[] = '[CREATE] INPOST candidate: delivery_method_id=' . (string)($inpostCandidate['delivery_method_id'] ?? '-') . ', credentials_id=' . (string)($inpostCandidate['credentials_id'] ?? '-') . ', owner=' . (string)($inpostCandidate['owner'] ?? '-');
             }
+        }
 
-            // InPost: wymagane przekazanie metody nadania (inpost#sendingMethod), jeśli zwrócone w delivery-services.
-            $payload = $this->applyInpostSendingMethod($payload, $order, $additionalProps, $debug, $debugLines);
+        try {
+            $payloadBase = $this->buildPayload($deliveryMethodId, $order, $pkgDims);
+            // Jeśli mamy mapowanie – używamy credentialsId z dopasowanej usługi.
+            if ($credentialsId) {
+                $payloadBase['credentialsId'] = $credentialsId;
+            }
+            // Dodatkowe properties z delivery-services (np. inpost#sendingMethod, jeśli Allegro to zwraca dla tej usługi)
+            $payloadBase = $this->applyInpostSendingMethod($payloadBase, $order, $additionalProps, $debug, $debugLines);
         } catch (Exception $e) {
             return ['ok' => false, 'message' => $e->getMessage(), 'debug_lines' => $debug ? $debugLines : []];
         }
 
-        if ($debug) {
-            $debugLines[] = '[API] POST /shipment-management/shipments/create-commands';
-            $debugLines[] = '[API] payload.input=' . json_encode($payload, JSON_UNESCAPED_UNICODE);
-        }
-
-        $resp = $this->api->postJson($account, '/shipment-management/shipments/create-commands', ['input' => $payload]);
-
-        if (!$resp['ok']) {
-            $err = $resp['json']['errors'][0]['message'] ?? ('Kod HTTP: ' . $resp['code']);
-            if (isset($resp['json']['errors'][0]['details'])) {
-                $err .= ' (' . $resp['json']['errors'][0]['details'] . ')';
-            }
-            if (isset($resp['json']['errors'][0]['path'])) {
-                $err .= ' [Pole: ' . $resp['json']['errors'][0]['path'] . ']';
-            }
-            if ($debug) {
-                $debugLines[] = '[API] HTTP ' . (int)$resp['code'] . ' ok=0';
-                $debugLines[] = '[API] response=' . (is_string($resp['raw'] ?? null) ? (string)$resp['raw'] : json_encode($resp['json'], JSON_UNESCAPED_UNICODE));
-                $debugLines = array_merge($debugLines, $this->troubleshootHints($err, $service));
-            }
-            return ['ok' => false, 'message' => 'Błąd Allegro: ' . $err, 'debug_lines' => $debug ? $debugLines : []];
-        }
-
-        $cmdId = $resp['json']['id'] ?? ($resp['json']['commandId'] ?? null);
-        if (empty($cmdId)) {
-            return ['ok' => false, 'message' => 'Allegro nie zwróciło ID komendy tworzenia przesyłki.'];
-        }
-
+        // Tworzenie przesyłki: wykonujemy maks. 2 próby (np. dołożenie credentialsId dla InPost).
+        $attempt = 0;
+        $maxAttempts = 2;
         $shipmentId = null;
         $finalStatus = 'IN_PROGRESS';
 
-        for ($i = 0; $i < 10; $i++) {
-            usleep(1000000);
+        while ($attempt < $maxAttempts) {
+            $payload = $payloadBase;
 
-            $statusResp = $this->api->get($account, '/shipment-management/shipments/create-commands/' . $cmdId);
-            if (!$statusResp['ok']) {
-                continue;
+            if ($debug) {
+                $debugLines[] = '[API] POST /shipment-management/shipments/create-commands (attempt ' . ($attempt + 1) . '/' . $maxAttempts . ')';
+                $debugLines[] = '[API] payload.input=' . json_encode($payload, JSON_UNESCAPED_UNICODE);
             }
 
-            $status = $statusResp['json']['status'] ?? 'IN_PROGRESS';
-            if ($status === 'SUCCESS' && !empty($statusResp['json']['shipmentId'])) {
-                $shipmentId = $statusResp['json']['shipmentId'];
-                $finalStatus = 'CREATED';
-                break;
-            }
-
-            if ($status === 'ERROR') {
-                $errMsg = $statusResp['json']['errors'][0]['message'] ?? 'Błąd tworzenia';
-                if ($debug) {
-                    $debugLines[] = '[API] GET /shipment-management/shipments/create-commands/{commandId}: status=ERROR';
-                    $debugLines[] = '[API] error=' . $errMsg;
-                    $debugLines[] = '[API] response=' . json_encode($statusResp['json'], JSON_UNESCAPED_UNICODE);
-                    $debugLines = array_merge($debugLines, $this->troubleshootHints($errMsg, $service));
+            $resp = $this->api->postJson($account, '/shipment-management/shipments/create-commands', ['input' => $payload]);
+            if (!$resp['ok']) {
+                $err = $resp['json']['errors'][0]['message'] ?? ('Kod HTTP: ' . $resp['code']);
+                if (isset($resp['json']['errors'][0]['details'])) {
+                    $err .= ' (' . $resp['json']['errors'][0]['details'] . ')';
                 }
-                return ['ok' => false, 'message' => 'Błąd Allegro (Async): ' . $errMsg, 'debug_lines' => $debug ? $debugLines : []];
+                if (isset($resp['json']['errors'][0]['path'])) {
+                    $err .= ' [Pole: ' . $resp['json']['errors'][0]['path'] . ']';
+                }
+                if ($debug) {
+                    $debugLines[] = '[API] HTTP ' . (int)$resp['code'] . ' ok=0';
+                    $debugLines[] = '[API] response=' . (is_string($resp['raw'] ?? null) ? (string)$resp['raw'] : json_encode($resp['json'], JSON_UNESCAPED_UNICODE));
+                    $debugLines = array_merge($debugLines, $this->troubleshootHints($err, $service));
+                }
+                return ['ok' => false, 'message' => 'Błąd Allegro: ' . $err, 'debug_lines' => $debug ? $debugLines : []];
             }
+
+            $cmdId = $resp['json']['id'] ?? ($resp['json']['commandId'] ?? null);
+            if (empty($cmdId)) {
+                return ['ok' => false, 'message' => 'Allegro nie zwróciło ID komendy tworzenia przesyłki.'];
+            }
+
+            $shipmentId = null;
+            $finalStatus = 'IN_PROGRESS';
+
+            for ($i = 0; $i < 10; $i++) {
+                usleep(1000000);
+
+                $statusResp = $this->api->get($account, '/shipment-management/shipments/create-commands/' . $cmdId);
+                if (!$statusResp['ok']) {
+                    continue;
+                }
+
+                $status = $statusResp['json']['status'] ?? 'IN_PROGRESS';
+                if ($status === 'SUCCESS' && !empty($statusResp['json']['shipmentId'])) {
+                    $shipmentId = $statusResp['json']['shipmentId'];
+                    $finalStatus = 'CREATED';
+                    break 2; // wyjście z pętli poll i attempt
+                }
+
+                if ($status === 'ERROR') {
+                    $errObj = $statusResp['json']['errors'][0] ?? [];
+                    $errCode = (string)($errObj['code'] ?? '');
+                    $errMsg = (string)($errObj['message'] ?? 'Błąd tworzenia');
+                    $errDetails = (string)($errObj['details'] ?? '');
+                    $errPath = (string)($errObj['path'] ?? '');
+
+                    if ($debug) {
+                        $debugLines[] = '[API] GET /shipment-management/shipments/create-commands/{commandId}: status=ERROR';
+                        $debugLines[] = '[API] error=' . $errMsg;
+                        $debugLines[] = '[API] response=' . json_encode($statusResp['json'], JSON_UNESCAPED_UNICODE);
+                    }
+
+                    // AUTOMATYCZNA NAPRAWA: InPost często wymaga credentialsId + inpost#sendingMethod.
+                    $isMissingInpostCred = ($errCode === 'MISSING_INPOST_CREDENTIALS')
+                        || (stripos($errMsg, 'inpost') !== false && stripos($errMsg, 'credentials') !== false)
+                        || (stripos($errDetails, 'shipx') !== false);
+
+                    $isCredentialsNotAllowed = (stripos($errMsg, 'Credentials ID is not allowed') !== false)
+                        || (stripos($errMsg, 'credentials id is not allowed') !== false)
+                        || (stripos($errDetails, 'credentials id is not allowed') !== false)
+                        || ($errPath === 'credentialsId');
+
+                    if ($attempt + 1 < $maxAttempts && $isMissingInpostCred) {
+                        $fallbackCred = is_array($inpostCandidate) ? (string)($inpostCandidate['credentials_id'] ?? '') : '';
+                        // Ustawiamy sendingMethod „na sztywno” (w Allegro to wymagane dla INPOST).
+                        $payloadBase['additionalProperties'] = $payloadBase['additionalProperties'] ?? [];
+                        if (!is_array($payloadBase['additionalProperties'])) {
+                            $payloadBase['additionalProperties'] = [];
+                        }
+                        // any_point działa zarówno dla Paczkomatu jak i PaczkoPunktu.
+                        $payloadBase['additionalProperties']['inpost#sendingMethod'] = $hasPickupPoint ? 'any_point' : 'dispatch_order';
+
+                        if ($fallbackCred !== '') {
+                            $payloadBase['credentialsId'] = $fallbackCred;
+                            if ($debug) {
+                                $debugLines[] = '[RETRY] Wykryto brak poświadczeń InPost. Dokładam credentialsId=' . $fallbackCred . ' oraz inpost#sendingMethod=' . ($hasPickupPoint ? 'any_point' : 'dispatch_order') . ' i ponawiam.';
+                            }
+                        } else {
+                            unset($payloadBase['credentialsId']);
+                            if ($debug) {
+                                $debugLines[] = '[RETRY] Wykryto błąd InPost/ShipX. Nie mam credentialsId w DB, ale dokładam inpost#sendingMethod=' . ($hasPickupPoint ? 'any_point' : 'dispatch_order') . ' i ponawiam (jeśli nadal błąd, to brakuje tokenu ShipX w Allegro).';
+                            }
+                        }
+
+                        $attempt++;
+                        continue 2; // następna próba
+                    }
+
+                    if ($attempt + 1 < $maxAttempts && $isCredentialsNotAllowed) {
+                        unset($payloadBase['credentialsId']);
+                        if ($debug) {
+                            $debugLines[] = '[RETRY] API odrzuciło credentialsId dla tej metody. Usuwam credentialsId i ponawiam.';
+                        }
+                        $attempt++;
+                        continue 2;
+                    }
+
+                    if ($debug) {
+                        $debugLines = array_merge($debugLines, $this->troubleshootHints($errMsg, $service));
+                    }
+                    return ['ok' => false, 'message' => 'Błąd Allegro (Async): ' . $errMsg, 'debug_lines' => $debug ? $debugLines : []];
+                }
+            }
+
+            // Jeśli poll się nie skończył sukcesem ani błędem (timeout), wychodzimy.
+            break;
         }
 
         $dbData = [
