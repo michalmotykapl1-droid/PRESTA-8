@@ -288,6 +288,14 @@ class ShipmentCreatorService
                             unset($payloadBase['credentialsId']);
                             if ($debug) {
                                 $debugLines[] = '[RETRY] Wykryto błąd InPost/ShipX. Nie mam credentialsId w DB, ale dokładam inpost#sendingMethod=' . ($hasPickupPoint ? 'any_point' : 'dispatch_order') . ' i ponawiam (jeśli nadal błąd, to brakuje tokenu ShipX w Allegro).';
+                        $hasSavedShipx = !empty($account['shipx_token']);
+                        if ($debug) {
+                            $debugLines[] = '[INFO] ShipX token zapisany w module dla tego konta: ' . ($hasSavedShipx ? 'TAK' : 'NIE');
+                            if ($hasSavedShipx) {
+                                $debugLines[] = '[INFO] Jeśli Allegro zgłasza brak poświadczeń, skopiuj ten token (Ustawienia modułu → InPost ShipX) i wklej w Allegro Sales Center → Wysyłam z Allegro → Integracja z InPost.';
+                            }
+                        }
+
                             }
                         }
 

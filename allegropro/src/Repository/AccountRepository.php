@@ -86,4 +86,21 @@ class AccountRepository
             'token_expires_at' => $expiresAt ? pSQL($expiresAt) : null,
         ]);
     }
+
+
+    public function setShipXToken(int $id, ?string $token): bool
+    {
+        $data = [
+            'shipx_token' => $token === null ? null : pSQL($token, true),
+            'shipx_token_updated_at' => $token === null ? null : pSQL(date('Y-m-d H:i:s')),
+        ];
+        return $this->update($id, $data);
+    }
+
+    public function hasShipXToken(int $id): bool
+    {
+        $row = $this->get($id);
+        return !empty($row['shipx_token']);
+    }
+
 }

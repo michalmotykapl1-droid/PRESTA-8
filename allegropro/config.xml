@@ -2,7 +2,7 @@
 <module>
   <name>allegropro</name>
   <displayName><![CDATA[ALLEGRO PRO]]></displayName>
-  <version><![CDATA[2.1.3]]></version>
+  <version><![CDATA[2.1.4]]></version>
   <description><![CDATA[Zarządzanie kontami Allegro (OAuth), zamówieniami oraz przesyłkami Wysyłam z Allegro.]]></description>
   <author><![CDATA[BigBio]]></author>
   <tab><![CDATA[administration]]></tab>

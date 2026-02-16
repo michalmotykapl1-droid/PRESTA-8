@@ -173,11 +173,11 @@
                                             {elseif $ship_status == 'CANCELLED'}Anulowana
                                             {else}{$ship_status|escape:'htmlall':'UTF-8'}{/if}
                                         {if $ship.status_changed_at}
-                                                <br><span class="text-muted" style="font-size:9px;">{$ship.status_changed_at|date_format:"%H:%M %d-%m-%Y"}</span>
+                                                <br><span class="text-muted" style="font-size:9px;">{$ship.status_changed_at|date_format:"%d.%m.%Y (%H:%M)"}</span>
                                             {/if}
                                         </td>
                                         <td>{$ship.size_details}</td>
-                                        <td>{$ship.created_at|date_format:"%H:%M %d-%m"}</td>
+                                        <td>{$ship.created_at|date_format:"%d.%m.%Y (%H:%M)"}</td>
                                         <td>
                                             {if $ship.tracking_number}
                                                 <code>{$ship.tracking_number|escape:'htmlall':'UTF-8'}</code>

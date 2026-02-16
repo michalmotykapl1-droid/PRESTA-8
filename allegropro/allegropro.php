@@ -16,7 +16,7 @@ class AllegroPro extends Module
     {
         $this->name = 'allegropro';
         $this->tab = 'administration';
-        $this->version = '2.1.3';
+        $this->version = '2.1.4';
         $this->author = 'BigBio';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -46,6 +46,37 @@ class AllegroPro extends Module
         });
     }
 
+    /**
+     * Zapewnia kompatybilność schematu DB po aktualizacjach modułu.
+     * Dodaje brakujące kolumny bez konieczności reinstalacji.
+     */
+    public function ensureDbSchema(): void
+    {
+        try {
+            $db = \Db::getInstance();
+            $p = _DB_PREFIX_;
+            $table = $p . 'allegropro_account';
+
+            $cols = $db->executeS('SHOW COLUMNS FROM `' . pSQL($table) . '`');
+            $fields = [];
+            if (is_array($cols)) {
+                foreach ($cols as $c) {
+                    if (isset($c['Field'])) $fields[] = $c['Field'];
+                }
+            }
+
+            if (!in_array('shipx_token', $fields, true)) {
+                $db->execute('ALTER TABLE `' . pSQL($table) . '` ADD `shipx_token` TEXT NULL AFTER `oauth_state`');
+            }
+            if (!in_array('shipx_token_updated_at', $fields, true)) {
+                $db->execute('ALTER TABLE `' . pSQL($table) . '` ADD `shipx_token_updated_at` DATETIME NULL AFTER `shipx_token`');
+            }
+        } catch (\Throwable $e) {
+            // Nie przerywamy działania modułu - schemat będzie można poprawić ręcznie.
+        }
+    }
+
+
     public function install()
     {
         if (!parent::install()) {
@@ -55,6 +86,7 @@ class AllegroPro extends Module
         if (!$this->installDb()) {
             return false;
         }
+        $this->ensureDbSchema();
 
         if (!$this->installTabs()) {
             return false;
@@ -175,7 +207,7 @@ class AllegroPro extends Module
         $sql = [];
 
         // 1. KONTA
-        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_account` (`id_allegropro_account` INT UNSIGNED NOT NULL AUTO_INCREMENT, `label` VARCHAR(128) NOT NULL, `allegro_user_id` VARCHAR(64) NULL, `allegro_login` VARCHAR(128) NULL, `sandbox` TINYINT(1) DEFAULT 0, `active` TINYINT(1) DEFAULT 1, `is_default` TINYINT(1) DEFAULT 0, `access_token` TEXT NULL, `refresh_token` TEXT NULL, `token_expires_at` DATETIME NULL, `oauth_state` VARCHAR(80) NULL, `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_allegropro_account`)) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_account` (`id_allegropro_account` INT UNSIGNED NOT NULL AUTO_INCREMENT, `label` VARCHAR(128) NOT NULL, `allegro_user_id` VARCHAR(64) NULL, `allegro_login` VARCHAR(128) NULL, `sandbox` TINYINT(1) DEFAULT 0, `active` TINYINT(1) DEFAULT 1, `is_default` TINYINT(1) DEFAULT 0, `access_token` TEXT NULL, `refresh_token` TEXT NULL, `token_expires_at` DATETIME NULL, `oauth_state` VARCHAR(80) NULL, `shipx_token` TEXT NULL, `shipx_token_updated_at` DATETIME NULL, `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_allegropro_account`)) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
         
         // 2. ZAMÓWIENIA
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_order` (

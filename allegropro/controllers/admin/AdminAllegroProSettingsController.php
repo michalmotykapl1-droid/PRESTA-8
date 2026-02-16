@@ -5,6 +5,7 @@
 
 use AllegroPro\Service\Config;
 use AllegroPro\Service\LabelConfig;
+use AllegroPro\Repository\AccountRepository;
 
 class AdminAllegroProSettingsController extends ModuleAdminController
 {
@@ -18,6 +19,10 @@ class AdminAllegroProSettingsController extends ModuleAdminController
     {
         parent::initContent();
 
+        if (isset($this->module) && method_exists($this->module, 'ensureDbSchema')) {
+            $this->module->ensureDbSchema();
+        }
+
         if (isset($this->module) && method_exists($this->module, 'ensureTabs')) {
             $this->module->ensureTabs();
         }
@@ -28,6 +33,13 @@ class AdminAllegroProSettingsController extends ModuleAdminController
         
         // Pobieramy instancję configu etykiet, by znać aktualne ustawienia do widoku
         $labelConfig = new LabelConfig();
+
+        $accRepo = new AccountRepository();
+        $accounts = $accRepo->all();
+        foreach ($accounts as &$a) {
+            $a['shipx_token_set'] = !empty($a['shipx_token']);
+        }
+        unset($a);
 
         $this->context->smarty->assign([
             'allegropro_redirect_uri' => $redirectUri,
@@ -48,6 +60,9 @@ class AdminAllegroProSettingsController extends ModuleAdminController
                 'email' => Configuration::get('PS_SHOP_EMAIL'),
                 'phone' => Configuration::get('PS_SHOP_PHONE'),
             ],
+
+            // InPost ShipX token (pomocniczo w module)
+            'allegropro_shipx_accounts' => $accounts,
         ]);
 
         $this->setTemplate('settings.tpl');
@@ -78,6 +93,44 @@ class AdminAllegroProSettingsController extends ModuleAdminController
             }
 
             $this->confirmations[] = $this->l('Ustawienia OAuth zapisane.');
+        }
+
+
+        // Obsługa InPost ShipX token (informacyjnie / do szybkiego wklejenia)
+        if (Tools::isSubmit('submitAllegroProShipX')) {
+            $token = trim((string)Tools::getValue('ALLEGROPRO_SHIPX_TOKEN'));
+            $accountIds = Tools::getValue('ALLEGROPRO_SHIPX_ACCOUNTS');
+            $action = Tools::getValue('ALLEGROPRO_SHIPX_ACTION');
+
+            if (!is_array($accountIds)) {
+                $accountIds = $accountIds ? [$accountIds] : [];
+            }
+            $accountIds = array_values(array_filter(array_map('intval', $accountIds)));
+
+            if (empty($accountIds)) {
+                $this->errors[] = $this->l('Wybierz co najmniej jedno konto Allegro.');
+                return;
+            }
+
+            $repo = new AccountRepository();
+
+            if ($action === 'clear') {
+                foreach ($accountIds as $idAcc) {
+                    $repo->setShipXToken($idAcc, null);
+                }
+                $this->confirmations[] = $this->l('Token ShipX usunięty z zaznaczonych kont.');
+                return;
+            }
+
+            if ($token === '') {
+                $this->errors[] = $this->l('Wklej token API ShipX (InPost).');
+                return;
+            }
+
+            foreach ($accountIds as $idAcc) {
+                $repo->setShipXToken($idAcc, $token);
+            }
+            $this->confirmations[] = $this->l('Token ShipX zapisany dla zaznaczonych kont.');
         }
 
         // Obsługa Ustawień Domyślnych i Etykiet

@@ -48,7 +48,7 @@
             <td><code>{$o.checkout_form_id|escape:'htmlall':'UTF-8'}</code></td>
             <td>{$o.status|escape:'htmlall':'UTF-8'}</td>
             <td>{if $o.buyer_login}{$o.buyer_login|escape:'htmlall':'UTF-8'}{else}<span class="text-muted">—</span>{/if}</td>
-            <td>{$o.updated_at|escape:'htmlall':'UTF-8'}</td>
+            <td>{$o.updated_at|date_format:"%d.%m.%Y (%H:%M)"}</td>
             <td>
               <form method="post" action="{$admin_link|escape:'htmlall':'UTF-8'}" style="display:inline;">
                 <input type="hidden" name="allegropro_create_shipment" value="1" />
