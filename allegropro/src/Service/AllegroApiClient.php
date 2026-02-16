@@ -136,6 +136,18 @@ class AllegroApiClient
         return $last;
     }
 
+
+    public function fetchPublicUrl(string $url, array $headers = []): array
+    {
+        $res = $this->http->request('GET', $url, $headers, null);
+
+        return [
+            'ok' => $res['ok'],
+            'code' => $res['code'],
+            'error' => (string)($res['error'] ?? ''),
+            'body' => (string)($res['body'] ?? ''),
+        ];
+    }
     public function postJson(array $account, string $path, array $payload, array $headersExtra = []): array
     {
         $account = $this->ensureAccessToken($account);

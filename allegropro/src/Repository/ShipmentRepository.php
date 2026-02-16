@@ -73,9 +73,10 @@ class ShipmentRepository
         }
     }
 
+
     /**
-     * Dodaje kolumnę status_changed_at (DATETIME) do trwałego przechowywania
-     * czasu ostatniej zmiany statusu przesyłki.
+     * Dodaje kolumnę status_changed_at (czas ostatniej zmiany statusu),
+     * bezpiecznie dla istniejących instalacji.
      */
     public function ensureStatusChangedAtColumn(): void
     {
@@ -87,6 +88,7 @@ class ShipmentRepository
             $sql = "ALTER TABLE `{$this->table}` "
                 . "ADD COLUMN `status_changed_at` DATETIME NULL, "
                 . "ADD INDEX `idx_status_changed_at` (`status_changed_at`)";
+
             Db::getInstance()->execute($sql);
         } catch (\Exception $e) {
             // Nie wysypuj BO, jeśli np. brak uprawnień ALTER na środowisku.
@@ -108,6 +110,31 @@ class ShipmentRepository
     {
         $hasCommand = $this->columnExists('wza_command_id');
         $hasUuid = $this->columnExists('wza_shipment_uuid');
+
+        // Daty (opcjonalne) – żeby nie generować NOTICE dla niezdefiniowanych zmiennych
+        $createdAt = '';
+        if (!empty($payload['createdAt']) && is_string($payload['createdAt'])) {
+            $createdAt = trim((string)$payload['createdAt']);
+        } elseif (!empty($payload['created_at']) && is_string($payload['created_at'])) {
+            $createdAt = trim((string)$payload['created_at']);
+        }
+        if ($createdAt === '') {
+            $createdAt = date('Y-m-d H:i:s');
+        }
+
+        $statusChangedAt = '';
+        if (!empty($payload['statusChangedAt']) && is_string($payload['statusChangedAt'])) {
+            $statusChangedAt = trim((string)$payload['statusChangedAt']);
+        } elseif (!empty($payload['status_changed_at']) && is_string($payload['status_changed_at'])) {
+            $statusChangedAt = trim((string)$payload['status_changed_at']);
+        } elseif (!empty($payload['updatedAt']) && is_string($payload['updatedAt'])) {
+            $statusChangedAt = trim((string)$payload['updatedAt']);
+        } elseif (!empty($payload['updated_at']) && is_string($payload['updated_at'])) {
+            $statusChangedAt = trim((string)$payload['updated_at']);
+        }
+        if ($statusChangedAt === '') {
+            $statusChangedAt = $createdAt;
+        }
 
         $shipmentUuid = null;
         if (!empty($payload['shipmentId']) && is_string($payload['shipmentId'])) {
@@ -137,6 +164,14 @@ class ShipmentRepository
             'size_details' => isset($payload['size_type']) ? pSQL((string)$payload['size_type']) : 'CUSTOM',
             'updated_at' => pSQL(date('Y-m-d H:i:s')),
         ];
+
+        if ($this->columnExists('status_changed_at')) {
+            $sc = is_string($statusChangedAt) ? trim($statusChangedAt) : '';
+            if ($sc === '') {
+                $sc = $createdAt ?: date('Y-m-d H:i:s');
+            }
+            $row['status_changed_at'] = pSQL($sc);
+        }
 
         if ($hasCommand) {
             $row['wza_command_id'] = pSQL($commandId);
@@ -291,12 +326,16 @@ class ShipmentRepository
             'updated_at' => pSQL(date('Y-m-d H:i:s')),
         ];
 
+        // Utrwalamy czas ostatniej zmiany statusu (jeśli kolumna istnieje – jest migrowana w __construct)
         if ($this->columnExists('status_changed_at')) {
-            $sca = is_string($statusChangedAt) ? trim($statusChangedAt) : '';
-            if ($sca === '') {
-                $sca = date('Y-m-d H:i:s');
+            $sc = is_string($statusChangedAt) ? trim($statusChangedAt) : '';
+            if ($sc === '') {
+                $sc = is_string($createdAt) ? trim($createdAt) : '';
             }
-            $row['status_changed_at'] = pSQL($sca);
+            if ($sc === '') {
+                $sc = date('Y-m-d H:i:s');
+            }
+            $row['status_changed_at'] = pSQL($sc);
         }
 
         if ($existingId > 0) {

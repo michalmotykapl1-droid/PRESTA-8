@@ -12,6 +12,18 @@ class ShipmentReferenceResolver
 
     public function looksLikeShipmentReference(string $value): bool
     {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        // Jeśli to jest zakodowany/oznaczony numer nadania (np. base64 z "ALLEGRO:..."),
+        // traktujemy to jako referencję, ale NIE jako shipmentId/commandId.
+        $decoded = $this->decodeShipmentReference($value);
+        if (is_string($decoded) && $decoded !== '' && $decoded !== $value) {
+            $value = $decoded;
+        }
+
         return $this->looksLikeShipmentId($value) || $this->looksLikeCreateCommandId($value);
     }
 
@@ -22,17 +34,20 @@ class ShipmentReferenceResolver
             return false;
         }
 
-        if ($this->looksLikeCreateCommandId($value)) {
-            return false;
-        }
-
-        if ((bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value)) {
+        // ShipmentId w /shipment-management to najczęściej UUID
+        if ($this->looksLikeUuid($value)) {
             return true;
         }
 
+        // Fallback: inne identyfikatory z myślnikiem (historycznie spotykane)
         return (bool)preg_match('/^(?=.*-)[a-zA-Z0-9-]{12,80}$/', $value);
     }
 
+    /**
+     * W praktyce commandId z create-commands bywa UUID albo innym tokenem.
+     * Nie da się pewnie odróżnić UUID shipmentId od UUID commandId "po samym formacie",
+     * więc rozstrzygamy to w resolveShipmentIdCandidate() poprzez testowe GET.
+     */
     public function looksLikeCreateCommandId(string $value): bool
     {
         $value = trim($value);
@@ -40,11 +55,18 @@ class ShipmentReferenceResolver
             return false;
         }
 
-        if (strpos($value, ':') !== false) {
+        // Specjalne prefiksy/formaty numerów nadania – NIE są commandId
+        if (stripos($value, 'ALLEGRO:') === 0) {
+            return false;
+        }
+
+        // Bazowe heurystyki dla tokenów (np. base64) – zostawiamy, ale bez łapania "ALLEGRO:..."
+        if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0)) {
             return true;
         }
 
-        return (bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0);
+        // UUID może być commandId, ale może też być shipmentId – nie rozstrzygamy tu.
+        return false;
     }
 
     public function resolveShipmentIdCandidate(array $account, string $candidateId, array &$debugLines = []): ?string
@@ -54,10 +76,47 @@ class ShipmentReferenceResolver
             return null;
         }
 
-        if ($this->looksLikeShipmentId($candidateId)) {
-            return $candidateId;
+        // Dekoduj referencje typu base64("ALLEGRO:WAYBILL") / "ALLEGRO:WAYBILL"
+        $decoded = $this->decodeShipmentReference($candidateId);
+        if (is_string($decoded) && $decoded !== '') {
+            $candidateId = $decoded;
         }
 
+        // Jeśli po dekodowaniu mamy numer nadania, to nie rozwiążemy go do shipmentId tutaj
+        // (robimy to w ShipmentSyncService przez /order/carriers/{carrierId}/tracking).
+        if ($this->looksLikeWaybill($candidateId)) {
+            return null;
+        }
+
+        // Jeśli to UUID – może być shipmentId lub commandId. Spróbuj najpierw jako shipmentId.
+        if ($this->looksLikeUuid($candidateId)) {
+            $asShipment = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($candidateId));
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments/{id}: HTTP ' . (int)($asShipment['code'] ?? 0) . ', ok=' . (!empty($asShipment['ok']) ? '1' : '0');
+            }
+            if (!empty($asShipment['ok'])) {
+                return $candidateId;
+            }
+
+            // Jeśli nie jest shipmentem, spróbuj rozwiązać jako commandId
+            $fromCmd = $this->api->get($account, '/shipment-management/shipments/create-commands/' . rawurlencode($candidateId));
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments/create-commands/{id}: HTTP ' . (int)($fromCmd['code'] ?? 0) . ', ok=' . (!empty($fromCmd['ok']) ? '1' : '0');
+            }
+            if ($fromCmd['ok'] && is_array($fromCmd['json'])) {
+                $shipmentId = trim((string)($fromCmd['json']['shipmentId'] ?? ''));
+                if ($shipmentId !== '' && $this->looksLikeShipmentId($shipmentId)) {
+                    if (!empty($debugLines)) {
+                        $debugLines[] = '[SYNC] resolve commandId -> shipmentId: ' . $candidateId . ' => ' . $shipmentId;
+                    }
+                    return $shipmentId;
+                }
+            }
+
+            return null;
+        }
+
+        // Dla tokenów (np. base64 commandId)
         if (!$this->looksLikeCreateCommandId($candidateId)) {
             return null;
         }
@@ -70,7 +129,7 @@ class ShipmentReferenceResolver
             return null;
         }
 
-        $shipmentId = (string)($resp['json']['shipmentId'] ?? '');
+        $shipmentId = trim((string)($resp['json']['shipmentId'] ?? ''));
         if ($shipmentId !== '' && $this->looksLikeShipmentId($shipmentId)) {
             if (!empty($debugLines)) {
                 $debugLines[] = '[SYNC] resolve commandId -> shipmentId: ' . $candidateId . ' => ' . $shipmentId;
@@ -118,8 +177,25 @@ class ShipmentReferenceResolver
         return null;
     }
 
+    public function extractCarrierIdFromRow(array $row): ?string
+    {
+        $candidates = [
+            $row['carrierId'] ?? null,
+            $row['carrier_id'] ?? null,
+            $row['carrier']['id'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return strtoupper(trim($candidate));
+            }
+        }
+        return null;
+    }
+
     public function resolveShipmentIdByWaybill(array $account, string $waybill, array &$debugLines = []): ?string
     {
+        // UWAGA: /shipment-management/shipments nie jest publicznie udokumentowane jako wyszukiwarka po waybill.
+        // W praktyce często zwraca 406/4xx. Zostawiamy dla kompatybilności (best effort).
         $waybill = trim($waybill);
         if ($waybill === '') {
             return null;
@@ -199,14 +275,16 @@ class ShipmentReferenceResolver
     {
         $refs = $this->extractCandidateReferencesFromArray($row);
 
+        // Preferuj UUID (shipment) – bo command UUID rozstrzygamy testowym GET w resolveShipmentIdCandidate()
         foreach ($refs as $candidate) {
-            if ($this->looksLikeCreateCommandId($candidate)) {
+            if ($this->looksLikeShipmentId($candidate)) {
                 return $candidate;
             }
         }
 
+        // A potem tokeny (command)
         foreach ($refs as $candidate) {
-            if ($this->looksLikeShipmentId($candidate)) {
+            if ($this->looksLikeCreateCommandId($candidate)) {
                 return $candidate;
             }
         }
@@ -241,17 +319,55 @@ class ShipmentReferenceResolver
             return null;
         }
 
-        if (strpos($value, 'ALLEGRO:') === 0) {
+        // Jawny prefiks
+        if (stripos($value, 'ALLEGRO:') === 0) {
             return trim(substr($value, 8));
         }
 
+        // base64("ALLEGRO:WAYBILL") albo base64(UUID/commandId)
         if (preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) % 4 === 0) {
             $decoded = base64_decode($value, true);
             if (is_string($decoded) && $decoded !== '') {
+                $decoded = trim($decoded);
+                if (stripos($decoded, 'ALLEGRO:') === 0) {
+                    return trim(substr($decoded, 8));
+                }
                 return $decoded;
             }
         }
 
         return $value;
+    }
+
+    private function looksLikeUuid(string $value): bool
+    {
+        return (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value);
+    }
+
+    private function looksLikeWaybill(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        // typowe numery nadania: zaczynają się od liter/cyfr, bez spacji
+        // (np. AD0..., A003..., 6209...)
+        if (preg_match('/\s/', $value)) {
+            return false;
+        }
+
+        // Jeśli wygląda jak UUID lub token – to nie waybill
+        if ($this->looksLikeUuid($value)) {
+            return false;
+        }
+        if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0)) {
+            // base64 – to raczej token, nie numer nadania
+            return false;
+        }
+
+        // Waybill zwykle ma długość 8-32 znaków
+        $len = strlen($value);
+        return $len >= 8 && $len <= 64;
     }
 }

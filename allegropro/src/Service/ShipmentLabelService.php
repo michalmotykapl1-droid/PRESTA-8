@@ -70,6 +70,13 @@ class ShipmentLabelService
         $candidatePriority = [];
 
         if ($this->resolver->looksLikeShipmentId($primaryCandidate)) {
+            // UUID może być zarówno shipmentId jak i commandId – resolver rozstrzyga to testowym GET
+            $resolvedUuid = $this->resolver->resolveShipmentIdCandidate($account, $primaryCandidate, $debug);
+            if (is_string($resolvedUuid) && $resolvedUuid !== '' && $resolvedUuid !== $primaryCandidate) {
+                $debug[] = '[LABEL] uuid candidate resolved: ' . $primaryCandidate . ' => ' . $resolvedUuid;
+                $primaryCandidate = $resolvedUuid;
+            }
+
             $candidateIds = [$primaryCandidate];
             $candidatePriority[$primaryCandidate] = 0;
         } elseif ($this->resolver->looksLikeCreateCommandId($primaryCandidate)) {

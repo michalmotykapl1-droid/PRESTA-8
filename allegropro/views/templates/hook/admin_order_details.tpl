@@ -143,37 +143,26 @@
                                     <tr>
                                         <td>
                                             {assign var=ship_status value=$ship.status|default:''}
-                                            {if $ship_status == 'CREATED'}<span class="badge badge-success">UTWORZONA</span>
+                                            {if $ship_status == 'CREATED' || $ship_status == 'PENDING'}<span class="badge badge-success">UTWORZONA</span>
                                             {elseif $ship_status == 'CANCELLED'}<span class="badge badge-secondary">ANULOWANA</span>
                                             {elseif $ship_status == 'NEW'}<span class="badge badge-info">W TOKU</span>
                                             {elseif $ship_status == 'IN_PROGRESS'}<span class="badge badge-info">PRZETWARZANIE</span>
                                             {elseif $ship_status == 'SENT'}<span class="badge badge-primary">NADANA</span>
                                             {elseif $ship_status == 'DELIVERED'}<span class="badge badge-primary">DORĘCZONA</span>
-                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'ON_THE_WAY'}<span class="badge badge-primary">W DRODZE</span>
-                                            {elseif $ship_status == 'OUT_FOR_DELIVERY'}<span class="badge badge-primary">W DORĘCZENIU</span>
-                                            {elseif $ship_status == 'READY_FOR_PICKUP'}<span class="badge badge-primary">DO ODBIORU</span>
-                                            {elseif $ship_status == 'PICKED_UP'}<span class="badge badge-primary">ODEBRANA</span>
-                                            {elseif $ship_status == 'RETURNED'}<span class="badge badge-danger">ZWROT</span>
                                             {else}<span class="badge badge-warning">{$ship_status|escape:'htmlall':'UTF-8'}</span>{/if}
 
                                             <br><span class="text-muted" style="font-size:9px;">{$ship.origin_label|default:'POBRANA Z ALLEGRO'|escape:'htmlall':'UTF-8'}</span>
                                             {if $ship.is_smart}<br><span style="color:#ff5a00; font-weight:bold; font-size:9px;">SMART</span>{/if}
                                         </td>
                                         <td>
-                                            {if $ship_status == 'CREATED'}Oczekuje na nadanie
+                                            {if $ship_status == 'CREATED' || $ship_status == 'PENDING'}Oczekuje na nadanie
                                             {elseif $ship_status == 'NEW' || $ship_status == 'IN_PROGRESS'}W trakcie tworzenia
-                                            {elseif $ship_status == 'SENT' || $ship_status == 'IN_TRANSIT' || $ship_status == 'ON_THE_WAY'}W drodze
-                                            {elseif $ship_status == 'OUT_FOR_DELIVERY'}W doręczeniu
-                                            {elseif $ship_status == 'READY_FOR_PICKUP'}Gotowa do odbioru
-                                            {elseif $ship_status == 'DELIVERED' || $ship_status == 'PICKED_UP'}Przesyłka odebrana
-                                            {elseif $ship_status == 'RETURNED'}Zwrot
+                                            {elseif $ship_status == 'SENT'}W drodze
+                                            {elseif $ship_status == 'DELIVERED'}Dostarczona
                                             {elseif $ship_status == 'CANCELLED'}Anulowana
                                             {else}{$ship_status|escape:'htmlall':'UTF-8'}{/if}
-
-                                            {assign var=ship_changed_at value=$ship.status_changed_at|default:''}
-                                            {if !$ship_changed_at}{assign var=ship_changed_at value=$ship.updated_at|default:''}{/if}
-                                            {if $ship_changed_at}
-                                                <div class="text-muted" style="font-size:10px; margin-top:2px;">{$ship_changed_at|date_format:"%H:%M %d-%m-%Y"}</div>
+                                        {if $ship.status_changed_at}
+                                                <br><span class="text-muted" style="font-size:9px;">{$ship.status_changed_at|date_format:"%H:%M %d-%m-%Y"}</span>
                                             {/if}
                                         </td>
                                         <td>{$ship.size_details}</td>
@@ -186,7 +175,7 @@
                                             {/if}
                                         </td>
                                         <td class="text-right">
-                                            {if $ship.status == 'CREATED'}
+                                            {if $ship.status == 'CREATED' || $ship.status == 'PENDING'}
                                                 {if $ship.can_download_label}
                                                     <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
                                                 {/if}

@@ -51,11 +51,14 @@ class ShipmentSyncService
             $debugLines[] = '[SYNC] lokalne shipment_id: ' . implode(', ', array_keys($shipmentIds));
         }
 
+        $checkoutFormJson = null;
+
         $orderResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
         if ($debug) {
             $debugLines[] = '[API] GET /order/checkout-forms/{id}: HTTP ' . (int)($orderResp['code'] ?? 0) . ', ok=' . (!empty($orderResp['ok']) ? '1' : '0');
         }
         if ($orderResp['ok'] && is_array($orderResp['json'])) {
+            $checkoutFormJson = $orderResp['json'];
             $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
             $this->currentOrderIsSmart = $smart['is_smart'];
             $this->currentOrderSmartPackageLimit = $smart['package_count'];
@@ -80,6 +83,8 @@ class ShipmentSyncService
             $shipmentIds[$sid] = true;
         }
 
+        $carrierCandidates = $this->getCarrierCandidatesForOrder($account, $checkoutFormJson, $checkoutFormId, $debugLines, $debug);
+
         if ($debug) {
             $debugLines[] = '[SYNC] finalna lista shipment_id: ' . implode(', ', array_keys($shipmentIds));
         }
@@ -92,9 +97,23 @@ class ShipmentSyncService
 
             $resolvedShipmentId = $this->resolver->resolveShipmentIdCandidate($account, $shipmentId, $debugLines);
             $context = $this->discoveredShipmentContext[$shipmentId] ?? ($this->discoveredShipmentContext[$resolvedShipmentId] ?? null);
-
             if ($resolvedShipmentId === null) {
-                $context = $this->enrichDiscoveredContextWithOrderShipmentProgress($account, $checkoutFormId, $shipmentId, $context, $debugLines);
+                // Brak UUID shipmentu – spróbuj wyciągnąć realny status z trackingu po numerze nadania (waybill)
+                $waybill = $this->extractWaybillCandidate($shipmentId, $context);
+                if (is_string($waybill) && $waybill !== '') {
+                    $progress = $this->fetchTrackingProgressByWaybill($account, $carrierCandidates, $waybill, $debugLines, $debug);
+                    if (is_array($progress) && !empty($progress['status'])) {
+                        if (!is_array($context)) {
+                            $context = [];
+                        }
+                        $context['tracking'] = $waybill;
+                        $context['status'] = (string)$progress['status'];
+                        if (!empty($progress['at'])) {
+                            $context['status_changed_at'] = (string)$progress['at'];
+                        }
+                    }
+                }
+
                 if ($this->upsertFromDiscoveredContext($accountId, $checkoutFormId, $shipmentId, $context, $debugLines)) {
                     $synced++;
                 }
@@ -109,7 +128,7 @@ class ShipmentSyncService
                 continue;
             }
 
-                        $status = (string)($detail['json']['status'] ?? 'CREATED');
+            $status = (string)($detail['json']['status'] ?? 'CREATED');
             $tracking = $this->extractTrackingNumber($detail['json']);
             $isSmart = $this->extractIsSmart($detail['json']);
             $carrierMode = $this->extractCarrierMode($detail['json']);
@@ -118,22 +137,16 @@ class ShipmentSyncService
             $createdAt = $this->normalizeDateTime($detail['json']['createdAt'] ?? null);
             $statusChangedAt = $this->normalizeDateTime($detail['json']['statusChangedAt'] ?? ($detail['json']['updatedAt'] ?? null));
 
-            // Preferuj realny status z timeline/events (jeśli payload go zawiera)
-            $progress = $this->extractLatestStatusEvent($detail['json']);
-            if (is_array($progress) && !empty($progress['status'])) {
-                $status = (string)$progress['status'];
-                if (!empty($progress['at'])) {
-                    $statusChangedAt = (string)$progress['at'];
-                }
-            }
-
-            // Jeśli nadal mamy status bazowy (CREATED/NEW), spróbuj dociągnąć tracking/timeline z osobnego endpointu
+            // Jeśli Allegro zwraca status bazowy (np. CREATED), spróbuj trackingu po numerze nadania
             if ($this->isBaseShipmentStatus($status)) {
-                $progress2 = $this->fetchShipmentProgressFromTrackingEndpoint($account, $resolvedShipmentId, $debugLines);
-                if (is_array($progress2) && !empty($progress2['status'])) {
-                    $status = (string)$progress2['status'];
-                    if (!empty($progress2['at'])) {
-                        $statusChangedAt = (string)$progress2['at'];
+                $waybill2 = is_string($tracking) ? trim($tracking) : '';
+                if ($waybill2 !== '') {
+                    $progress2 = $this->fetchTrackingProgressByWaybill($account, $carrierCandidates, $waybill2, $debugLines, $debug);
+                    if (is_array($progress2) && !empty($progress2['status'])) {
+                        $status = (string)$progress2['status'];
+                        if (!empty($progress2['at'])) {
+                            $statusChangedAt = (string)$progress2['at'];
+                        }
                     }
                 }
             }
@@ -255,23 +268,12 @@ class ShipmentSyncService
             $isSmart = !empty($row['smart']) ? 1 : 0;
         }
 
-        $createdAt = $this->normalizeDateTime($row['createdAt'] ?? null);
-        $statusChangedAt = $this->normalizeDateTime($row['statusChangedAt'] ?? ($row['updatedAt'] ?? null));
-
-        $progress = $this->extractLatestStatusEvent($row);
-        if (is_array($progress) && !empty($progress['status'])) {
-            $status = (string)$progress['status'];
-            if (!empty($progress['at'])) {
-                $statusChangedAt = (string)$progress['at'];
-            }
-        }
-
         $this->discoveredShipmentContext[$referenceId] = [
             'status' => $status,
             'tracking' => $tracking,
             'is_smart' => $isSmart,
-            'created_at' => $createdAt,
-            'status_changed_at' => $statusChangedAt,
+            'created_at' => $this->normalizeDateTime($row['createdAt'] ?? null),
+            'status_changed_at' => $this->normalizeDateTime($row['statusChangedAt'] ?? ($row['updatedAt'] ?? null)),
         ];
     }
 
@@ -291,18 +293,8 @@ class ShipmentSyncService
             return false;
         }
 
-                $createdAt = $this->normalizeDateTime($context['created_at'] ?? null);
-        $statusChangedAt = $this->normalizeDateTime($context['status_changed_at'] ?? null)
-            ?: $this->normalizeDateTime($context['updated_at'] ?? null)
-            ?: $createdAt;
-
-        $progress = $this->extractLatestStatusEvent($context);
-        if (is_array($progress) && !empty($progress['status'])) {
-            $status = (string)$progress['status'];
-            if (!empty($progress['at'])) {
-                $statusChangedAt = (string)$progress['at'];
-            }
-        }
+        $createdAt = $this->normalizeDateTime($context['created_at'] ?? null);
+        $statusChangedAt = $this->normalizeDateTime($context['status_changed_at'] ?? ($context['updated_at'] ?? null)) ?: $createdAt;
 
         $this->shipments->upsertFromAllegro(
             $accountId,
@@ -502,8 +494,369 @@ class ShipmentSyncService
         \Db::getInstance()->update('allegropro_order_shipping', $data, "checkout_form_id = '" . pSQL($checkoutFormId) . "'");
     }
 
+
+    private function isBaseShipmentStatus(string $status): bool
+    {
+        $status = strtoupper(trim($status));
+        return $status === '' || in_array($status, ['CREATED', 'NEW', 'IN_PROGRESS'], true);
+    }
+
+    /**
+     * Spróbuj wyciągnąć numer nadania z:
+     * - kontekstu (tracking)
+     * - shipment_id (np. base64("ALLEGRO:WAYBILL") / "ALLEGRO:WAYBILL")
+     */
+    private function extractWaybillCandidate(string $shipmentId, ?array $context = null): ?string
+    {
+        if (is_array($context)) {
+            $t = $context['tracking'] ?? null;
+            if (is_string($t) && trim($t) !== '') {
+                return trim($t);
+            }
+        }
+
+        $decoded = $this->resolver->decodeShipmentReference($shipmentId);
+        if (is_string($decoded)) {
+            $decoded = trim($decoded);
+            if ($decoded !== '' && !$this->resolver->looksLikeShipmentId($decoded) && !$this->resolver->looksLikeCreateCommandId($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Pobiera realny status przesyłki po numerze nadania.
+     * Wg dokumentacji: GET /order/carriers/{carrierId}/tracking?waybill={waybill}. (Allegro REST API)
+     */
+    private function fetchTrackingProgressByWaybill(array $account, array $carrierCandidates, string $waybill, array &$debugLines = [], bool $debug = false): ?array
+    {
+        $waybill = trim($waybill);
+        if ($waybill === '') {
+            return null;
+        }
+
+        $accepts = ['application/vnd.allegro.public.v1+json', 'application/json', '*/*'];
+
+        foreach ($carrierCandidates as $carrierId) {
+            $carrierId = strtoupper(trim((string)$carrierId));
+            if ($carrierId === '') {
+                continue;
+            }
+
+            $path = '/order/carriers/' . rawurlencode($carrierId) . '/tracking?waybill=' . rawurlencode($waybill);
+            $resp = $this->api->getWithAcceptFallbacks($account, $path, [], $accepts);
+
+            if ($debug) {
+                $debugLines[] = '[API] GET /order/carriers/' . $carrierId . '/tracking?waybill=' . $waybill . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+            }
+
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                continue;
+            }
+
+            $event = $this->extractLatestTrackingEvent($resp['json'], $waybill);
+            if (is_array($event) && !empty($event['status'])) {
+                return [
+                    'status' => $this->normalizeTrackingStatus((string)$event['status']),
+                    'at' => $event['at'] ?? null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Buduje listę carrierId do testowania trackingu.
+     * - próbuje wywnioskować z delivery.method.id/name
+     * - dociąga listę z GET /order/carriers oraz /shipment-management/delivery-services (jako fallback).
+     */
+    private function getCarrierCandidatesForOrder(array $account, ?array $checkoutFormJson, string $checkoutFormId, array &$debugLines = [], bool $debug = false): array
+    {
+        $candidates = [];
+
+        $add = function (?string $id) use (&$candidates) {
+            if (!is_string($id)) {
+                return;
+            }
+            $id = strtoupper(trim($id));
+            if ($id === '') {
+                return;
+            }
+            $candidates[$id] = true;
+        };
+
+        // 1) Heurystyka z checkout-form (delivery.method.*)
+        if (is_array($checkoutFormJson)) {
+            $method = $checkoutFormJson['delivery']['method'] ?? null;
+            $id = null;
+            $name = null;
+            if (is_array($method)) {
+                $id = $method['id'] ?? null;
+                $name = $method['name'] ?? ($method['description'] ?? null);
+            }
+            $hay = strtoupper(trim((string)($id ?: '') . ' ' . (string)($name ?: '')));
+            if ($debug && $hay !== '') {
+                $debugLines[] = '[SYNC] delivery.method (checkout-form): ' . $hay;
+            }
+
+            if (strpos($hay, 'DPD') !== false) { $add('DPD'); }
+            if (strpos($hay, 'INPOST') !== false || strpos($hay, 'PACZKOMAT') !== false) { $add('INPOST'); }
+            if (strpos($hay, 'DHL') !== false) { $add('DHL'); }
+            if (strpos($hay, 'UPS') !== false) { $add('UPS'); }
+            if (strpos($hay, 'GLS') !== false) { $add('GLS'); }
+            if (strpos($hay, 'ORLEN') !== false) { $add('ORLEN'); }
+            if (strpos($hay, 'ALLEGRO') !== false) { $add('ALLEGRO'); }
+        }
+
+        // 2) Lista przewoźników trackingu (Order API)
+        $carriersResp = $this->api->getWithAcceptFallbacks($account, '/order/carriers', [], ['application/vnd.allegro.public.v1+json', 'application/json', '*/*']);
+        if ($debug) {
+            $debugLines[] = '[API] GET /order/carriers: HTTP ' . (int)($carriersResp['code'] ?? 0) . ', ok=' . (!empty($carriersResp['ok']) ? '1' : '0');
+        }
+        if (!empty($carriersResp['ok']) && is_array($carriersResp['json'])) {
+            $rows = $carriersResp['json']['carriers'] ?? $carriersResp['json'];
+            if (is_array($rows)) {
+                foreach ($rows as $row) {
+                    if (is_string($row)) {
+                        $add($row);
+                    } elseif (is_array($row)) {
+                        $add($row['id'] ?? ($row['carrierId'] ?? null));
+                    }
+                }
+            }
+        }
+
+        // 3) Fallback: /shipment-management/delivery-services (z niego można też wyciągnąć carrierId).
+        $dsResp = $this->api->getWithAcceptFallbacks($account, '/shipment-management/delivery-services', [], ['application/vnd.allegro.public.v1+json', 'application/json', '*/*']);
+        if ($debug) {
+            $debugLines[] = '[API] GET /shipment-management/delivery-services: HTTP ' . (int)($dsResp['code'] ?? 0) . ', ok=' . (!empty($dsResp['ok']) ? '1' : '0');
+        }
+        if (!empty($dsResp['ok']) && is_array($dsResp['json'])) {
+            $this->walkAndCollectCarrierIds($dsResp['json'], $add);
+        }
+
+        // Preferowane na początku (najczęstsze w PL)
+        $preferred = ['DPD', 'INPOST', 'DHL', 'UPS', 'GLS', 'ORLEN', 'ALLEGRO', 'OTHER'];
+        $ordered = [];
+        foreach ($preferred as $p) {
+            if (isset($candidates[$p])) {
+                $ordered[] = $p;
+                unset($candidates[$p]);
+            }
+        }
+
+        // Nie testuj setek carrierId – to potrafi wydłużyć sync do kilkunastu sekund.
+        // Dokładamy maksymalnie kilkanaście dodatkowych kandydatów.
+        $cap = 12;
+        foreach (array_keys($candidates) as $id) {
+            if (count($ordered) >= $cap) {
+                break;
+            }
+            $ordered[] = $id;
+        }
+
+        if (empty($ordered)) {
+            // awaryjnie: spróbuj najpopularniejszych carrierId
+            $ordered = ['DPD', 'INPOST', 'DHL', 'UPS', 'GLS', 'ORLEN', 'ALLEGRO', 'OTHER'];
+        }
+
+        if ($debug) {
+            $debugLines[] = '[SYNC] carrier candidates: ' . (empty($ordered) ? 'brak' : implode(', ', $ordered));
+        }
+
+        return $ordered;
+    }
+
+    private function walkAndCollectCarrierIds($value, callable $add): void
+    {
+        if (!is_array($value)) {
+            return;
+        }
+
+        foreach ($value as $k => $v) {
+            if (is_string($k)) {
+                $lk = strtolower($k);
+                if ($lk === 'carrierid' || $lk === 'carrier_id') {
+                    if (is_string($v)) {
+                        $add($v);
+                    }
+                }
+            }
+
+            if (is_array($v)) {
+                $this->walkAndCollectCarrierIds($v, $add);
+            }
+        }
+    }
+
+    private function extractLatestTrackingEvent(array $payload, string $waybill): ?array
+    {
+        $waybill = trim($waybill);
+        if ($waybill === '') {
+            return null;
+        }
+
+        // Najczęstszy kształt odpowiedzi: { waybills: [ { waybill, trackingDetails: { statuses: [...] } } ] }
+        $waybills = $payload['waybills'] ?? null;
+        if (is_array($waybills)) {
+            foreach ($waybills as $wbRow) {
+                if (!is_array($wbRow)) {
+                    continue;
+                }
+                $wb = isset($wbRow['waybill']) ? trim((string)$wbRow['waybill']) : '';
+                if ($wb === '' || strcasecmp($wb, $waybill) !== 0) {
+                    continue;
+                }
+                $td = $wbRow['trackingDetails'] ?? null;
+                if (!is_array($td)) {
+                    continue;
+                }
+                $statuses = $td['statuses'] ?? null;
+                if (!is_array($statuses) || empty($statuses)) {
+                    continue;
+                }
+
+                $best = null;
+                $bestTs = 0;
+                foreach ($statuses as $st) {
+                    if (!is_array($st)) {
+                        continue;
+                    }
+                    $code = $st['code'] ?? ($st['status'] ?? ($st['statusCode'] ?? null));
+                    if (!is_string($code) || trim($code) === '') {
+                        continue;
+                    }
+
+                    $dt = $this->extractDateFromTrackingStatus($st);
+                    $ts = $dt ? (int)strtotime($dt) : 0;
+                    if ($best === null || $ts >= $bestTs) {
+                        $best = ['status' => (string)$code, 'at' => $dt];
+                        $bestTs = $ts;
+                    }
+                }
+
+                if (is_array($best) && !empty($best['status'])) {
+                    return $best;
+                }
+            }
+        }
+
+        // Fallback: rekurencyjnie przejdź po payloadzie (czasem różne kształty odpowiedzi)
+        $events = [];
+        $this->collectTrackingEvents($payload, $events);
+        if (empty($events)) {
+            return null;
+        }
+        usort($events, function (array $a, array $b): int {
+            $ta = strtotime((string)($a['at'] ?? '')) ?: 0;
+            $tb = strtotime((string)($b['at'] ?? '')) ?: 0;
+            return $tb <=> $ta;
+        });
+        return $events[0] ?? null;
+    }
+
+    private function extractDateFromTrackingStatus(array $st): ?string
+    {
+        foreach (['occurredAt','occurred_at','at','eventAt','event_at','eventDate','date','timestamp','time','updatedAt','createdAt'] as $k) {
+            if (!array_key_exists($k, $st)) {
+                continue;
+            }
+            $dt = $this->normalizeDateTime($st[$k]);
+            if ($dt) {
+                return $dt;
+            }
+        }
+        // Czasem jest zagnieżdżone
+        if (!empty($st['occurred']) && is_array($st['occurred']) && !empty($st['occurred']['at'])) {
+            $dt = $this->normalizeDateTime($st['occurred']['at']);
+            if ($dt) {
+                return $dt;
+            }
+        }
+        return null;
+    }
+
+    private function collectTrackingEvents($node, array &$events): void
+    {
+        if (!is_array($node)) {
+            return;
+        }
+
+        // event-like object
+        $statusKeys = ['status', 'statusCode', 'code'];
+        $timeKeys = ['at', 'occurredAt', 'occurred_at', 'eventDate', 'date', 'timestamp', 'createdAt', 'updatedAt'];
+
+        $status = null;
+        foreach ($statusKeys as $k) {
+            if (isset($node[$k]) && is_string($node[$k]) && trim($node[$k]) !== '') {
+                $status = trim((string)$node[$k]);
+                break;
+            }
+        }
+
+        $at = null;
+        foreach ($timeKeys as $k) {
+            if (isset($node[$k]) && is_string($node[$k]) && trim($node[$k]) !== '') {
+                $at = $this->normalizeDateTime($node[$k]);
+                if ($at) {
+                    break;
+                }
+            }
+        }
+
+        if ($status !== null && $at !== null) {
+            $events[] = ['status' => $status, 'at' => $at];
+        }
+
+        foreach ($node as $v) {
+            if (is_array($v)) {
+                $this->collectTrackingEvents($v, $events);
+            }
+        }
+    }
+
+    private function normalizeTrackingStatus(string $status): string
+    {
+        $s = strtoupper(trim($status));
+        if ($s === 'PENDING') {
+            return 'CREATED';
+        }
+        if ($s === 'PROCESSING') {
+            return 'IN_PROGRESS';
+        }
+        if ($s === 'DELIVERED' || $s === 'PICKED_UP') {
+            return 'DELIVERED';
+        }
+
+        // Statusy "w drodze" mapujemy do SENT (żeby BO nie pokazywało tylko CREATED)
+        if (in_array($s, ['IN_TRANSIT', 'ON_THE_WAY', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'], true)) {
+            return 'SENT';
+        }
+
+        return $s !== '' ? $s : 'CREATED';
+    }
+
     private function normalizeDateTime($value): ?string
     {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        // numeric timestamp (sekundy lub milisekundy)
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^\d{10,16}$/', trim($value)))) {
+            $n = (float)$value;
+            if ($n > 20000000000) { // wygląda na ms
+                $n = $n / 1000.0;
+            }
+            if ($n > 0) {
+                return date('Y-m-d H:i:s', (int)$n);
+            }
+            return null;
+        }
+
         if (!is_string($value)) {
             return null;
         }
@@ -513,7 +866,9 @@ class ShipmentSyncService
             return null;
         }
 
-        $ts = strtotime($value);
+        // Utnij ułamki sekund w ISO (np. 2026-02-13T11:34:00.123Z)
+        $value2 = preg_replace('/(\d{2}:\d{2}:\d{2})\.\d+/', '$1', $value);
+        $ts = strtotime($value2);
         if ($ts === false) {
             return null;
         }
