@@ -92,6 +92,33 @@ class ShipmentCreatorService
             }
         }
 
+        // Jeśli nie znaleźliśmy mapowania lub brakuje credentials_id (szczególnie dla InPost/Paczkomatów),
+        // spróbuj pobrać delivery-services na żywo z API i wybrać właściwy wariant dla tej metody.
+        // Jeżeli deliveryMethodId nie znajduje się w delivery-services (albo brakuje credentials),
+        // spróbuj rozwiązać mapowanie na żywo: po ID, a jeśli nie ma, po nazwie metody / właściwościach InPost.
+        $methodName = (string)($order['delivery']['method']['name'] ?? ($cfJson['delivery']['method']['name'] ?? ''));
+        if (is_string($deliveryMethodId) && $deliveryMethodId !== '') {
+            if (!$service || empty($service['credentials_id'])) {
+                $liveService = $this->resolveDeliveryServiceFromApi($account, (string)$deliveryMethodId, $methodName, $hasPickupPoint, $debug, $debugLines);
+                if (is_array($liveService)) {
+                    $service = $liveService;
+                }
+            }
+        }
+
+        // Jeśli resolveDeliveryServiceFromApi dobrało inną wartość deliveryMethodId (np. dopasowanie po nazwie),
+        // przełączamy na resolved ID, bo to jest ID wymagane przez /shipment-management/shipments/create-commands.
+        if (is_array($service) && !empty($service['delivery_method_id'])) {
+            $resolvedId = (string)$service['delivery_method_id'];
+            if ($resolvedId !== '' && $resolvedId !== (string)$deliveryMethodId) {
+                if ($debug) {
+                    $debugLines[] = '[CREATE] deliveryMethodId override: ' . (string)$deliveryMethodId . ' → ' . $resolvedId;
+                }
+                $deliveryMethodId = $resolvedId;
+            }
+        }
+
+
         $credentialsId = null;
         $additionalProps = null;
         if (is_array($service)) {
@@ -410,6 +437,264 @@ class ShipmentCreatorService
         }
     }
 
+
+    /**
+     * Pobiera delivery-services bezpośrednio z API i wybiera najlepszy wariant dla podanego deliveryMethodId.
+     * To jest krytyczne dla InPost/Paczkomatów, gdzie Allegro często wymaga jawnego credentialsId.
+     *
+     * Zwraca "db-like" tablicę zgodną z findByDeliveryMethod(): credentials_id, additional_properties_json, carrier_id, owner, name...
+     */
+    private function resolveDeliveryServiceFromApi(array $account, string $deliveryMethodId, string $methodName, bool $hasPickupPoint, bool $debug, array &$debugLines): ?array
+    {
+        $accountId = (int)($account['id_allegropro_account'] ?? 0);
+
+        $lc = function (string $s): string {
+            return function_exists('mb_strtolower') ? (string)mb_strtolower($s) : strtolower($s);
+        };
+
+        try {
+            $resp = $this->api->get($account, '/shipment-management/delivery-services', ['limit' => 500]);
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                if ($debug) {
+                    $debugLines[] = '[CREATE] delivery-services (live): nie udało się pobrać z API (HTTP ' . (int)($resp['code'] ?? 0) . ').';
+                }
+                return null;
+            }
+
+            $services = null;
+            $shape = '';
+            if (isset($resp['json']['services'])) {
+                $services = $resp['json']['services'];
+                $shape = 'services';
+            } elseif (isset($resp['json']['deliveryServices'])) {
+                $services = $resp['json']['deliveryServices'];
+                $shape = 'deliveryServices';
+            } else {
+                $services = $resp['json'];
+                $shape = 'raw';
+            }
+
+            if (!is_array($services)) {
+                if ($debug) {
+                    $debugLines[] = '[CREATE] delivery-services (live): nieoczekiwany kształt odpowiedzi (' . $shape . ').';
+                }
+                return null;
+            }
+
+            $wantName = trim($lc((string)$methodName));
+            $wantInpost = ($wantName !== '' && strpos($wantName, 'inpost') !== false);
+            $wantPacz = ($wantName !== '' && (strpos($wantName, 'paczkom') !== false || strpos($wantName, 'paczko') !== false));
+
+            $matchesById = [];
+            $matchesByName = [];
+            $inpostCandidates = [];
+
+            foreach ($services as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+
+                $idObj = $s['id'] ?? null;
+
+                $dmId = '';
+                if (isset($s['deliveryMethodId'])) {
+                    $dmId = (string)$s['deliveryMethodId'];
+                } elseif (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
+                    $dmId = (string)$idObj['deliveryMethodId'];
+                } elseif (is_array($s['deliveryMethod'] ?? null) && isset($s['deliveryMethod']['id'])) {
+                    $dmId = (string)$s['deliveryMethod']['id'];
+                } elseif (is_array($idObj) && is_array($idObj['deliveryMethod'] ?? null) && isset($idObj['deliveryMethod']['id'])) {
+                    $dmId = (string)$idObj['deliveryMethod']['id'];
+                }
+
+                // credentials
+                $credentialsId = null;
+                if (isset($s['credentialsId'])) {
+                    $credentialsId = (string)$s['credentialsId'];
+                } elseif (is_array($idObj) && isset($idObj['credentialsId'])) {
+                    $credentialsId = (string)$idObj['credentialsId'];
+                } elseif (is_array($s['credentials'] ?? null) && isset($s['credentials']['id'])) {
+                    $credentialsId = (string)$s['credentials']['id'];
+                }
+                $credentialsId = ($credentialsId && strtolower($credentialsId) !== 'null') ? $credentialsId : null;
+
+                // additionalProperties
+                $add = null;
+                if (isset($s['additionalProperties']) && is_array($s['additionalProperties'])) {
+                    $add = $s['additionalProperties'];
+                } elseif (isset($s['additional_properties']) && is_array($s['additional_properties'])) {
+                    $add = $s['additional_properties'];
+                }
+
+                $sending = null;
+                if (is_array($add) && array_key_exists('inpost#sendingMethod', $add)) {
+                    $sm = $add['inpost#sendingMethod'];
+                    if (is_string($sm) && $sm !== '') {
+                        $sending = $sm;
+                    } elseif (is_array($sm) && !empty($sm)) {
+                        $sending = (string)reset($sm);
+                    }
+                }
+
+                $name = isset($s['name']) ? (string)$s['name'] : '';
+                $nameLc = trim($lc($name));
+                $hasInpostProp = is_array($add) && array_key_exists('inpost#sendingMethod', $add);
+                $isInpostName = ($nameLc !== '' && strpos($nameLc, 'inpost') !== false);
+                $isPaczName = ($nameLc !== '' && (strpos($nameLc, 'paczkom') !== false || strpos($nameLc, 'paczko') !== false));
+
+                $entry = [
+                    'raw' => $s,
+                    'dmId' => $dmId,
+                    'credentialsId' => $credentialsId,
+                    'additional' => $add,
+                    'sending' => $sending,
+                    'carrierId' => isset($s['carrierId']) ? (string)$s['carrierId'] : null,
+                    'owner' => isset($s['owner']) ? (string)$s['owner'] : null,
+                    'name' => $name,
+                    'reason' => 'unknown',
+                ];
+
+                if ($dmId !== '' && $dmId === $deliveryMethodId) {
+                    $entry['reason'] = 'by-id';
+                    $matchesById[] = $entry;
+                    continue;
+                }
+
+                // Dopasowanie po nazwie (gdy deliveryMethodId z checkout-form nie występuje w delivery-services)
+                if ($wantInpost && $isInpostName) {
+                    $nameOk = true;
+                    if ($wantPacz) {
+                        $nameOk = $isPaczName;
+                    } elseif ($hasPickupPoint) {
+                        $nameOk = ($isPaczName || strpos($nameLc, 'punkt') !== false);
+                    }
+                    if ($nameOk) {
+                        $entry['reason'] = (strpos($nameLc, $wantName) !== false || strpos($wantName, $nameLc) !== false) ? 'by-name-strong' : 'by-name';
+                        $matchesByName[] = $entry;
+                    }
+                }
+
+                // Fallback: InPost rozpoznajemy też po additionalProperties.inpost#sendingMethod
+                if ($hasInpostProp || $isInpostName) {
+                    $entry['reason'] = $hasInpostProp ? 'by-inpost-prop' : 'by-inpost-name';
+                    $inpostCandidates[] = $entry;
+                }
+            }
+
+            if ($debug) {
+                $debugLines[] = '[CREATE] delivery-services (live): shape=' . $shape
+                    . ', matches_by_id=' . count($matchesById)
+                    . ', matches_by_name=' . count($matchesByName)
+                    . ', inpost_candidates=' . count($inpostCandidates)
+                    . ' (wanted deliveryMethodId=' . $deliveryMethodId . ', methodName=' . $methodName . ')';
+            }
+
+            // wybór kandydatów: ID → nazwa → inpost-properties
+            $candidates = [];
+            if (!empty($matchesById)) {
+                $candidates = $matchesById;
+            } elseif (!empty($matchesByName)) {
+                $candidates = $matchesByName;
+            } elseif (!empty($inpostCandidates) && ($wantInpost || $hasPickupPoint)) {
+                $candidates = $inpostCandidates;
+            }
+
+            if (empty($candidates)) {
+                if ($debug) {
+                    $sample = [];
+                    $i = 0;
+                    foreach ($services as $s) {
+                        if (!is_array($s)) {
+                            continue;
+                        }
+                        $nm = isset($s['name']) ? (string)$s['name'] : '';
+                        if ($nm === '') {
+                            continue;
+                        }
+                        if (stripos($nm, 'inpost') !== false || stripos($nm, 'paczko') !== false || stripos($nm, 'paczkom') !== false) {
+                            $idObj = $s['id'] ?? null;
+                            $dm = '';
+                            if (isset($s['deliveryMethodId'])) {
+                                $dm = (string)$s['deliveryMethodId'];
+                            } elseif (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
+                                $dm = (string)$idObj['deliveryMethodId'];
+                            } elseif (is_array($s['deliveryMethod'] ?? null) && isset($s['deliveryMethod']['id'])) {
+                                $dm = (string)$s['deliveryMethod']['id'];
+                            }
+                            $sample[] = '{dmId=' . $dm . ', name=' . $nm . '}';
+                            $i++;
+                            if ($i >= 5) {
+                                break;
+                            }
+                        }
+                    }
+                    if (!empty($sample)) {
+                        $debugLines[] = '[CREATE] delivery-services sample (InPost-like): ' . implode(' | ', $sample);
+                    } else {
+                        $debugLines[] = '[CREATE] delivery-services sample: brak pozycji zawierających "InPost/Paczkom" – API może nie zwracać tej metody dla tego konta.';
+                    }
+                }
+                return null;
+            }
+
+            // Preferencje wyboru: paczkomat/punkt -> any_point/parcel_locker/pop, kurier -> dispatch_order
+            $preferred = $hasPickupPoint ? ['any_point', 'parcel_locker', 'pop'] : ['dispatch_order', 'courier'];
+            if (!empty($preferred)) {
+                $filtered = [];
+                foreach ($candidates as $m) {
+                    if ($m['sending'] && in_array($m['sending'], $preferred, true)) {
+                        $filtered[] = $m;
+                    }
+                }
+                if (!empty($filtered)) {
+                    $candidates = $filtered;
+                }
+            }
+
+            // Preferuj takie, które mają credentialsId.
+            $selected = null;
+            foreach ($candidates as $m) {
+                if (!empty($m['credentialsId'])) {
+                    $selected = $m;
+                    break;
+                }
+            }
+            if (!$selected) {
+                $selected = $candidates[0];
+            }
+
+            // Zapisz do DB dla przyszłych wywołań (upsert jest idempotentny).
+            if ($accountId > 0 && is_array($selected['raw'])) {
+                $this->deliveryServices->upsert($accountId, $selected['raw']);
+            }
+
+            $dbRow = [
+                'id_allegropro_account' => $accountId,
+                'delivery_method_id' => (string)($selected['dmId'] ?: $deliveryMethodId),
+                'credentials_id' => $selected['credentialsId'],
+                'name' => $selected['name'],
+                'carrier_id' => $selected['carrierId'],
+                'owner' => $selected['owner'],
+                'additional_properties_json' => is_array($selected['additional']) ? json_encode($selected['additional'], JSON_UNESCAPED_UNICODE) : null,
+            ];
+
+            if ($debug) {
+                $debugLines[] = '[CREATE] delivery-service (live) selected: reason=' . (string)($selected['reason'] ?? '-')
+                    . ', dmId=' . (string)($dbRow['delivery_method_id'] ?? '-')
+                    . ', carrier_id=' . (string)($dbRow['carrier_id'] ?? '-')
+                    . ', credentialsId=' . (string)($dbRow['credentials_id'] ?? '(brak)')
+                    . ', owner=' . (string)($dbRow['owner'] ?? '-');
+            }
+
+            return $dbRow;
+        } catch (Exception $e) {
+            if ($debug) {
+                $debugLines[] = '[CREATE] delivery-services (live) exception: ' . $e->getMessage();
+            }
+            return null;
+        }
+    }
+
     /**
      * InPost od 2024/2025 wymaga jawnego wskazania metody nadania.
      * Do końca lutego 2026 wspierane jest additionalProperties.inpost#sendingMethod.
@@ -629,21 +914,30 @@ class ShipmentCreatorService
 
     private function resolvePackageDimensions(array $params): array
     {
+        $inputWeight = null;
+        if (isset($params['weight']) && $params['weight'] !== '' && is_numeric($params['weight'])) {
+            $inputWeight = (float)$params['weight'];
+            if ($inputWeight <= 0) {
+                $inputWeight = null;
+            }
+        }
+
         if (!empty($params['size_code'])) {
             switch ($params['size_code']) {
                 // Allegro API akceptuje tylko: DOX|PACKAGE|PALLET|OTHER.
                 // Dla gabarytów A/B/C (np. paczkomaty) przekazujemy PACKAGE + wymiary.
-                case 'A': return ['height' => 8, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
-                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
-                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => 25, 'type' => 'PACKAGE'];
+                // UWAGA: waga powinna pochodzić z pola formularza (użytkownik ją wpisuje). Wcześniej była na sztywno 25kg.
+                case 'A': return ['height' => 8,  'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
+                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
+                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
             }
         }
 
-        if (!empty($params['weight'])) {
+        if ($inputWeight !== null) {
             $def = Config::pkgDefaults();
             return [
                 'height' => $def['height'], 'width' => $def['width'], 'length' => $def['length'],
-                'weight' => (float)$params['weight'],
+                'weight' => $inputWeight,
                 'type' => 'PACKAGE'
             ];
         }
@@ -702,6 +996,7 @@ class ShipmentCreatorService
             $cleanPoint = preg_replace('/[^A-Z0-9-]/', '', strtoupper($lastPart));
 
             if (!empty($cleanPoint)) {
+                // Allegro WZA oczekuje tutaj stringa (np. "WCL01BAPP"), nie obiektu.
                 $receiver['point'] = $cleanPoint;
             }
         }
@@ -720,6 +1015,8 @@ class ShipmentCreatorService
                     'value' => (string)$wgtVal,
                     'unit' => 'KILOGRAMS'
                 ],
+                // Allegro WZA oczekuje pól length/width/height bezpośrednio w paczce (nie w obiekcie "dimensions").
+                // W przeciwnym wypadku zwraca błąd: input.packages[0].length (brak wymaganych pól).
                 'length' => [
                     'value' => (string)(int)($dims['length'] ?? 10),
                     'unit' => 'CENTIMETER'

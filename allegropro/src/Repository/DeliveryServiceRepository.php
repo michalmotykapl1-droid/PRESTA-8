@@ -42,8 +42,10 @@ class DeliveryServiceRepository
         // "delivery_service_id" trzymamy jako stabilny identyfikator techniczny w DB.
         // W nowym kształcie API nie ma jednego stringowego id – jest para (deliveryMethodId, credentialsId).
         $dsId = $dmId;
-        if (is_string($credentialsId) && $credentialsId !== '' && strtolower($credentialsId) !== 'null') {
-            $dsId .= ':' . $credentialsId;
+        // Zachowujemy kompatybilność ze schematem DB (często VARCHAR(64)) – nie doklejamy credentialsId do delivery_service_id.
+        // Dla nowych odpowiedzi API identyfikatorem jest para (deliveryMethodId, credentialsId), ale credentialsId trzymamy osobno w kolumnie credentials_id.
+        if (isset($service['id']) && is_string($service['id']) && $service['id'] !== '') {
+            $dsId = (string)$service['id'];
         }
 
         if (!$dmId || !$dsId) {

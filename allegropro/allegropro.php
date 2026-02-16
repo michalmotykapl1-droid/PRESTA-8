@@ -16,7 +16,7 @@ class AllegroPro extends Module
     {
         $this->name = 'allegropro';
         $this->tab = 'administration';
-        $this->version = '2.1.1';
+        $this->version = '2.1.3';
         $this->author = 'BigBio';
         $this->need_instance = 0;
         $this->bootstrap = true;
