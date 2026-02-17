@@ -516,6 +516,48 @@ class OrderRepository
         return (int)Db::getInstance()->getValue($q);
     }
 
+    /**
+     * Sprawdza, czy lokalny rekord zamówienia ma komplet danych potrzebnych do importu/naprawy.
+     *
+     * Zamówienie uznajemy za kompletne, gdy:
+     * - istnieje rekord główny w allegropro_order,
+     * - istnieje co najmniej 1 pozycja w allegropro_order_item,
+     * - istnieje rekord buyer,
+     * - istnieje rekord shipping.
+     */
+    public function isOrderDataCompleteForAccount(int $accountId, string $checkoutFormId): bool
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormIdEsc = pSQL($checkoutFormId);
+        $db = Db::getInstance();
+
+        $orderExists = (int)$db->getValue(
+            'SELECT id_allegropro_order FROM `' . _DB_PREFIX_ . 'allegropro_order` '
+            . 'WHERE id_allegropro_account = ' . $accountId . " AND checkout_form_id = '" . $checkoutFormIdEsc . "'"
+        );
+
+        if ($orderExists <= 0) {
+            return false;
+        }
+
+        $itemsCount = (int)$db->getValue(
+            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_item` '
+            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
+        );
+
+        $buyerCount = (int)$db->getValue(
+            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_buyer` '
+            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
+        );
+
+        $shippingCount = (int)$db->getValue(
+            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_shipping` '
+            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
+        );
+
+        return $itemsCount > 0 && $buyerCount > 0 && $shippingCount > 0;
+    }
+
     public function updatePsOrderId($checkoutFormId, $psOrderId)
     {
         Db::getInstance()->update('allegropro_order', ['id_order_prestashop' => (int)$psOrderId], "checkout_form_id = '" . pSQL($checkoutFormId) . "'");

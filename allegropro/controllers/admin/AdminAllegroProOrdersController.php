@@ -193,6 +193,199 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     }
 
 
+    // Krok R-1: Reasocjacja rekordów ze starych/nieużywanych ID kont Allegro
+    public function displayAjaxRefreshReassignLegacyAccountOrders() {
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $targetAccountId = (int)$account['id_allegropro_account'];
+        $db = Db::getInstance();
+
+        $rows = $db->executeS(
+            'SELECT o.checkout_form_id, o.id_allegropro_account
+'
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+'
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account
+'
+            . 'WHERE a.id_allegropro_account IS NULL
+'
+            . '  AND o.id_allegropro_account <> ' . $targetAccountId . '
+'
+            . 'ORDER BY o.updated_at_allegro DESC
+'
+            . 'LIMIT 1000'
+        ) ?: [];
+
+        if (empty($rows)) {
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'checked' => 0,
+                'reassigned_count' => 0,
+                'presta_linked_count' => 0,
+                'reassigned_ids' => [],
+                'message' => 'Brak rekordów z nieużywanych ID kont.',
+            ]));
+        }
+
+        $http = new HttpClient();
+        $api = new AllegroApiClient($http, new AccountRepository());
+
+        $checked = 0;
+        $reassigned = 0;
+        $prestaLinked = 0;
+        $reassignedIds = [];
+
+        foreach ($rows as $row) {
+            $checkoutId = isset($row['checkout_form_id']) ? (string)$row['checkout_form_id'] : '';
+            if ($checkoutId === '') {
+                continue;
+            }
+
+            $checked++;
+
+            // Weryfikujemy, że to zamówienie istnieje na aktualnie wybranym koncie Allegro.
+            $resp = $api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutId));
+            if (empty($resp['ok'])) {
+                continue;
+            }
+
+            $remoteId = isset($resp['json']['id']) ? (string)$resp['json']['id'] : '';
+            if ($remoteId !== $checkoutId) {
+                continue;
+            }
+
+            $db->update(
+                'allegropro_order',
+                ['id_allegropro_account' => $targetAccountId],
+                "checkout_form_id = '" . pSQL($checkoutId) . "'"
+            );
+
+            $db->update(
+                'allegropro_shipment',
+                ['id_allegropro_account' => $targetAccountId],
+                "checkout_form_id = '" . pSQL($checkoutId) . "'"
+            );
+
+            $reassigned++;
+            $reassignedIds[] = $checkoutId;
+
+            $existingPsId = (int)$db->getValue(
+                'SELECT id_order_prestashop
+'
+                . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
+'
+                . "WHERE checkout_form_id = '" . pSQL($checkoutId) . "'
+"
+                . 'ORDER BY id_allegropro_order DESC
+'
+                . 'LIMIT 1'
+            );
+
+            if ($existingPsId > 0) {
+                continue;
+            }
+
+            $psOrderId = (int)$db->getValue(
+                'SELECT o.id_order
+'
+                . 'FROM `' . _DB_PREFIX_ . 'orders` o
+'
+                . 'INNER JOIN `' . _DB_PREFIX_ . 'order_payment` op ON o.reference = op.order_reference
+'
+                . "WHERE op.transaction_id = '" . pSQL($checkoutId) . "'
+"
+                . 'ORDER BY o.id_order DESC
+'
+                . 'LIMIT 1'
+            );
+
+            if ($psOrderId > 0) {
+                $db->update(
+                    'allegropro_order',
+                    ['id_order_prestashop' => $psOrderId],
+                    "checkout_form_id = '" . pSQL($checkoutId) . "'"
+                );
+                $prestaLinked++;
+            }
+        }
+
+        $this->ajaxDie(json_encode([
+            'success' => true,
+            'checked' => $checked,
+            'reassigned_count' => $reassigned,
+            'presta_linked_count' => $prestaLinked,
+            'reassigned_ids' => $reassignedIds,
+            'message' => 'Zakończono reasocjację rekordów legacy.',
+        ]));
+    }
+
+
+    // Krok R0: Czyszczenie rekordów osieroconych (id_order_prestashop = 0)
+    public function displayAjaxRefreshCleanupOrphans() {
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $accountId = (int)$account['id_allegropro_account'];
+        $db = Db::getInstance();
+
+        $rows = $db->executeS(
+            'SELECT checkout_form_id
+'
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
+'
+            . 'WHERE id_allegropro_account = ' . $accountId . '
+'
+            . '  AND id_order_prestashop = 0'
+        ) ?: [];
+
+        $ids = [];
+        foreach ($rows as $r) {
+            $id = isset($r['checkout_form_id']) ? (string)$r['checkout_form_id'] : '';
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        if (empty($ids)) {
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'deleted_count' => 0,
+                'ids' => [],
+                'message' => 'Brak osieroconych rekordów do usunięcia.',
+            ]));
+        }
+
+        $quoted = [];
+        foreach ($ids as $id) {
+            $quoted[] = "'" . pSQL($id) . "'";
+        }
+
+        $inList = implode(',', $quoted);
+
+        $db->delete('allegropro_order_item', 'checkout_form_id IN (' . $inList . ')');
+        $db->delete('allegropro_order_shipping', 'checkout_form_id IN (' . $inList . ')');
+        $db->delete('allegropro_order_payment', 'checkout_form_id IN (' . $inList . ')');
+        $db->delete('allegropro_order_invoice', 'checkout_form_id IN (' . $inList . ')');
+        $db->delete('allegropro_order_buyer', 'checkout_form_id IN (' . $inList . ')');
+        $db->delete(
+            'allegropro_order',
+            'id_allegropro_account = ' . $accountId . ' AND checkout_form_id IN (' . $inList . ') AND id_order_prestashop = 0'
+        );
+
+        $this->ajaxDie(json_encode([
+            'success' => true,
+            'deleted_count' => count($ids),
+            'ids' => $ids,
+            'message' => 'Usunięto osierocone rekordy (id_order_prestashop=0).',
+        ]));
+    }
+
     // Krok R1: Pobranie partii lokalnie zapisanych zamówień do aktualizacji
     public function displayAjaxRefreshGetBatch() {
         $account = $this->getValidAccountFromRequest();
