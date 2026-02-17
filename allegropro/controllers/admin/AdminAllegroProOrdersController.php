@@ -100,6 +100,23 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         return $limit;
     }
 
+
+    private function getCheckoutIdCandidatesForPaymentLookup(string $checkoutId): array
+    {
+        $checkoutId = trim($checkoutId);
+        if ($checkoutId === '') {
+            return [];
+        }
+
+        $candidates = [$checkoutId];
+
+        if (preg_match('/^\d+\s+([0-9a-f-]{20,})$/i', $checkoutId, $m)) {
+            $candidates[] = (string)$m[1];
+        }
+
+        return array_values(array_unique(array_filter(array_map('strval', $candidates))));
+    }
+
     // ============================================================
     // AJAX: KONSOLA IMPORTU
     // ============================================================
@@ -260,6 +277,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 'reassigned_count' => 0,
                 'presta_linked_count' => 0,
                 'reassigned_ids' => [],
+                'presta_linked_ids' => [],
                 'message' => 'Brak rekordów z nieużywanych ID kont.',
             ]));
         }
@@ -272,6 +290,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $prestaLinked = 0;
         $unresolved = 0;
         $reassignedIds = [];
+        $prestaLinkedIds = [];
 
         foreach ($rows as $row) {
             $checkoutId = isset($row['checkout_form_id']) ? (string)$row['checkout_form_id'] : '';
@@ -317,28 +336,47 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $reassigned++;
             $reassignedIds[] = $checkoutId;
 
-            $existingPsQuery = new DbQuery();
-            $existingPsQuery
-                ->select('id_order_prestashop')
-                ->from('allegropro_order')
-                ->where("checkout_form_id = '" . pSQL($checkoutId) . "'")
-                ->orderBy('id_allegropro_order DESC')
-                ->limit(1);
-            $existingPsId = (int)$db->getValue($existingPsQuery);
+            $existingPsRow = $db->getRow(
+                'SELECT id_order_prestashop
+'
+                . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
+'
+                . "WHERE checkout_form_id = '" . pSQL($checkoutId) . "'
+"
+                . 'ORDER BY id_allegropro_order DESC'
+            );
+            $existingPsId = (int)($existingPsRow['id_order_prestashop'] ?? 0);
 
             if ($existingPsId > 0) {
                 continue;
             }
 
-            $psOrderQuery = new DbQuery();
-            $psOrderQuery
-                ->select('o.id_order')
-                ->from('orders', 'o')
-                ->innerJoin('order_payment', 'op', 'o.reference = op.order_reference')
-                ->where("op.transaction_id = '" . pSQL($checkoutId) . "'")
-                ->orderBy('o.id_order DESC')
-                ->limit(1);
-            $psOrderId = (int)$db->getValue($psOrderQuery);
+            $paymentLookupIds = $this->getCheckoutIdCandidatesForPaymentLookup($checkoutId);
+            $quotedPaymentLookupIds = [];
+            foreach ($paymentLookupIds as $lookupId) {
+                $quotedPaymentLookupIds[] = "'" . pSQL($lookupId) . "'";
+            }
+
+            $psOrderWhere = '';
+            if (!empty($quotedPaymentLookupIds)) {
+                $psOrderWhere = 'WHERE op.transaction_id IN (' . implode(',', $quotedPaymentLookupIds) . ')
+';
+            }
+
+            $psOrderRow = [];
+            if ($psOrderWhere !== '') {
+                $psOrderRow = $db->getRow(
+                    'SELECT o.id_order
+'
+                    . 'FROM `' . _DB_PREFIX_ . 'orders` o
+'
+                    . 'INNER JOIN `' . _DB_PREFIX_ . 'order_payment` op ON o.reference = op.order_reference
+'
+                    . $psOrderWhere
+                    . 'ORDER BY o.id_order DESC'
+                );
+            }
+            $psOrderId = (int)($psOrderRow['id_order'] ?? 0);
 
             if ($psOrderId > 0) {
                 $db->update(
@@ -347,6 +385,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                     "checkout_form_id = '" . pSQL($checkoutId) . "'"
                 );
                 $prestaLinked++;
+                $prestaLinkedIds[] = $checkoutId . ' => PS#' . $psOrderId;
             }
         }
 
@@ -358,6 +397,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'unresolved_count' => $unresolved,
             'legacy_mode' => $onlyLegacyMode,
             'reassigned_ids' => $reassignedIds,
+            'presta_linked_ids' => $prestaLinkedIds,
             'message' => 'Zakończono reasocjację rekordów legacy.',
         ]));
     }

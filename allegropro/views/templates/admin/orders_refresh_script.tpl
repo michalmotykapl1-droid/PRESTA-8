@@ -15,12 +15,15 @@
         stage0PrestaLinked: 0,
         stage0Unresolved: 0,
         stage0Ids: [],
+        stage0PrestaLinkedIds: [],
         stage1Deleted: 0,
         stage1DeletedIds: [],
         ok: 0,
         fixed: 0,
         cancelled: 0,
         skipped: 0,
+        stage2Changed: 0,
+        stage2ChangedIds: [],
         errors: 0,
         errorIds: []
       };
@@ -148,6 +151,7 @@
           this.stats.stage0PrestaLinked = parseInt(res.presta_linked_count || 0, 10);
           this.stats.stage0Unresolved = parseInt(res.unresolved_count || 0, 10);
           this.stats.stage0Ids = Array.isArray(res.reassigned_ids) ? res.reassigned_ids : [];
+          this.stats.stage0PrestaLinkedIds = Array.isArray(res.presta_linked_ids) ? res.presta_linked_ids : [];
 
           this.log(
             'ETAP 0/3: sprawdzono ' + this.stats.stage0Checked
@@ -156,6 +160,10 @@
             + ', podpięto ID zamówienia Presta: ' + this.stats.stage0PrestaLinked + '.',
             this.stats.stage0Reassigned > 0 ? 'warning' : 'success'
           );
+
+          if (this.stats.stage0PrestaLinkedIds.length) {
+            this.log('ETAP 0/3: lista podpiętych zamówień Presta: ' + this.stats.stage0PrestaLinkedIds.join(', '), 'info');
+          }
 
           this.setReport(
             '<strong>Raport (po ETAPIE 0):</strong> sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, '
@@ -328,9 +336,17 @@
           } else {
             this.stats.ok += 1;
             var action = String(res.action || '');
-            if (action === 'fixed') this.stats.fixed += 1;
-            else if (action === 'cancelled') this.stats.cancelled += 1;
-            else this.stats.skipped += 1;
+            if (action === 'fixed') {
+              this.stats.fixed += 1;
+              this.stats.stage2Changed += 1;
+              this.stats.stage2ChangedIds.push(cfId + ' [naprawione]');
+            } else if (action === 'cancelled') {
+              this.stats.cancelled += 1;
+              this.stats.stage2Changed += 1;
+              this.stats.stage2ChangedIds.push(cfId + ' [anulowane]');
+            } else {
+              this.stats.skipped += 1;
+            }
           }
 
           this.processed += 1;
@@ -364,11 +380,16 @@
         ? '<br><span style="color:#1d4ed8;">Przypisane ponownie ID z ETAPU 0: ' + this.stats.stage0Ids.slice(0, 10).join(', ') + (this.stats.stage0Ids.length > 10 ? ' ...' : '') + '</span>'
         : '';
 
+      var prestaLinkedPreview = this.stats.stage0PrestaLinkedIds.length
+        ? '<br><span style="color:#0e7490;">Podpięte zamówienia Presta (ETAP 0): ' + this.stats.stage0PrestaLinkedIds.slice(0, 20).join(', ') + (this.stats.stage0PrestaLinkedIds.length > 20 ? ' ...' : '') + '</span>'
+        : '';
+
       this.setReport(
         '<strong>Raport końcowy (tryb tylko legacy):</strong> '
         + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
         + '<br>ETAP 1 i ETAP 2 zostały pominięte zgodnie z zaznaczoną opcją.'
         + reassignedPreview
+        + prestaLinkedPreview
       );
 
       this.log('Tryb tylko legacy zakończony. Sprawdzono: ' + this.stats.stage0Checked + ', przypisano: ' + this.stats.stage0Reassigned + ', nierozpoznane: ' + this.stats.stage0Unresolved + '.', 'success');
@@ -391,6 +412,14 @@
         ? '<br><span style="color:#1d4ed8;">Przypisane ponownie ID z ETAPU 0: ' + this.stats.stage0Ids.slice(0, 10).join(', ') + (this.stats.stage0Ids.length > 10 ? ' ...' : '') + '</span>'
         : '';
 
+      var prestaLinkedPreview = this.stats.stage0PrestaLinkedIds.length
+        ? '<br><span style="color:#0e7490;">Podpięte zamówienia Presta (ETAP 0): ' + this.stats.stage0PrestaLinkedIds.slice(0, 20).join(', ') + (this.stats.stage0PrestaLinkedIds.length > 20 ? ' ...' : '') + '</span>'
+        : '';
+
+      var stage2ChangedPreview = this.stats.stage2ChangedIds.length
+        ? '<br><span style="color:#166534;">Zmodyfikowane zamówienia (ETAP 2): ' + this.stats.stage2ChangedIds.slice(0, 20).join(', ') + (this.stats.stage2ChangedIds.length > 20 ? ' ...' : '') + '</span>'
+        : '';
+
       this.setReport(
         '<strong>Raport końcowy (3 etapy):</strong> '
         + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
@@ -398,9 +427,12 @@
         + '<br>ETAP 2 (aktualizacja): przetworzono <strong>' + this.processed + '/' + this.total + '</strong>, '
         + 'sukcesy <strong>' + this.stats.ok + '</strong> '
         + '(naprawione: <strong>' + this.stats.fixed + '</strong>, anulowane: <strong>' + this.stats.cancelled + '</strong>, inne/pominięte: <strong>' + this.stats.skipped + '</strong>), '
+        + 'zmienione rekordy <strong>' + this.stats.stage2Changed + '</strong>, '
         + 'błędy <strong>' + this.stats.errors + '</strong>.'
         + reassignedPreview
+        + prestaLinkedPreview
         + removedPreview
+        + stage2ChangedPreview
         + errorsPreview
       );
 
