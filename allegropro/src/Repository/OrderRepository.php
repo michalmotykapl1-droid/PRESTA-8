@@ -7,6 +7,13 @@ use DbQuery;
 class OrderRepository
 {
     /**
+     * Cache dostępnych kolumn tabeli allegropro_order (dla zgodności ze starszymi instalacjami).
+     *
+     * @var array<string, bool>|null
+     */
+    private $orderTableColumns = null;
+
+    /**
      * Pobiera datę ostatniej aktualizacji zamówienia w bazie (globalnie).
      */
     public function getLastFetchedDate()
@@ -700,6 +707,7 @@ class OrderRepository
         $currency = $data['totalToPay']['currency'] ?? 'PLN';
         $newStatus = pSQL($data['status']);
 
+        $now = date('Y-m-d H:i:s');
         $orderData = [
             'id_allegropro_account' => (int)$data['account_id'],
             'checkout_form_id' => $cfIdEsc,
@@ -710,8 +718,14 @@ class OrderRepository
             'currency' => pSQL($currency),
             'created_at_allegro' => pSQL(str_replace(['T','Z'], [' ',''], $data['boughtAt'] ?? $data['updatedAt'])),
             'updated_at_allegro' => pSQL(str_replace(['T','Z'], [' ',''], $data['updatedAt'])),
-            'date_upd' => date('Y-m-d H:i:s'),
         ];
+
+        // Zgodność schematu: starsze wdrożenia mogą mieć created_at/updated_at zamiast date_add/date_upd.
+        if ($this->hasOrderTableColumn('date_upd')) {
+            $orderData['date_upd'] = $now;
+        } elseif ($this->hasOrderTableColumn('updated_at')) {
+            $orderData['updated_at'] = $now;
+        }
 
         $existingId = $this->exists($cfId);
 
@@ -722,10 +736,15 @@ class OrderRepository
                 $orderData['is_finished'] = 0;
             }
 
-            unset($orderData['date_add']);
+            unset($orderData['date_add'], $orderData['created_at']);
             $db->update('allegropro_order', $orderData, "id_allegropro_order = $existingId");
         } else {
-            $orderData['date_add'] = date('Y-m-d H:i:s');
+            if ($this->hasOrderTableColumn('date_add')) {
+                $orderData['date_add'] = $now;
+            } elseif ($this->hasOrderTableColumn('created_at')) {
+                $orderData['created_at'] = $now;
+            }
+
             $orderData['is_finished'] = 0;
             $db->insert('allegropro_order', $orderData);
         }
@@ -750,102 +769,135 @@ class OrderRepository
             $bCity = $inv['address']['city'] ?? '';
             $bZip = $inv['address']['zipCode'] ?? '';
             $bCountry = $inv['address']['countryCode'] ?? 'PL';
-            $bTaxId = $inv['taxId'] ?? '';
-            $bCompany = $inv['companyName'] ?? $bCompany;
+            $bCompany = $inv['company']['name'] ?? $bCompany;
+            $bTaxId = $inv['company']['taxId'] ?? '';
+        } elseif (!empty($data['delivery']['address'])) {
+            $delAddr = $data['delivery']['address'];
+            $bStreet = $delAddr['street'];
+            $bCity = $delAddr['city'];
+            $bZip = $delAddr['zipCode'];
+            $bCountry = $delAddr['countryCode'];
+            if (empty($bFirst)) $bFirst = $delAddr['firstName'] ?? '';
+            if (empty($bLast)) $bLast = $delAddr['lastName'] ?? '';
+            if (empty($bCompany)) $bCompany = $delAddr['companyName'] ?? '';
+            if (empty($bPhone)) $bPhone = $delAddr['phoneNumber'] ?? '';
         }
 
-        $buyerData = [
+        $db->insert('allegropro_order_buyer', [
             'checkout_form_id' => $cfIdEsc,
-            'login' => pSQL($bLogin),
             'email' => pSQL($bEmail),
+            'login' => pSQL($bLogin),
             'firstname' => pSQL($bFirst),
             'lastname' => pSQL($bLast),
             'company_name' => pSQL($bCompany),
-            'phone_number' => pSQL($bPhone),
             'street' => pSQL($bStreet),
             'city' => pSQL($bCity),
             'zip_code' => pSQL($bZip),
             'country_code' => pSQL($bCountry),
-            'tax_id' => pSQL($bTaxId),
-            'date_add' => date('Y-m-d H:i:s')
-        ];
-        $db->insert('allegropro_order_buyer', $buyerData);
+            'phone_number' => pSQL($bPhone),
+            'tax_id' => pSQL($bTaxId)
+        ]);
 
-        // 2. SHIPPING
-        $shipping = $data['delivery'] ?? [];
-        $method = $shipping['method'] ?? [];
-        $addr = $shipping['address'] ?? [];
-
-        $shipData = [
-            'checkout_form_id' => $cfIdEsc,
-            'method_id' => pSQL($method['id'] ?? ''),
-            'method_name' => pSQL($method['name'] ?? ''),
-            'pickup_point_id' => pSQL($shipping['pickupPoint']['id'] ?? ''),
-            'pickup_point_name' => pSQL($shipping['pickupPoint']['name'] ?? ''),
-            'cost_amount' => (float)($shipping['cost']['amount'] ?? 0),
-            'cost_currency' => pSQL($shipping['cost']['currency'] ?? 'PLN'),
-            'addr_name' => pSQL(trim(($addr['firstName'] ?? '') . ' ' . ($addr['lastName'] ?? ''))),
-            'addr_street' => pSQL($addr['street'] ?? ''),
-            'addr_post_code' => pSQL($addr['zipCode'] ?? ''),
-            'addr_city' => pSQL($addr['city'] ?? ''),
-            'addr_country' => pSQL($addr['countryCode'] ?? 'PL'),
-            'addr_phone' => pSQL($addr['phoneNumber'] ?? ''),
-            'date_add' => date('Y-m-d H:i:s')
-        ];
-        $db->insert('allegropro_order_shipping', $shipData);
-
-        // 3. PAYMENT
-        if (!empty($data['payment'])) {
-            $pay = $data['payment'];
-            $payData = [
-                'checkout_form_id' => $cfIdEsc,
-                'type' => pSQL($pay['type'] ?? ''),
-                'provider' => pSQL($pay['provider'] ?? ''),
-                'finished_at' => pSQL(str_replace(['T','Z'], [' ',''], $pay['finishedAt'] ?? '')),
-                'paid_amount' => (float)($pay['paidAmount']['amount'] ?? 0),
-                'paid_currency' => pSQL($pay['paidAmount']['currency'] ?? 'PLN'),
-                'reconciliation_amount' => (float)($pay['reconciliation']['amount']['amount'] ?? 0),
-                'reconciliation_currency' => pSQL($pay['reconciliation']['amount']['currency'] ?? 'PLN'),
-                'status' => pSQL($pay['status'] ?? ''),
-                'date_add' => date('Y-m-d H:i:s')
-            ];
-            $db->insert('allegropro_order_payment', $payData);
+        // 2. ITEMS
+        if (!empty($data['lineItems'])) {
+            foreach ($data['lineItems'] as $item) {
+                $db->insert('allegropro_order_item', [
+                    'checkout_form_id' => $cfIdEsc,
+                    'offer_id' => pSQL($item['offer']['id']),
+                    'name' => pSQL($item['offer']['name']),
+                    'quantity' => (int)$item['quantity'],
+                    'price' => (float)$item['price']['amount'],
+                    'ean' => pSQL($item['mapped_ean'] ?? null),
+                    'reference_number' => pSQL($item['offer']['external']['id'] ?? null),
+                    'id_product' => (int)($item['matched_id_product'] ?? 0),
+                    'id_product_attribute' => (int)($item['matched_id_attribute'] ?? 0),
+                    'tax_rate' => (float)($item['matched_tax_rate'] ?? 0.00)
+                ]);
+            }
         }
 
-        // 4. ITEMS
-        if (!empty($data['lineItems']) && is_array($data['lineItems'])) {
-            foreach ($data['lineItems'] as $item) {
-                $itemData = [
-                    'checkout_form_id' => $cfIdEsc,
-                    'offer_id' => pSQL($item['offer']['id'] ?? ''),
-                    'offer_name' => pSQL($item['offer']['name'] ?? ''),
-                    'external_id' => pSQL($item['offer']['external']['id'] ?? ''),
-                    'quantity' => (int)($item['quantity'] ?? 1),
-                    'price_amount' => (float)($item['price']['amount'] ?? 0),
-                    'price_currency' => pSQL($item['price']['currency'] ?? 'PLN'),
-                    'bought_at' => pSQL(str_replace(['T','Z'], [' ',''], $item['boughtAt'] ?? '')),
-                    'date_add' => date('Y-m-d H:i:s')
-                ];
-                $db->insert('allegropro_order_item', $itemData);
-            }
+        // 3. SHIPPING
+        if (!empty($data['delivery'])) {
+            $del = $data['delivery'];
+            $addr = $del['address'] ?? [];
+            $db->insert('allegropro_order_shipping', [
+                'checkout_form_id' => $cfIdEsc,
+                'method_id' => pSQL($del['method']['id'] ?? ''),
+                'method_name' => pSQL($del['method']['name'] ?? ''),
+                'cost_amount' => (float)($del['cost']['gross']['amount'] ?? 0),
+                'is_smart' => isset($del['smart']) ? (int)$del['smart'] : 0,
+                'package_count' => isset($del['calculatedNumberOfPackages']) ? (int)$del['calculatedNumberOfPackages'] : 1,
+                'addr_name' => pSQL(($addr['firstName'] ?? '') . ' ' . ($addr['lastName'] ?? '')),
+                'addr_street' => pSQL($addr['street'] ?? ''),
+                'addr_city' => pSQL($addr['city'] ?? ''),
+                'addr_zip' => pSQL($addr['zipCode'] ?? ''),
+                'addr_country' => pSQL($addr['countryCode'] ?? 'PL'),
+                'addr_phone' => pSQL($addr['phoneNumber'] ?? ''),
+                'pickup_point_id' => pSQL($del['pickupPoint']['id'] ?? ''),
+                'pickup_point_name' => pSQL($del['pickupPoint']['name'] ?? '')
+            ]);
+        }
+
+        // 4. PAYMENT
+        if (!empty($data['payment'])) {
+            $pay = $data['payment'];
+            $db->insert('allegropro_order_payment', [
+                'checkout_form_id' => $cfIdEsc,
+                'payment_id' => pSQL($pay['id'] ?? ''),
+                'paid_amount' => (float)($pay['paidAmount']['amount'] ?? 0.00),
+                'status' => pSQL($pay['status'] ?? ''),
+                'provider' => pSQL($pay['provider'] ?? ''),
+                'finished_at' => !empty($pay['finishedAt']) ? pSQL(str_replace(['T','Z'], [' ',''], $pay['finishedAt'])) : null
+            ]);
         }
 
         // 5. INVOICE
         if (!empty($data['invoice'])) {
             $inv = $data['invoice'];
-            $invData = [
+            $addr = $inv['address'] ?? [];
+            $company = $inv['company'] ?? [];
+            $db->insert('allegropro_order_invoice', [
                 'checkout_form_id' => $cfIdEsc,
-                'required' => (int)($inv['required'] ?? 0),
-                'address_street' => pSQL($inv['address']['street'] ?? ''),
-                'address_city' => pSQL($inv['address']['city'] ?? ''),
-                'address_zip_code' => pSQL($inv['address']['zipCode'] ?? ''),
-                'address_country_code' => pSQL($inv['address']['countryCode'] ?? 'PL'),
-                'company_name' => pSQL($inv['companyName'] ?? ''),
-                'tax_id' => pSQL($inv['taxId'] ?? ''),
-                'natural_person' => (int)($inv['naturalPerson'] ?? 0),
-                'date_add' => date('Y-m-d H:i:s')
-            ];
-            $db->insert('allegropro_order_invoice', $invData);
+                'company_name' => pSQL($company['name'] ?? ''),
+                'tax_id' => pSQL($company['taxId'] ?? ''),
+                'street' => pSQL($addr['street'] ?? ''),
+                'city' => pSQL($addr['city'] ?? ''),
+                'zip_code' => pSQL($addr['zipCode'] ?? ''),
+                'country_code' => pSQL($addr['countryCode'] ?? 'PL'),
+                'natural_person' => !empty($inv['naturalPerson']) ? 1 : 0
+            ]);
         }
     }
+
+    private function hasOrderTableColumn(string $column): bool
+    {
+        $columns = $this->getOrderTableColumns();
+        return isset($columns[$column]);
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function getOrderTableColumns(): array
+    {
+        if (is_array($this->orderTableColumns)) {
+            return $this->orderTableColumns;
+        }
+
+        $this->orderTableColumns = [];
+        $rows = Db::getInstance()->executeS('SHOW COLUMNS FROM `' . _DB_PREFIX_ . 'allegropro_order`');
+        if (!is_array($rows)) {
+            return $this->orderTableColumns;
+        }
+
+        foreach ($rows as $row) {
+            $field = isset($row['Field']) ? (string)$row['Field'] : '';
+            if ($field !== '') {
+                $this->orderTableColumns[$field] = true;
+            }
+        }
+
+        return $this->orderTableColumns;
+    }
+
 }
