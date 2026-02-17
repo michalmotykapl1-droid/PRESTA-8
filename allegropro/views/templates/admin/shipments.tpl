@@ -59,6 +59,31 @@
     .ap-pagination { padding:10px 12px; border-top:1px solid #e5edf6; background:#fcfeff; display:flex; justify-content:space-between; align-items:center; }
     .ap-muted { color:#7890a8; }
 
+    .ap-modal-backdrop {
+      position:fixed; inset:0; background:rgba(17,32,50,.45); z-index:10050;
+      display:none; align-items:center; justify-content:center; padding:20px;
+      backdrop-filter:blur(2px);
+    }
+    .ap-modal-backdrop.ap-open { display:flex; }
+    .ap-modal {
+      width:min(560px, 100%); background:#fff; border-radius:16px; overflow:hidden;
+      box-shadow:0 28px 60px rgba(12,28,46,.35); border:1px solid #d8e4f2;
+      animation:apModalIn .16s ease-out;
+    }
+    .ap-modal-head { padding:16px 18px; border-bottom:1px solid #e7eef7; display:flex; gap:10px; align-items:center; }
+    .ap-modal-icon {
+      width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+      background:#e9f2ff; color:#1e6fe0; font-size:16px;
+    }
+    .ap-modal-title { margin:0; font-size:18px; font-weight:800; color:#1f3044; }
+    .ap-modal-body { padding:18px; color:#31475e; font-size:14px; line-height:1.55; }
+    .ap-modal-actions { padding:0 18px 18px; display:flex; justify-content:flex-end; gap:8px; }
+
+    @keyframes apModalIn {
+      from { opacity:0; transform:translateY(6px) scale(.985); }
+      to { opacity:1; transform:translateY(0) scale(1); }
+    }
+
     @media (max-width: 1500px) {
       .ap-settings-grid { grid-template-columns:1fr; }
       .ap-filters-grid, .ap-filters-grid-created { grid-template-columns:1fr 1fr; }
@@ -134,7 +159,7 @@
         </form>
       </div>
       <div>
-        <h4 style="margin-bottom:8px;">Naprawa danych historycznych (CUSTOM)</h4>
+        <h4 style="margin-bottom:8px;">Synchronizacja starszych danych przesyłek</h4>
         <form method="post" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="form-inline">
           <select name="id_allegropro_account" class="form-control">
             {foreach from=$allegropro_accounts item=a}
@@ -142,7 +167,7 @@
             {/foreach}
           </select>
           <input type="hidden" name="allegropro_fix_custom_wza_uuid" value="1" />
-          <button class="ap-btn ap-btn-warning" type="submit" style="margin-left:8px;" onclick="return confirm('Uzupełnić wza_shipment_uuid = shipment_id dla size_details=CUSTOM?');"><i class="icon icon-wrench"></i> Napraw</button>
+          <button class="ap-btn ap-btn-warning js-modern-confirm" type="submit" style="margin-left:8px;" data-confirm-title="Potwierdzenie synchronizacji" data-confirm-message="Czy chcesz uzupełnić brakujące identyfikatory przesyłek dla starszych zamówień z niestandardowym gabarytem? Ta operacja jest bezpieczna i pomoże uporządkować historię danych."><i class="icon icon-wrench"></i> Synchronizuj</button>
         </form>
       </div>
     </div>
@@ -231,7 +256,7 @@
                     <input type="hidden" name="allegropro_create_shipment" value="1" />
                     <input type="hidden" name="id_allegropro_account" value="{$o.id_allegropro_account|intval}" />
                     <input type="hidden" name="checkout_form_id" value="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}" />
-                    <button class="ap-btn ap-btn-success" type="submit" onclick="return confirm('Utworzyć przesyłkę dla tego zamówienia?');"><i class="icon icon-plus"></i> Utwórz</button>
+                    <button class="ap-btn ap-btn-success js-modern-confirm" type="submit" data-confirm-title="Utworzyć przesyłkę?" data-confirm-message="Za chwilę utworzymy przesyłkę dla tego zamówienia i pobierzemy aktualne dane nadania. Czy chcesz kontynuować?"><i class="icon icon-plus"></i> Utwórz</button>
                   </form>
                 </td>
               </tr>
@@ -364,9 +389,57 @@
 
 
   <div id="ap-toast-wrap" style="position:fixed; right:24px; top:84px; z-index:9999; display:flex; flex-direction:column; gap:10px;"></div>
+  <div id="ap-confirm-backdrop" class="ap-modal-backdrop" aria-hidden="true">
+    <div class="ap-modal" role="dialog" aria-modal="true" aria-labelledby="ap-confirm-title">
+      <div class="ap-modal-head">
+        <span class="ap-modal-icon"><i class="icon icon-question"></i></span>
+        <h5 id="ap-confirm-title" class="ap-modal-title">Potwierdzenie</h5>
+      </div>
+      <div id="ap-confirm-message" class="ap-modal-body">Czy chcesz kontynuować?</div>
+      <div class="ap-modal-actions">
+        <button type="button" id="ap-confirm-cancel" class="ap-btn ap-btn-secondary">Anuluj</button>
+        <button type="button" id="ap-confirm-ok" class="ap-btn ap-btn-primary">Tak, kontynuuj</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function() {
+      var confirmState = {
+        activeForm: null,
+        activeButton: null
+      };
+
+      var confirmBackdrop = document.getElementById('ap-confirm-backdrop');
+      var confirmTitle = document.getElementById('ap-confirm-title');
+      var confirmMessage = document.getElementById('ap-confirm-message');
+      var confirmBtnCancel = document.getElementById('ap-confirm-cancel');
+      var confirmBtnOk = document.getElementById('ap-confirm-ok');
+
+      function closeConfirmModal() {
+        if (!confirmBackdrop) return;
+        confirmBackdrop.classList.remove('ap-open');
+        confirmBackdrop.setAttribute('aria-hidden', 'true');
+        confirmState.activeForm = null;
+        confirmState.activeButton = null;
+      }
+
+      function openConfirmModal(form, button) {
+        if (!confirmBackdrop || !form || !button) {
+          if (form) {
+            form.submit();
+          }
+          return;
+        }
+
+        confirmState.activeForm = form;
+        confirmState.activeButton = button;
+        confirmTitle.textContent = button.getAttribute('data-confirm-title') || 'Potwierdzenie akcji';
+        confirmMessage.textContent = button.getAttribute('data-confirm-message') || 'Czy na pewno chcesz kontynuować?';
+        confirmBackdrop.classList.add('ap-open');
+        confirmBackdrop.setAttribute('aria-hidden', 'false');
+      }
+
       function apNotify(type, msg) {
         var wrap = document.getElementById('ap-toast-wrap');
         if (!wrap) return;
@@ -437,6 +510,52 @@
             });
         });
       }
+
+      var confirmButtons = document.querySelectorAll('.js-modern-confirm');
+      for (var j = 0; j < confirmButtons.length; j++) {
+        confirmButtons[j].addEventListener('click', function(e) {
+          var form = this.form;
+          if (!form) {
+            return;
+          }
+
+          e.preventDefault();
+          openConfirmModal(form, this);
+        });
+      }
+
+      if (confirmBtnCancel) {
+        confirmBtnCancel.addEventListener('click', function() {
+          closeConfirmModal();
+        });
+      }
+
+      if (confirmBackdrop) {
+        confirmBackdrop.addEventListener('click', function(e) {
+          if (e.target === confirmBackdrop) {
+            closeConfirmModal();
+          }
+        });
+      }
+
+      if (confirmBtnOk) {
+        confirmBtnOk.addEventListener('click', function() {
+          if (!confirmState.activeForm) {
+            closeConfirmModal();
+            return;
+          }
+
+          var form = confirmState.activeForm;
+          closeConfirmModal();
+          form.submit();
+        });
+      }
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && confirmBackdrop && confirmBackdrop.classList.contains('ap-open')) {
+          closeConfirmModal();
+        }
+      });
     })();
   </script>
 
