@@ -17,6 +17,7 @@
   <form id="orders_filters_form" method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
     <input type="hidden" name="controller" value="AdminAllegroProOrders" />
     <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
+    <input type="hidden" id="filter_global_query_hidden" name="filter_global_query" value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}" />
 
     <div class="row">
       <div class="col-md-3">
@@ -87,7 +88,7 @@
         <div class="input-group">
           <input
             id="global_quick_search"
-            name="filter_global_query"
+            data-name="filter_global_query"
             value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}"
             type="text"
             class="form-control"
@@ -605,7 +606,15 @@ $(document).ready(function() {
 
   $('#btnStartProcess').click(function() { ImportManager.start(); });
 
+  function syncGlobalQueryValue() {
+    $('#filter_global_query_hidden').val($('#global_quick_search').val());
+  }
+
+  $('#global_quick_search').on('input change', syncGlobalQueryValue);
+
   $('#orders_filters_form').on('submit', function() {
+    syncGlobalQueryValue();
+
     var $btn = $('#btn_global_search');
     if (!$btn.length) return true;
 
