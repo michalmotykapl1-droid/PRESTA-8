@@ -219,9 +219,19 @@ class ShipmentSyncService
     {
         $found = [];
 
+        $debug = !empty($debugLines);
+
         $checkoutShipmentsResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId) . '/shipments');
+        if ($debug) {
+            $debugLines[] = '[API] GET /order/checkout-forms/{id}/shipments: HTTP ' . (int)($checkoutShipmentsResp['code'] ?? 0) . ', ok=' . (!empty($checkoutShipmentsResp['ok']) ? '1' : '0');
+        }
         if ($checkoutShipmentsResp['ok'] && is_array($checkoutShipmentsResp['json'])) {
             $rows = $this->resolver->extractShipmentRows($checkoutShipmentsResp['json']);
+
+            if ($debug) {
+                $debugLines[] = '[SYNC] /checkout-forms/{id}/shipments rows=' . count($rows);
+            }
+
             foreach ($rows as $row) {
                 if (!is_array($row)) {
                     continue;
@@ -230,10 +240,23 @@ class ShipmentSyncService
                 $refs = $this->resolver->extractCandidateReferencesFromArray($row);
                 foreach ($refs as $ref) {
                     $this->captureDiscoveredRowContext($ref, $row);
+                    // ważne: w /order/checkout-forms/{id}/shipments "id" bywa base64("CARRIER:WAYBILL")
+                    // i nie przechodzi przez extractShipmentIdFromRow(). Dodajemy więc wszystkie referencje jako kandydaty.
+                    $found[$ref] = true;
                 }
 
                 $sid = $this->resolver->extractShipmentIdFromRow($row);
                 $waybill = $this->resolver->extractWaybillFromRow($row);
+                $carrierId = $this->resolver->extractCarrierIdFromRow($row);
+
+                // Jeżeli mamy waybill, to twórzmy też kanoniczną referencję (base64("CARRIER:WAYBILL")),
+                // żeby moduł mógł rozpoznać np. INPOST po prefiksie oraz trzymać spójne ID.
+                if (is_string($waybill) && trim($waybill) !== '') {
+                    $carrierId = is_string($carrierId) && trim($carrierId) !== '' ? strtoupper(trim($carrierId)) : 'ALLEGRO';
+                    $canonicalRef = base64_encode($carrierId . ':' . trim($waybill));
+                    $this->captureDiscoveredRowContext($canonicalRef, $row);
+                    $found[$canonicalRef] = true;
+                }
 
                 if ($sid !== null) {
                     if ($this->resolver->looksLikeCreateCommandId($sid)) {
@@ -253,6 +276,9 @@ class ShipmentSyncService
                     } else {
                         $found[$sid] = true;
                     }
+                } elseif ($waybill !== null) {
+                    // Jeśli API zwróciło tylko waybill, też mamy pełną informację do historii i trackingu.
+                    // Zapiszemy jako referencję kanoniczną powyżej (base64("CARRIER:WAYBILL")).
                 }
             }
         }
@@ -530,6 +556,17 @@ class ShipmentSyncService
         if (is_string($decoded)) {
             $decoded = trim($decoded);
             if ($decoded !== '' && !$this->resolver->looksLikeShipmentId($decoded) && !$this->resolver->looksLikeCreateCommandId($decoded)) {
+                // W /order/checkout-forms/{id}/shipments identyfikator bywa w formacie "CARRIER:WAYBILL".
+                // Do trackingu potrzebujemy SAMEGO waybilla.
+                if (strpos($decoded, ':') !== false) {
+                    $parts = explode(':', $decoded, 2);
+                    if (count($parts) === 2) {
+                        $wb = trim((string)$parts[1]);
+                        if ($wb !== '') {
+                            return $wb;
+                        }
+                    }
+                }
                 return $decoded;
             }
         }

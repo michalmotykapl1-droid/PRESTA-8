@@ -210,6 +210,17 @@ class ShipmentReferenceResolver
             }
         }
 
+        // Fallback: w zasobie /order/checkout-forms/{id}/shipments często "id" jest zakodowanym identyfikatorem
+        // w formacie base64("CARRIER:WAYBILL"). Wtedy osobne pole waybill może nie występować.
+        foreach (['id', 'shipmentId', 'shipment_id'] as $k) {
+            if (!empty($row[$k]) && is_string($row[$k])) {
+                $parsed = $this->parseCarrierWaybillFromReference((string)$row[$k]);
+                if (!empty($parsed['waybill'])) {
+                    return (string)$parsed['waybill'];
+                }
+            }
+        }
+
         return null;
     }
 
@@ -226,7 +237,62 @@ class ShipmentReferenceResolver
                 return strtoupper(trim($candidate));
             }
         }
+
+        // Fallback: carrierId z zakodowanego "id" (base64("CARRIER:WAYBILL"))
+        foreach (['id', 'shipmentId', 'shipment_id'] as $k) {
+            if (!empty($row[$k]) && is_string($row[$k])) {
+                $parsed = $this->parseCarrierWaybillFromReference((string)$row[$k]);
+                if (!empty($parsed['carrierId'])) {
+                    return strtoupper((string)$parsed['carrierId']);
+                }
+            }
+        }
         return null;
+    }
+
+
+    /**
+     * Parsuje referencję przesyłki, która może być:
+     * - base64("CARRIER:WAYBILL") (typowe dla /order/checkout-forms/{id}/shipments)
+     * - "CARRIER:WAYBILL"
+     * - "ALLEGRO:WAYBILL" (specjalny prefiks)
+     * Zwraca: ['carrierId' => ?string, 'waybill' => ?string]
+     */
+    public function parseCarrierWaybillFromReference(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return ['carrierId' => null, 'waybill' => null];
+        }
+
+        // decodeShipmentReference() dekoduje base64, a dla ALLEGRO: zwraca sam waybill.
+        $decoded = $this->decodeShipmentReference($value);
+        if (!is_string($decoded)) {
+            return ['carrierId' => null, 'waybill' => null];
+        }
+        $decoded = trim($decoded);
+        if ($decoded === '') {
+            return ['carrierId' => null, 'waybill' => null];
+        }
+
+        // Jeśli po dekodowaniu nie ma dwukropka, traktuj jako sam waybill.
+        if (strpos($decoded, ':') === false) {
+            return ['carrierId' => null, 'waybill' => $decoded];
+        }
+
+        [$carrier, $waybill] = array_pad(explode(':', $decoded, 2), 2, '');
+        $carrier = strtoupper(trim((string)$carrier));
+        $waybill = trim((string)$waybill);
+        if ($waybill === '') {
+            return ['carrierId' => null, 'waybill' => null];
+        }
+
+        // CarrierId w Allegro to najczęściej DPD/INPOST/DHL/UPS/GLS/ORLEN/ALLEGRO/OTHER etc.
+        if ($carrier !== '' && preg_match('/^[A-Z0-9_]{2,20}$/', $carrier)) {
+            return ['carrierId' => $carrier, 'waybill' => $waybill];
+        }
+
+        return ['carrierId' => null, 'waybill' => $waybill];
     }
 
     
