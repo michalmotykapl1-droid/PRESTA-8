@@ -247,11 +247,25 @@ class OrderRepository
 
     public function getDistinctStatusesForAccount(int $accountId): array
     {
+        return $this->getDistinctStatusesForAccounts([(int)$accountId]);
+    }
+
+    public function getDistinctStatusesForAccounts(array $accountIds): array
+    {
+        $safeAccountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($safeAccountIds)) {
+            return [];
+        }
+
         $sql = 'SELECT DISTINCT o.status
-                FROM `' . _DB_PREFIX_ . 'allegropro_order` o
-                WHERE o.id_allegropro_account = ' . (int)$accountId . '
-                  AND o.status IS NOT NULL AND o.status != ""
-                ORDER BY o.status ASC';
+'
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o
+'
+            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ')
+'
+            . '  AND o.status IS NOT NULL AND o.status != ""
+'
+            . 'ORDER BY o.status ASC';
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         $out = [];
@@ -264,11 +278,25 @@ class OrderRepository
 
     public function getDistinctShipmentStatusesForAccount(int $accountId): array
     {
+        return $this->getDistinctShipmentStatusesForAccounts([(int)$accountId]);
+    }
+
+    public function getDistinctShipmentStatusesForAccounts(array $accountIds): array
+    {
+        $safeAccountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($safeAccountIds)) {
+            return [];
+        }
+
         $sql = 'SELECT DISTINCT sh.status
-                FROM `' . _DB_PREFIX_ . 'allegropro_shipment` sh
-                WHERE sh.id_allegropro_account = ' . (int)$accountId . '
-                  AND sh.status IS NOT NULL AND sh.status != ""
-                ORDER BY sh.status ASC';
+'
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_shipment` sh
+'
+            . 'WHERE sh.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ')
+'
+            . '  AND sh.status IS NOT NULL AND sh.status != ""
+'
+            . 'ORDER BY sh.status ASC';
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         $out = [];
@@ -279,49 +307,58 @@ class OrderRepository
         return $out;
     }
 
-    public function countShipmentListFiltered(int $accountId, array $filters, bool $withShipment): int
+    public function countShipmentListFiltered(array $accountIds, array $filters, bool $withShipment): int
     {
-        $accountId = (int)$accountId;
+        $safeAccountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($safeAccountIds)) {
+            return 0;
+        }
+
         $where = $this->buildShipmentFilterWhere($filters);
         $shipmentConstraint = $withShipment ? 'shx.checkout_form_id IS NOT NULL' : 'shx.checkout_form_id IS NULL';
 
         $sql = 'SELECT COUNT(*) '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account '
             . 'LEFT JOIN ( '
-            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id '
+            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id, id_allegropro_account '
             . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
-            . '    WHERE id_allegropro_account = ' . $accountId . ' '
-            . '    GROUP BY checkout_form_id '
-            . ') shx ON shx.checkout_form_id = o.checkout_form_id '
+            . '    GROUP BY checkout_form_id, id_allegropro_account '
+            . ') shx ON shx.checkout_form_id = o.checkout_form_id AND shx.id_allegropro_account = o.id_allegropro_account '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
-            . 'WHERE o.id_allegropro_account = ' . $accountId . ' '
+            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ') '
             . 'AND ' . $shipmentConstraint . ' '
             . $where;
 
         return (int)Db::getInstance()->getValue($sql);
     }
 
-    public function getShipmentListFiltered(int $accountId, array $filters, int $limit, int $offset, bool $withShipment): array
+    public function getShipmentListFiltered(array $accountIds, array $filters, int $limit, int $offset, bool $withShipment): array
     {
-        $accountId = (int)$accountId;
+        $safeAccountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($safeAccountIds)) {
+            return [];
+        }
+
         $limit = max(1, (int)$limit);
         $offset = max(0, (int)$offset);
 
         $where = $this->buildShipmentFilterWhere($filters);
         $shipmentConstraint = $withShipment ? 'shx.checkout_form_id IS NOT NULL' : 'shx.checkout_form_id IS NULL';
 
-        $sql = 'SELECT o.checkout_form_id, o.updated_at_allegro AS updated_at, o.status, o.total_amount, o.currency, o.buyer_login, '
+        $sql = 'SELECT o.id_allegropro_account, a.label AS account_label, a.allegro_login, '
+            . 'o.checkout_form_id, o.updated_at_allegro AS updated_at, o.status, o.total_amount, o.currency, o.buyer_login, '
             . 's.method_name AS shipping_method_name, sh.shipment_id, sh.status AS shipment_status, sh.updated_at AS shipment_updated_at '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
             . 'LEFT JOIN ( '
-            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id '
+            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id, id_allegropro_account '
             . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
-            . '    WHERE id_allegropro_account = ' . $accountId . ' '
-            . '    GROUP BY checkout_form_id '
-            . ') shx ON shx.checkout_form_id = o.checkout_form_id '
+            . '    GROUP BY checkout_form_id, id_allegropro_account '
+            . ') shx ON shx.checkout_form_id = o.checkout_form_id AND shx.id_allegropro_account = o.id_allegropro_account '
             . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
-            . 'WHERE o.id_allegropro_account = ' . $accountId . ' '
+            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ') '
             . 'AND ' . $shipmentConstraint . ' '
             . $where
             . 'ORDER BY o.updated_at_allegro DESC '
@@ -330,13 +367,29 @@ class OrderRepository
         return Db::getInstance()->executeS($sql) ?: [];
     }
 
+    private function normalizeAccountIds(array $accountIds): array
+    {
+        $safe = [];
+        foreach ($accountIds as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $safe[] = $id;
+            }
+        }
+
+        $safe = array_values(array_unique($safe));
+        sort($safe);
+
+        return $safe;
+    }
+
     private function buildShipmentFilterWhere(array $filters): string
     {
         $parts = [];
 
         if (!empty($filters['query'])) {
             $query = pSQL((string)$filters['query']);
-            $parts[] = "(o.checkout_form_id LIKE '%" . $query . "%' OR o.buyer_login LIKE '%" . $query . "%' OR sh.shipment_id LIKE '%" . $query . "%')";
+            $parts[] = "(o.checkout_form_id LIKE '%" . $query . "%' OR o.buyer_login LIKE '%" . $query . "%' OR sh.shipment_id LIKE '%" . $query . "%' OR a.label LIKE '%" . $query . "%')";
         }
 
         if (!empty($filters['date_from'])) {
