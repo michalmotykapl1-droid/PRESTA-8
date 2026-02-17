@@ -270,10 +270,11 @@ class AllegroPro extends Module
             `checkout_form_id` VARCHAR(64) NOT NULL,
             `shipment_id` VARCHAR(64) NOT NULL,
             `tracking_number` VARCHAR(64) NULL,
-            `wza_command_id` VARCHAR(36) NULL,
-            `wza_shipment_uuid` VARCHAR(36) NULL,
-            `carrier_mode` VARCHAR(32) DEFAULT 'BOX',
-            `size_details` VARCHAR(32) NULL,
+            `wza_command_id` VARCHAR(64) NULL,
+            `wza_shipment_uuid` VARCHAR(64) NULL,
+            `wza_label_shipment_id` VARCHAR(64) NULL,
+            `carrier_mode` VARCHAR(64) DEFAULT 'BOX',
+            `size_details` VARCHAR(64) NULL,
             `is_smart` TINYINT(1) DEFAULT 0,
             `status` VARCHAR(32) DEFAULT 'CREATED',
             `label_path` VARCHAR(255) NULL,
@@ -284,6 +285,7 @@ class AllegroPro extends Module
             KEY `idx_cf` (`checkout_form_id`),
             KEY `idx_wza_cmd` (`wza_command_id`),
             KEY `idx_wza_uuid` (`wza_shipment_uuid`),
+            KEY `idx_wza_label_shipment_id` (`wza_label_shipment_id`),
             KEY `idx_status_changed_at` (`status_changed_at`)
         ) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
         

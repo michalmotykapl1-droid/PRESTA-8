@@ -186,10 +186,11 @@
                                             {/if}
                                         </td>
                                         <td class="text-right">
+                                            {if $ship.can_download_label && $ship.status != 'CANCELLED'}
+                                                <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
+                                            {/if}
+
                                             {if $ship.status == 'CREATED' || $ship.status == 'PENDING'}
-                                                {if $ship.can_download_label}
-                                                    <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
-                                                {/if}
                                                 <button class="btn btn-xs btn-danger btn-cancel-shipment" data-id="{$ship.shipment_id}" title="Anuluj przesyłkę w Allegro"><i class="material-icons">cancel</i></button>
                                             {/if}
                                         </td>

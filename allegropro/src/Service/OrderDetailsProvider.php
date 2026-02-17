@@ -95,7 +95,27 @@ class OrderDetailsProvider
             $isUuid = ($wzaUuid !== '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $wzaUuid));
             $isModuleShipment = ($wzaCommand !== '' || $isUuid);
 
-            $sh['can_download_label'] = $isModuleShipment;
+            $tracking = trim((string)($sh['tracking_number'] ?? ''));
+            $size = strtoupper(trim((string)($sh['size_details'] ?? '')));
+            // Drukarka także dla przesyłek pobranych z Allegro, ale tylko CUSTOM + ma tracking_number
+            $isInpostExternal = false;
+            $ref = trim((string)($sh['shipment_id'] ?? ''));
+            if ($ref !== '') {
+                if (strpos($ref, 'SU5QT1NU') === 0) {
+                    $isInpostExternal = true; // base64 zaczyna się od "INPOST"
+                } else {
+                    $dec = base64_decode($ref, true);
+                    if (is_string($dec) && strpos($dec, 'INPOST:') === 0) {
+                        $isInpostExternal = true;
+                    }
+                }
+            }
+
+            $hasShipx = (!empty($account['shipx_token']));
+            // Drukarka dla przesyłek pobranych z Allegro: tylko CUSTOM + tracking + INPOST + skonfigurowany ShipX token
+            $isExternalEligible = (!$isModuleShipment && $tracking !== '' && $size === 'CUSTOM' && $isInpostExternal && $hasShipx);
+
+            $sh['can_download_label'] = ($isModuleShipment || $isExternalEligible);
             $sh['origin_is_module'] = $isModuleShipment ? 1 : 0;
             $sh['origin_label'] = $isModuleShipment ? 'UTWORZONA W MODULE' : 'POBRANA Z ALLEGRO';
         }

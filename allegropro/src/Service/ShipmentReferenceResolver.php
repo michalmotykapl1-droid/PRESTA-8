@@ -62,7 +62,28 @@ class ShipmentReferenceResolver
             return false;
         }
 
-        // Bazowe heurystyki dla tokenów (np. base64) – zostawiamy, ale bez łapania "ALLEGRO:..."
+        // Jeśli wygląda jak zakodowana referencja przewoźnika (np. base64("INPOST:620...") / base64("DPD:AD0...")),
+        // to NIE jest commandId create-commands.
+        // W praktyce takie wartości są przechowywane w shipment_id / wza_shipment_uuid dla przesyłek pobranych z Allegro.
+        $decoded = null;
+        if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && (strlen($value) % 4 === 0)) {
+            $tmp = base64_decode($value, true);
+            if (is_string($tmp) && $tmp !== '') {
+                $decoded = trim($tmp);
+            }
+        }
+        if (is_string($decoded) && $decoded !== '') {
+            // np. "INPOST:620..." / "DPD:AD0..." / "DHL:..."
+            if (preg_match('/^[A-Z0-9_]{2,20}:[A-Za-z0-9]{8,64}$/', $decoded)) {
+                return false;
+            }
+            // historycznie spotykane: "ALLEGRO:..." po dekodowaniu
+            if (stripos($decoded, 'ALLEGRO:') === 0) {
+                return false;
+            }
+        }
+
+        // Bazowe heurystyki dla tokenów (np. base64 commandId) – pozwalamy, ale dopiero po odfiltrowaniu referencji przewoźników.
         if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $value) && strlen($value) >= 16 && (strlen($value) % 4 === 0)) {
             return true;
         }
@@ -176,8 +197,22 @@ class ShipmentReferenceResolver
             }
         }
 
+        // Często w shipment-management waybill jest w packages[]
+        if (!empty($row['packages']) && is_array($row['packages'])) {
+            foreach ($row['packages'] as $pkg) {
+                if (!is_array($pkg)) {
+                    continue;
+                }
+                $wb = $pkg['waybill'] ?? ($pkg['trackingNumber'] ?? null);
+                if (is_string($wb) && trim($wb) !== '') {
+                    return trim($wb);
+                }
+            }
+        }
+
         return null;
     }
+
 
     public function extractCarrierIdFromRow(array $row): ?string
     {
@@ -194,7 +229,162 @@ class ShipmentReferenceResolver
         return null;
     }
 
-    public function resolveShipmentIdByWaybill(array $account, string $waybill, array &$debugLines = []): ?string
+    
+
+    /**
+     * Próbuje odnaleźć shipmentId (UUID) używany w /shipment-management/label dla istniejącej przesyłki,
+     * bazując na checkoutFormId + waybill. To jest dokładnie identyfikator, który Sales Center wysyła w polu shipmentIds.
+     *
+     * Uwaga: Allegro nie dokumentuje oficjalnie wyszukiwarki po checkoutFormId/waybill w /shipment-management/shipments,
+     * ale w praktyce część kont zwraca takie dane. Robimy best-effort.
+     */
+    public function resolveShipmentIdByOrderAndWaybill(array $account, string $checkoutFormId, string $waybill, array &$debugLines = []): ?string
+    {
+        $checkoutFormId = trim($checkoutFormId);
+        $waybill = trim($waybill);
+        if ($checkoutFormId === '' || $waybill === '') {
+            return null;
+        }
+
+        $queries = [
+            ['checkoutFormId' => $checkoutFormId, 'waybill' => $waybill],
+            ['checkoutFormId' => $checkoutFormId],
+            ['orderId' => $checkoutFormId, 'waybill' => $waybill],
+            ['orderId' => $checkoutFormId],
+            ['query' => $checkoutFormId],
+        ];
+
+        foreach ($queries as $query) {
+            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
+            if (!empty($debugLines)) {
+                $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+            }
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                continue;
+            }
+
+            $rows = $this->extractShipmentRows($resp['json']);
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowWaybill = $this->extractWaybillFromRow($row);
+                $rowId = isset($row['id']) ? trim((string)$row['id']) : '';
+
+                if ($rowId !== '' && $this->looksLikeShipmentId($rowId)) {
+                    if ($rowWaybill !== null && strcasecmp($rowWaybill, $waybill) === 0) {
+                        if (!empty($debugLines)) {
+                            $debugLines[] = '[SYNC] resolve (order+waybill) -> shipmentId: ' . $checkoutFormId . ' / ' . $waybill . ' => ' . $rowId;
+                        }
+                        return $rowId;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Alias / preferowany wariant: rozwiązuje WZA shipmentId (UUID) dla etykiety (shipmentIds[])
+     * na podstawie checkoutFormId + waybill.
+     */
+    public function resolveWzaShipmentIdByCheckoutFormAndWaybill(array $account, string $checkoutFormId, string $waybill, array &$debugLines = []): ?string
+    {
+        $checkoutFormId = trim($checkoutFormId);
+        $waybill = trim($waybill);
+
+        if ($checkoutFormId === '' || $waybill === '') {
+            return null;
+        }
+
+        // Best-effort: różne konta/wersje API potrafią akceptować różne parametry.
+        $queries = [
+            ['checkoutFormId' => $checkoutFormId],
+            ['checkoutFormId' => $checkoutFormId, 'limit' => 200],
+            ['checkoutFormId' => $checkoutFormId, 'query' => $waybill],
+            ['orderId' => $checkoutFormId],
+            ['orderId' => $checkoutFormId, 'limit' => 200],
+            ['query' => $checkoutFormId],
+            ['query' => $waybill],
+            ['waybill' => $waybill],
+            ['trackingNumber' => $waybill],
+        ];
+
+        foreach ($queries as $query) {
+            $resp = $this->api->get($account, '/shipment-management/shipments', $query);
+            $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
+
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                continue;
+            }
+
+            $rows = $this->extractShipmentRows($resp['json']);
+            $debugLines[] = '[RESOLVE] rows=' . count($rows) . ' (checkoutFormId)';
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rowId = isset($row['id']) ? trim((string)$row['id']) : '';
+                if ($rowId === '' || !$this->looksLikeShipmentId($rowId)) {
+                    continue;
+                }
+
+                $rowWaybills = $this->extractWaybillsFromRow($row);
+                foreach ($rowWaybills as $wb) {
+                    if ($wb !== '' && strcasecmp($wb, $waybill) === 0) {
+                        $debugLines[] = '[RESOLVE] match waybill=' . $waybill . ' => shipmentId=' . $rowId;
+                        return $rowId;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Zwraca wszystkie potencjalne waybille z odpowiedzi shipment-management (różne kształty).
+     */
+    public function extractWaybillsFromRow(array $row): array
+    {
+        $out = [];
+
+        $primary = $this->extractWaybillFromRow($row);
+        if (is_string($primary) && trim($primary) !== '') {
+            $out[] = trim($primary);
+        }
+
+        // packages[]
+        if (!empty($row['packages']) && is_array($row['packages'])) {
+            foreach ($row['packages'] as $pkg) {
+                if (!is_array($pkg)) {
+                    continue;
+                }
+                foreach (['waybill', 'trackingNumber', 'tracking_number'] as $k) {
+                    if (!empty($pkg[$k]) && is_string($pkg[$k])) {
+                        $wb = trim($pkg[$k]);
+                        if ($wb !== '') {
+                            $out[] = $wb;
+                        }
+                    }
+                }
+            }
+        }
+
+        // unikaty
+        $uniq = [];
+        foreach ($out as $wb) {
+            $key = strtoupper($wb);
+            $uniq[$key] = $wb;
+        }
+        return array_values($uniq);
+    }
+
+public function resolveShipmentIdByWaybill(array $account, string $waybill, array &$debugLines = []): ?string
     {
         // UWAGA: /shipment-management/shipments nie jest publicznie udokumentowane jako wyszukiwarka po waybill.
         // W praktyce często zwraca 406/4xx. Zostawiamy dla kompatybilności (best effort).
