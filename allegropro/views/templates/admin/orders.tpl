@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <form method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
+  <form id="orders_filters_form" method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
     <input type="hidden" name="controller" value="AdminAllegroProOrders" />
     <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
 
@@ -76,8 +76,30 @@
         </select>
       </div>
       <div class="col-md-10" style="display:flex; align-items:flex-end; gap:8px;">
-        <button type="submit" class="btn btn-primary"><i class="icon icon-search"></i> Filtruj</button>
+        <button type="submit" class="btn btn-primary"><i class="icon icon-filter"></i> Filtruj</button>
         <a class="btn btn-default" href="{$admin_link|escape:'htmlall':'UTF-8'}"><i class="icon icon-eraser"></i> Wyczyść filtry</a>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div class="col-md-12">
+        <label>Szukaj globalnie (wszystkie kolumny tabeli na stronie)</label>
+        <div class="input-group">
+          <input
+            id="global_quick_search"
+            name="filter_global_query"
+            value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}"
+            type="text"
+            class="form-control"
+            placeholder="Np. nazwisko, login, e-mail, telefon, checkout_form_id, status, dostawa..."
+          />
+          <span class="input-group-btn">
+            <button id="btn_global_search" type="submit" class="btn btn-primary" style="min-width:140px;">
+              <i id="btn_global_search_icon" class="icon icon-search"></i>
+              <span id="btn_global_search_text">Szukaj</span>
+            </button>
+          </span>
+        </div>
       </div>
     </div>
   </form>
@@ -154,6 +176,7 @@
       <input type="hidden" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" />
+      <input type="hidden" name="filter_global_query" value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}" />
       {foreach from=$allegropro_filters.delivery_methods item=dv}
         <input type="hidden" name="filter_delivery_methods[]" value="{$dv|escape:'htmlall':'UTF-8'}" />
       {/foreach}
@@ -581,6 +604,18 @@ $(document).ready(function() {
   });
 
   $('#btnStartProcess').click(function() { ImportManager.start(); });
+
+  $('#orders_filters_form').on('submit', function() {
+    var $btn = $('#btn_global_search');
+    if (!$btn.length) return true;
+
+    $btn.prop('disabled', true);
+    $('#btn_global_search_icon').removeClass('icon-search').addClass('icon-refresh icon-spin');
+    $('#btn_global_search_text').text('Szukam...');
+
+    return true;
+  });
+
 
   $('.btn-details').click(function(e) {
     e.preventDefault();

@@ -80,9 +80,11 @@ class OrderRepository
     public function countFiltered(array $filters): int
     {
         $q = new DbQuery();
-        $q->select('COUNT(*)');
+        $q->select('COUNT(DISTINCT o.id_allegropro_order)');
         $q->from('allegropro_order', 'o');
         $q->leftJoin('allegropro_order_shipping', 's', 's.checkout_form_id = o.checkout_form_id');
+        $q->leftJoin('allegropro_order_buyer', 'b', 'b.checkout_form_id = o.checkout_form_id');
+        $q->leftJoin('allegropro_account', 'a', 'a.id_allegropro_account = o.id_allegropro_account');
 
         $this->applyFilters($q, $filters);
 
@@ -133,6 +135,51 @@ class OrderRepository
 
         if (!empty($filters['checkout_form_id'])) {
             $q->where("o.checkout_form_id LIKE '%" . pSQL($filters['checkout_form_id']) . "%'");
+        }
+
+        if (!empty($filters['global_query'])) {
+            $search = pSQL((string)$filters['global_query']);
+            $globalConditions = [
+                "o.checkout_form_id LIKE '%" . $search . "%'",
+                "o.status LIKE '%" . $search . "%'",
+                "s.method_name LIKE '%" . $search . "%'",
+                "b.firstname LIKE '%" . $search . "%'",
+                "b.lastname LIKE '%" . $search . "%'",
+                "b.email LIKE '%" . $search . "%'",
+                "b.login LIKE '%" . $search . "%'",
+                "b.phone_number LIKE '%" . $search . "%'",
+                "a.label LIKE '%" . $search . "%'",
+                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_shipment` sh WHERE sh.checkout_form_id = o.checkout_form_id AND ("
+                    . "sh.shipment_id LIKE '%" . $search . "%' OR sh.tracking_number LIKE '%" . $search . "%' OR sh.wza_command_id LIKE '%" . $search . "%' OR sh.wza_shipment_uuid LIKE '%" . $search . "%' OR sh.wza_label_shipment_id LIKE '%" . $search . "%'"
+                . "))",
+                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_item` oi WHERE oi.checkout_form_id = o.checkout_form_id AND ("
+                    . "oi.name LIKE '%" . $search . "%' OR oi.offer_id LIKE '%" . $search . "%' OR oi.ean LIKE '%" . $search . "%' OR oi.reference_number LIKE '%" . $search . "%'"
+                . "))",
+                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_payment` op WHERE op.checkout_form_id = o.checkout_form_id AND ("
+                    . "op.payment_id LIKE '%" . $search . "%' OR op.status LIKE '%" . $search . "%' OR op.provider LIKE '%" . $search . "%' OR CAST(op.paid_amount AS CHAR) LIKE '%" . $search . "%'"
+                . "))",
+                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_invoice` inv WHERE inv.checkout_form_id = o.checkout_form_id AND ("
+                    . "inv.company_name LIKE '%" . $search . "%' OR inv.tax_id LIKE '%" . $search . "%' OR inv.street LIKE '%" . $search . "%' OR inv.city LIKE '%" . $search . "%' OR inv.zip_code LIKE '%" . $search . "%'"
+                . "))",
+            ];
+
+            if ($this->hasOrderTableColumn('buyer_login')) {
+                $globalConditions[] = "o.buyer_login LIKE '%" . $search . "%'";
+            }
+
+            if ($this->hasOrderTableColumn('buyer_email')) {
+                $globalConditions[] = "o.buyer_email LIKE '%" . $search . "%'";
+            }
+
+            if ($this->hasOrderTableColumn('currency')) {
+                $globalConditions[] = "o.currency LIKE '%" . $search . "%'";
+            }
+
+            if ($this->hasOrderTableColumn('total_amount')) {
+                $globalConditions[] = "CAST(o.total_amount AS CHAR) LIKE '%" . $search . "%'";
+            }
+
+            $q->where('(' . implode(' OR ', $globalConditions) . ')');
         }
     }
 
