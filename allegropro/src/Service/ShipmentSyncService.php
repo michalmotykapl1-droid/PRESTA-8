@@ -534,8 +534,15 @@ class ShipmentSyncService
 
     private function isBaseShipmentStatus(string $status): bool
     {
+        // W praktyce endpoint /shipment-management/shipments/{id} potrafi zwracać status "SENT" przez dłuższy czas,
+        // podczas gdy /order/carriers/{carrierId}/tracking?waybill=... ma już bardziej szczegółowy status.
+        // Żeby w BO statusy były "żywe" (np. W DRODZE / DO ODBIORU), próbujemy trackingu dla wszystkich
+        // statusów poza finalnymi.
         $status = strtoupper(trim($status));
-        return $status === '' || in_array($status, ['CREATED', 'NEW', 'IN_PROGRESS'], true);
+        if ($status === '') {
+            return true;
+        }
+        return !in_array($status, ['DELIVERED', 'CANCELLED'], true);
     }
 
     /**
@@ -879,8 +886,21 @@ class ShipmentSyncService
             return 'DELIVERED';
         }
 
-        // Statusy "w drodze" mapujemy do SENT (żeby BO nie pokazywało tylko CREATED)
-        if (in_array($s, ['IN_TRANSIT', 'ON_THE_WAY', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'], true)) {
+        // Statusy "w drodze" trzymamy rozdzielnie, żeby UI mogło pokazać progres (NADANA -> W DRODZE -> DO ODBIORU).
+        if (in_array($s, ['IN_TRANSIT', 'ON_THE_WAY'], true)) {
+            return 'IN_TRANSIT';
+        }
+
+        if ($s === 'OUT_FOR_DELIVERY') {
+            return 'OUT_FOR_DELIVERY';
+        }
+
+        if ($s === 'READY_FOR_PICKUP') {
+            return 'READY_FOR_PICKUP';
+        }
+
+        // Część integracji zwraca "SHIPPED" zamiast "SENT".
+        if ($s === 'SHIPPED') {
             return 'SENT';
         }
 

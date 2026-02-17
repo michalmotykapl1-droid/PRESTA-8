@@ -121,19 +121,27 @@ class OrderDetailsProvider
         }
         unset($sh);
 
-        // Smart: liczymy po zsynchronizowanej historii
-        $smartLimit = (int)($shipping['package_count'] ?? 0);
-        $smartUsed = 0;
-        foreach ($shipmentsHistory as $sh) {
-            if ((string)($sh['status'] ?? '') === 'CANCELLED') {
-                continue;
-            }
+        // Smart: liczymy po zsynchronizowanej historii.
+        // Dla zamówień bez Smart chcemy zawsze 0/0 (wyświetlamy box informacyjny "nie Smart").
+        $isSmartOrder = !empty($shipping['is_smart']);
 
-            if ((int)($sh['is_smart'] ?? 0) === 1) {
-                $smartUsed++;
+        if ($isSmartOrder) {
+            $smartLimit = (int)($shipping['package_count'] ?? 0);
+            $smartUsed = 0;
+            foreach ($shipmentsHistory as $sh) {
+                if ((string)($sh['status'] ?? '') === 'CANCELLED') {
+                    continue;
+                }
+
+                if ((int)($sh['is_smart'] ?? 0) === 1) {
+                    $smartUsed++;
+                }
             }
+            $smartLeft = max(0, $smartLimit - $smartUsed);
+        } else {
+            $smartLimit = 0;
+            $smartLeft = 0;
         }
-        $smartLeft = max(0, $smartLimit - $smartUsed);
 
         // 5. Statusy
         $psStatusName = 'Nieznany';

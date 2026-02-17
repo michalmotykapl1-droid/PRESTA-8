@@ -92,17 +92,30 @@
                         {/if}
                         
                         {* BANER SMART *}
-                        {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
-                             <div style="background-color: #ffece5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="color:#ff5a00;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
-                                    <small>Wysyłka opłacona przez Allegro.</small>
+                        {if isset($allegro_data.shipping)}
+                            {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
+                                <div style="background-color: #ffece5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color:#ff5a00;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
+                                        <small>Wysyłka opłacona przez Allegro.</small>
+                                    </div>
+                                    <div style="text-align:right; border: 1px solid #f4d5c6; padding: 5px 8px; background: #fff4ef;">
+                                        <small style="display:block;color:#999;">POZOSTAŁO:</small>
+                                        <strong style="font-size:22px; color:#ff5a00;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
+                                    </div>
                                 </div>
-                                <div style="text-align:right; border: 1px solid #f4d5c6; padding: 5px 8px; background: #fff4ef;">
-                                    <small style="display:block;color:#999;">POZOSTAŁO:</small>
-                                    <strong style="font-size:22px; color:#ff5a00;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
+                            {else}
+                                <div style="background-color: #f5f5f5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color:#5a6570;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
+                                        <small>To nie jest wysyłka Smart (standardowa wysyłka).</small>
+                                    </div>
+                                    <div style="text-align:right; border: 1px solid #e0e0e0; padding: 5px 8px; background: #ffffff;">
+                                        <small style="display:block;color:#999;">POZOSTAŁO:</small>
+                                        <strong style="font-size:22px; color:#5a6570;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
+                                    </div>
                                 </div>
-                            </div>
+                            {/if}
                         {/if}
                         
                         <p><strong>Metoda:</strong> {$allegro_data.shipping.method_name|default:'-'}</p>
@@ -159,6 +172,8 @@
                                             {elseif $ship_status == 'NEW'}<span class="badge badge-info">W TOKU</span>
                                             {elseif $ship_status == 'IN_PROGRESS'}<span class="badge badge-info">PRZETWARZANIE</span>
                                             {elseif $ship_status == 'SENT'}<span class="badge badge-primary">NADANA</span>
+                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'OUT_FOR_DELIVERY'}<span class="badge badge-primary">W DRODZE</span>
+                                            {elseif $ship_status == 'READY_FOR_PICKUP'}<span class="badge badge-warning">DO ODBIORU</span>
                                             {elseif $ship_status == 'DELIVERED'}<span class="badge badge-primary">DORĘCZONA</span>
                                             {else}<span class="badge badge-warning">{$ship_status|escape:'htmlall':'UTF-8'}</span>{/if}
 
@@ -168,7 +183,9 @@
                                         <td>
                                             {if $ship_status == 'CREATED' || $ship_status == 'PENDING'}Oczekuje na nadanie
                                             {elseif $ship_status == 'NEW' || $ship_status == 'IN_PROGRESS'}W trakcie tworzenia
-                                            {elseif $ship_status == 'SENT'}W drodze
+                                            {elseif $ship_status == 'SENT'}Nadana
+                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'OUT_FOR_DELIVERY'}W drodze
+                                            {elseif $ship_status == 'READY_FOR_PICKUP'}Do odbioru
                                             {elseif $ship_status == 'DELIVERED'}Dostarczona
                                             {elseif $ship_status == 'CANCELLED'}Anulowana
                                             {else}{$ship_status|escape:'htmlall':'UTF-8'}{/if}

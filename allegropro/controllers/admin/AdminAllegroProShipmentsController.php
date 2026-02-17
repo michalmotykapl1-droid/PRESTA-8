@@ -395,6 +395,14 @@ class AdminAllegroProShipmentsController extends ModuleAdminController
             return ['label' => 'NADANA', 'class' => 'primary'];
         }
 
+        if ($status === 'IN_TRANSIT' || $status === 'OUT_FOR_DELIVERY') {
+            return ['label' => 'W DRODZE', 'class' => 'primary'];
+        }
+
+        if ($status === 'READY_FOR_PICKUP') {
+            return ['label' => 'DO ODBIORU', 'class' => 'primary'];
+        }
+
         if ($status === 'DELIVERED') {
             return ['label' => 'DORĘCZONA', 'class' => 'primary'];
         }
