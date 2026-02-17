@@ -183,6 +183,46 @@ class OrderRepository
     }
 
     /**
+     * Liczba wszystkich zamówień zapisanych lokalnie dla konta.
+     */
+    public function countStoredOrdersForAccount(int $accountId): int
+    {
+        $sql = 'SELECT COUNT(*)
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `id_allegropro_account` = ' . (int)$accountId;
+
+        return (int)Db::getInstance()->getValue($sql);
+    }
+
+    /**
+     * Zwraca partię checkout_form_id lokalnie zapisanych zamówień dla konta.
+     */
+    public function getStoredOrderIdsForAccountBatch(int $accountId, int $limit = 50, int $offset = 0): array
+    {
+        if ($limit <= 0) {
+            $limit = 50;
+        }
+
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
+        $sql = 'SELECT `checkout_form_id`
+                FROM `' . _DB_PREFIX_ . 'allegropro_order`
+                WHERE `id_allegropro_account` = ' . (int)$accountId . '
+                ORDER BY `id_allegropro_order` DESC
+                LIMIT ' . (int)$offset . ', ' . (int)$limit;
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $ids = [];
+        foreach ($rows as $r) {
+            $ids[] = (string)$r['checkout_form_id'];
+        }
+
+        return $ids;
+    }
+
+    /**
      * Filtruje przekazaną listę checkoutFormId do takich, które są pending dla konta.
      * Zachowuje kolejność z wejścia.
      */

@@ -192,6 +192,44 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $this->ajaxDie(json_encode(['success' => true, 'ids' => $ids]));
     }
 
+
+    // Krok R1: Pobranie partii lokalnie zapisanych zamówień do aktualizacji
+    public function displayAjaxRefreshGetBatch() {
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $limit = (int)Tools::getValue('limit');
+        if ($limit <= 0) {
+            $limit = 25;
+        }
+        if ($limit > 200) {
+            $limit = 200;
+        }
+
+        $offset = (int)Tools::getValue('offset');
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
+        $accountId = (int)$account['id_allegropro_account'];
+        $total = $this->repo->countStoredOrdersForAccount($accountId);
+        $ids = $this->repo->getStoredOrderIdsForAccountBatch($accountId, $limit, $offset);
+        $nextOffset = $offset + count($ids);
+
+        $this->ajaxDie(json_encode([
+            'success' => true,
+            'ids' => $ids,
+            'total' => $total,
+            'offset' => $offset,
+            'next_offset' => $nextOffset,
+            'has_more' => $nextOffset < $total,
+            'limit' => $limit,
+            'account_id' => $accountId,
+        ]));
+    }
+
     // Krok 3 i 4: Przetwarzanie (Create lub Fix)
     public function displayAjaxImportProcessSingle() {
         $cfId = Tools::getValue('checkout_form_id');
@@ -549,7 +587,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'allegropro_delivery_options' => $this->repo->getDistinctDeliveryMethods(),
             'allegropro_status_options' => $statusGroups,
             'allegropro_selected_status_codes' => $statusCodes,
-            'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders')
+            'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders'),
+        ]);
+
+        $this->context->smarty->assign([
+            'allegropro_refresh_orders_panel' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_panel.tpl'),
+            'allegropro_refresh_orders_script' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_script.tpl'),
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');

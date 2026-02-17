@@ -1,6 +1,8 @@
 <div class="panel">
   <h3><i class="icon icon-shopping-cart"></i> Zamówienia (Baza danych modułu)</h3>
 
+  {$allegropro_refresh_orders_panel nofilter}
+
   <div class="row" style="margin-bottom:20px;">
     <div class="col-md-12">
       <div class="alert alert-info" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-radius:12px;border:1px solid #bfe3f6;background:#eef8fe;">
@@ -604,3 +606,4 @@ $(document).ready(function() {
 });
 </script>
 {/literal}
+{$allegropro_refresh_orders_script nofilter}
