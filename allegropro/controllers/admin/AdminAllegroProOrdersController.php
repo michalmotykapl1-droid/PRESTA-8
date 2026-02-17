@@ -195,29 +195,63 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
     // Krok R-1: Reasocjacja rekordów ze starych/nieużywanych ID kont Allegro
     public function displayAjaxRefreshReassignLegacyAccountOrders() {
-        $account = $this->getValidAccountFromRequest();
-        if (!$account) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        $onlyLegacyRaw = Tools::getValue('only_legacy_mode', 0);
+        $onlyLegacyMode = in_array((string)$onlyLegacyRaw, ['1', 'true', 'on', 'yes'], true);
+
+        $account = null;
+        $targetAccountId = 0;
+        if (!$onlyLegacyMode) {
+            $account = $this->getValidAccountFromRequest();
+            if (!$account) {
+                $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+            }
+
+            $targetAccountId = (int)$account['id_allegropro_account'];
         }
 
-        $targetAccountId = (int)$account['id_allegropro_account'];
+        $accountRepo = new AccountRepository();
+        $allAccounts = $accountRepo->all();
+        $allActiveAccounts = [];
+        foreach ($allAccounts as $acc) {
+            if ((int)($acc['active'] ?? 0) !== 1) {
+                continue;
+            }
+
+            $allActiveAccounts[(int)$acc['id_allegropro_account']] = $acc;
+        }
+
+        if (empty($allActiveAccounts)) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak aktywnych kont Allegro do reasocjacji.']));
+        }
+
+        $accountsToCheck = $allActiveAccounts;
+        if (!$onlyLegacyMode) {
+            if (!isset($allActiveAccounts[$targetAccountId])) {
+                $this->ajaxDie(json_encode(['success' => false, 'message' => 'Wybrane konto Allegro nie jest aktywne.']));
+            }
+
+            $accountsToCheck = [$targetAccountId => $allActiveAccounts[$targetAccountId]];
+        }
+
+        $allActiveAccountIds = array_values(array_filter(array_map('intval', array_keys($allActiveAccounts)), function ($id) {
+            return $id > 0;
+        }));
+        if (empty($allActiveAccountIds)) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak poprawnych ID aktywnych kont Allegro do reasocjacji.']));
+        }
+
+        $inActiveIds = implode(',', $allActiveAccountIds);
         $db = Db::getInstance();
 
-        $rows = $db->executeS(
-            'SELECT o.checkout_form_id, o.id_allegropro_account
-'
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o
-'
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account
-'
-            . 'WHERE a.id_allegropro_account IS NULL
-'
-            . '  AND o.id_allegropro_account <> ' . $targetAccountId . '
-'
-            . 'ORDER BY o.updated_at_allegro DESC
-'
-            . 'LIMIT 1000'
-        ) ?: [];
+        $legacyRowsQuery = new DbQuery();
+        $legacyRowsQuery
+            ->select('o.checkout_form_id, o.id_allegropro_account')
+            ->from('allegropro_order', 'o')
+            ->where('o.id_allegropro_account NOT IN (' . $inActiveIds . ')')
+            ->orderBy('o.updated_at_allegro DESC')
+            ->limit(1000);
+
+        $rows = $db->executeS($legacyRowsQuery) ?: [];
 
         if (empty($rows)) {
             $this->ajaxDie(json_encode([
@@ -231,11 +265,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         }
 
         $http = new HttpClient();
-        $api = new AllegroApiClient($http, new AccountRepository());
+        $api = new AllegroApiClient($http, $accountRepo);
 
         $checked = 0;
         $reassigned = 0;
         $prestaLinked = 0;
+        $unresolved = 0;
         $reassignedIds = [];
 
         foreach ($rows as $row) {
@@ -246,61 +281,64 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
             $checked++;
 
-            // Weryfikujemy, że to zamówienie istnieje na aktualnie wybranym koncie Allegro.
-            $resp = $api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutId));
-            if (empty($resp['ok'])) {
-                continue;
+            $matchedAccountId = 0;
+            foreach ($accountsToCheck as $activeAccount) {
+                $resp = $api->get($activeAccount, '/order/checkout-forms/' . rawurlencode($checkoutId));
+                if (empty($resp['ok'])) {
+                    continue;
+                }
+
+                $remoteId = isset($resp['json']['id']) ? (string)$resp['json']['id'] : '';
+                if ($remoteId !== $checkoutId) {
+                    continue;
+                }
+
+                $matchedAccountId = (int)$activeAccount['id_allegropro_account'];
+                break;
             }
 
-            $remoteId = isset($resp['json']['id']) ? (string)$resp['json']['id'] : '';
-            if ($remoteId !== $checkoutId) {
+            if ($matchedAccountId <= 0) {
+                $unresolved++;
                 continue;
             }
 
             $db->update(
                 'allegropro_order',
-                ['id_allegropro_account' => $targetAccountId],
+                ['id_allegropro_account' => $matchedAccountId],
                 "checkout_form_id = '" . pSQL($checkoutId) . "'"
             );
 
             $db->update(
                 'allegropro_shipment',
-                ['id_allegropro_account' => $targetAccountId],
+                ['id_allegropro_account' => $matchedAccountId],
                 "checkout_form_id = '" . pSQL($checkoutId) . "'"
             );
 
             $reassigned++;
             $reassignedIds[] = $checkoutId;
 
-            $existingPsId = (int)$db->getValue(
-                'SELECT id_order_prestashop
-'
-                . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
-'
-                . "WHERE checkout_form_id = '" . pSQL($checkoutId) . "'
-"
-                . 'ORDER BY id_allegropro_order DESC
-'
-                . 'LIMIT 1'
-            );
+            $existingPsQuery = new DbQuery();
+            $existingPsQuery
+                ->select('id_order_prestashop')
+                ->from('allegropro_order')
+                ->where("checkout_form_id = '" . pSQL($checkoutId) . "'")
+                ->orderBy('id_allegropro_order DESC')
+                ->limit(1);
+            $existingPsId = (int)$db->getValue($existingPsQuery);
 
             if ($existingPsId > 0) {
                 continue;
             }
 
-            $psOrderId = (int)$db->getValue(
-                'SELECT o.id_order
-'
-                . 'FROM `' . _DB_PREFIX_ . 'orders` o
-'
-                . 'INNER JOIN `' . _DB_PREFIX_ . 'order_payment` op ON o.reference = op.order_reference
-'
-                . "WHERE op.transaction_id = '" . pSQL($checkoutId) . "'
-"
-                . 'ORDER BY o.id_order DESC
-'
-                . 'LIMIT 1'
-            );
+            $psOrderQuery = new DbQuery();
+            $psOrderQuery
+                ->select('o.id_order')
+                ->from('orders', 'o')
+                ->innerJoin('order_payment', 'op', 'o.reference = op.order_reference')
+                ->where("op.transaction_id = '" . pSQL($checkoutId) . "'")
+                ->orderBy('o.id_order DESC')
+                ->limit(1);
+            $psOrderId = (int)$db->getValue($psOrderQuery);
 
             if ($psOrderId > 0) {
                 $db->update(
@@ -317,6 +355,8 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'checked' => $checked,
             'reassigned_count' => $reassigned,
             'presta_linked_count' => $prestaLinked,
+            'unresolved_count' => $unresolved,
+            'legacy_mode' => $onlyLegacyMode,
             'reassigned_ids' => $reassignedIds,
             'message' => 'Zakończono reasocjację rekordów legacy.',
         ]));

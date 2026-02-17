@@ -13,6 +13,7 @@
         stage0Checked: 0,
         stage0Reassigned: 0,
         stage0PrestaLinked: 0,
+        stage0Unresolved: 0,
         stage0Ids: [],
         stage1Deleted: 0,
         stage1DeletedIds: [],
@@ -61,6 +62,13 @@
       }
     },
 
+    setAccountSelectionLocked: function(locked) {
+      var isLocked = !!locked;
+      var select = $('#refresh_account_id');
+      select.prop('disabled', isLocked);
+      $('#refresh_account_lock_hint').toggle(isLocked);
+    },
+
     getBatchSize: function() {
       var val = parseInt($('#refresh_batch_size').val(), 10);
       if (isNaN(val) || val < 1) val = 25;
@@ -78,6 +86,7 @@
       this.processed = 0;
       this.resetStats();
       this.setRunning(false);
+      this.setAccountSelectionLocked(this.isOnlyLegacyMode());
       $('#refresh_runtime_section').hide();
     },
 
@@ -86,8 +95,9 @@
         return;
       }
 
+      var onlyLegacyMode = this.isOnlyLegacyMode();
       var accountId = parseInt($('#refresh_account_id').val(), 10);
-      if (!accountId) {
+      if (!onlyLegacyMode && !accountId) {
         alert('Wybierz konto Allegro.');
         return;
       }
@@ -106,7 +116,9 @@
       this.setBar('#refresh_update_bar', 0, 100);
 
       this.setReport('<strong>Raport (w trakcie):</strong> start procesu 3-etapowego.');
-      this.log('Start aktualizacji dla konta ID ' + accountId + '.', 'warning');
+      this.log(onlyLegacyMode
+        ? 'Start aktualizacji w trybie legacy: skanowanie wszystkich aktywnych kont Allegro.'
+        : ('Start aktualizacji dla konta ID ' + accountId + '.'), 'warning');
 
       this.runStage0Reassign(accountId);
     },
@@ -118,7 +130,10 @@
         url: 'index.php?controller=' + this.controller + '&token=' + this.token + '&action=refresh_reassign_legacy_account_orders&ajax=1',
         type: 'POST',
         dataType: 'json',
-        data: { id_allegropro_account: accountId },
+        data: {
+          id_allegropro_account: accountId,
+          only_legacy_mode: this.isOnlyLegacyMode() ? 1 : 0
+        },
         success: (res) => {
           if (!res || !res.success) {
             this.log('ETAP 0/3: błąd reasocjacji rekordów legacy.', 'error');
@@ -131,11 +146,13 @@
           this.stats.stage0Checked = parseInt(res.checked || 0, 10);
           this.stats.stage0Reassigned = parseInt(res.reassigned_count || 0, 10);
           this.stats.stage0PrestaLinked = parseInt(res.presta_linked_count || 0, 10);
+          this.stats.stage0Unresolved = parseInt(res.unresolved_count || 0, 10);
           this.stats.stage0Ids = Array.isArray(res.reassigned_ids) ? res.reassigned_ids : [];
 
           this.log(
             'ETAP 0/3: sprawdzono ' + this.stats.stage0Checked
             + ', przypisano ponownie ' + this.stats.stage0Reassigned
+            + ', nierozpoznane: ' + this.stats.stage0Unresolved
             + ', podpięto ID zamówienia Presta: ' + this.stats.stage0PrestaLinked + '.',
             this.stats.stage0Reassigned > 0 ? 'warning' : 'success'
           );
@@ -143,6 +160,7 @@
           this.setReport(
             '<strong>Raport (po ETAPIE 0):</strong> sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, '
             + 'przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, '
+            + 'nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, '
             + 'uzupełniono ID zamówień Presta <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
           );
 
@@ -158,9 +176,19 @@
           $('#refresh_batch_status').text('Etap 1/3: czyszczenie rekordów osieroconych...');
           this.runStage1Cleanup(accountId);
         },
-        error: () => {
-          this.log('ETAP 0/3: błąd połączenia podczas reasocjacji.', 'error');
-          this.setReport('<strong>Raport:</strong> przerwano z powodu błędu połączenia w ETAPIE 0.');
+        error: (xhr) => {
+          var backendMsg = '';
+          if (xhr && xhr.responseText) {
+            try {
+              var parsed = JSON.parse(xhr.responseText);
+              backendMsg = parsed && parsed.message ? String(parsed.message) : '';
+            } catch (e) {
+              backendMsg = String(xhr.responseText).replace(/<[^>]*>/g, '').trim().slice(0, 240);
+            }
+          }
+
+          this.log('ETAP 0/3: błąd połączenia podczas reasocjacji.' + (backendMsg ? ' Szczegóły: ' + backendMsg : ''), 'error');
+          this.setReport('<strong>Raport:</strong> przerwano z powodu błędu połączenia w ETAPIE 0.' + (backendMsg ? ' <br><span style="color:#b91c1c;">' + backendMsg + '</span>' : ''));
           $('#refresh_batch_status').removeClass('label-warning').addClass('label-danger').text('Błąd połączenia ETAP 0');
           this.setRunning(false);
         }
@@ -174,7 +202,10 @@
         url: 'index.php?controller=' + this.controller + '&token=' + this.token + '&action=refresh_cleanup_orphans&ajax=1',
         type: 'POST',
         dataType: 'json',
-        data: { id_allegropro_account: accountId },
+        data: {
+          id_allegropro_account: accountId,
+          only_legacy_mode: this.isOnlyLegacyMode() ? 1 : 0
+        },
         success: (res) => {
           if (!res || !res.success) {
             this.log('ETAP 1/3: błąd czyszczenia rekordów osieroconych.', 'error');
@@ -199,9 +230,19 @@
 
           this.runStage2Refresh(accountId, 0);
         },
-        error: () => {
-          this.log('ETAP 1/3: błąd połączenia podczas cleanup.', 'error');
-          this.setReport('<strong>Raport:</strong> przerwano z powodu błędu połączenia w ETAPIE 1.');
+        error: (xhr) => {
+          var backendMsg = '';
+          if (xhr && xhr.responseText) {
+            try {
+              var parsed = JSON.parse(xhr.responseText);
+              backendMsg = parsed && parsed.message ? String(parsed.message) : '';
+            } catch (e) {
+              backendMsg = String(xhr.responseText).replace(/<[^>]*>/g, '').trim().slice(0, 240);
+            }
+          }
+
+          this.log('ETAP 1/3: błąd połączenia podczas cleanup.' + (backendMsg ? ' Szczegóły: ' + backendMsg : ''), 'error');
+          this.setReport('<strong>Raport:</strong> przerwano z powodu błędu połączenia w ETAPIE 1.' + (backendMsg ? ' <br><span style="color:#b91c1c;">' + backendMsg + '</span>' : ''));
           $('#refresh_batch_status').removeClass('label-warning').addClass('label-danger').text('Błąd połączenia ETAP 1');
           this.setRunning(false);
         }
@@ -297,7 +338,7 @@
 
           this.setReport(
             '<strong>Raport (w trakcie):</strong> '
-            + 'ETAP0 przypisano <strong>' + this.stats.stage0Reassigned + '</strong>, '
+            + 'ETAP0 przypisano <strong>' + this.stats.stage0Reassigned + '</strong>, nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, '
             + 'ETAP1 usunięto <strong>' + this.stats.stage1Deleted + '</strong>, '
             + 'ETAP2 przetworzono <strong>' + this.processed + '/' + this.total + '</strong>, '
             + 'sukcesy <strong>' + this.stats.ok + '</strong>, '
@@ -325,12 +366,12 @@
 
       this.setReport(
         '<strong>Raport końcowy (tryb tylko legacy):</strong> '
-        + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
+        + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
         + '<br>ETAP 1 i ETAP 2 zostały pominięte zgodnie z zaznaczoną opcją.'
         + reassignedPreview
       );
 
-      this.log('Tryb tylko legacy zakończony. Sprawdzono: ' + this.stats.stage0Checked + ', przypisano: ' + this.stats.stage0Reassigned + '.', 'success');
+      this.log('Tryb tylko legacy zakończony. Sprawdzono: ' + this.stats.stage0Checked + ', przypisano: ' + this.stats.stage0Reassigned + ', nierozpoznane: ' + this.stats.stage0Unresolved + '.', 'success');
       this.setRunning(false);
     },
 
@@ -352,7 +393,7 @@
 
       this.setReport(
         '<strong>Raport końcowy (3 etapy):</strong> '
-        + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
+        + '<br>ETAP 0 (reasocjacja legacy): sprawdzono <strong>' + this.stats.stage0Checked + '</strong>, przypisano ponownie <strong>' + this.stats.stage0Reassigned + '</strong>, nierozpoznane <strong>' + this.stats.stage0Unresolved + '</strong>, uzupełniono Presta ID <strong>' + this.stats.stage0PrestaLinked + '</strong>.'
         + '<br>ETAP 1 (cleanup): usunięto rekordów z id_order_prestashop=0: <strong>' + this.stats.stage1Deleted + '</strong>.'
         + '<br>ETAP 2 (aktualizacja): przetworzono <strong>' + this.processed + '/' + this.total + '</strong>, '
         + 'sukcesy <strong>' + this.stats.ok + '</strong> '
@@ -363,13 +404,17 @@
         + errorsPreview
       );
 
-      this.log('Proces 3-etapowy zakończony. ETAP0 przypisano: ' + this.stats.stage0Reassigned + ', ETAP1 usunięto: ' + this.stats.stage1Deleted + ', ETAP2 przetworzono: ' + this.processed + ' / ' + this.total + '.', 'success');
+      this.log('Proces 3-etapowy zakończony. ETAP0 przypisano: ' + this.stats.stage0Reassigned + ' (nierozpoznane: ' + this.stats.stage0Unresolved + '), ETAP1 usunięto: ' + this.stats.stage1Deleted + ', ETAP2 przetworzono: ' + this.processed + ' / ' + this.total + '.', 'success');
       this.setRunning(false);
     }
   };
 
   $(document).ready(function(){
     RefreshStoredOrders.initUI();
+
+    $('#refresh_only_legacy_reassign').on('change', function(){
+      RefreshStoredOrders.setAccountSelectionLocked($(this).is(':checked'));
+    });
 
     $('#btnStartRefreshStoredOrders').on('click', function(){
       RefreshStoredOrders.start();

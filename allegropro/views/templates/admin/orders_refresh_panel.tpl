@@ -22,6 +22,7 @@
             <option value="0">Brak kont Allegro</option>
           {/if}
         </select>
+        <small id="refresh_account_lock_hint" class="text-warning" style="display:none;">W trybie "Tylko reasocjacja legacy" wybór konta jest wyłączony — moduł sprawdza wszystkie aktywne konta.</small>
       </div>
 
       <div class="col-md-3">
