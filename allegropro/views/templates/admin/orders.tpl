@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <form id="orders_filters_form" method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
+  <form method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
     <input type="hidden" name="controller" value="AdminAllegroProOrders" />
     <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
 
@@ -76,35 +76,8 @@
         </select>
       </div>
       <div class="col-md-10" style="display:flex; align-items:flex-end; gap:8px;">
-        <button type="submit" class="btn btn-primary"><i class="icon icon-filter"></i> Filtruj</button>
+        <button type="submit" class="btn btn-primary"><i class="icon icon-search"></i> Filtruj</button>
         <a class="btn btn-default" href="{$admin_link|escape:'htmlall':'UTF-8'}"><i class="icon icon-eraser"></i> Wyczyść filtry</a>
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:14px;">
-      <div class="col-md-12">
-        <label>Szukaj globalnie (wszystkie kolumny w całej bazie modułu)</label>
-        <div class="input-group">
-          <input
-            id="global_quick_search"
-            name="filter_global_query"
-            value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}"
-            type="text"
-            class="form-control"
-            placeholder="Np. nazwisko, login, e-mail, telefon, numer przesyłki, EAN, checkout_form_id, status, dostawa..."
-          />
-          <span class="input-group-btn">
-            <button id="btn_global_search" type="submit" class="btn btn-primary" style="min-width:140px;">
-              <i id="btn_global_search_icon" class="icon icon-search"></i>
-              <span id="btn_global_search_text">Szukaj</span>
-            </button>
-          </span>
-        </div>
-      </div>
-    </div>
-    <div class="row" style="margin-top:8px;">
-      <div class="col-md-12">
-        <div id="global_search_debug_runtime" class="alert alert-info" style="display:none; margin-bottom:0; padding:8px 12px;"></div>
       </div>
     </div>
   </form>
@@ -168,37 +141,6 @@
   {assign var=totalPages value=$allegropro_pagination.total_pages|intval}
   {assign var=totalRows value=$allegropro_pagination.total_rows|intval}
 
-  {if $allegropro_filters.global_query|default:'' != ''}
-    <div class="alert alert-info" style="margin-top:10px;">
-      <div><strong>Debug wyszukiwania (koniec procesu)</strong></div>
-      <div>Fraza: <code>{$allegropro_filters.global_query|escape:'htmlall':'UTF-8'}</code> (długość: {$allegropro_filters.global_query|strlen|intval}).</div>
-      <div>Wynik: <strong>{$totalRows|intval}</strong> rekordów po wyszukiwaniu.</div>
-      <div style="margin-top:6px;"><strong>Przeszukane zakresy:</strong></div>
-      <ul style="margin:4px 0 0 18px;">
-        <li>allegropro_order (checkout_form_id, status, opcjonalnie buyer_login/buyer_email/currency/total_amount)</li>
-        <li>allegropro_order_shipping (method_name)</li>
-        <li>allegropro_order_buyer (firstname, lastname, email, login, phone_number)</li>
-        <li>allegropro_account (label)</li>
-        <li>allegropro_shipment (shipment_id, tracking_number, wza_*)</li>
-        <li>allegropro_order_item (name, offer_id, ean, reference_number)</li>
-        <li>allegropro_order_payment (payment_id, status, provider, paid_amount)</li>
-        <li>allegropro_order_invoice (company_name, tax_id, street, city, zip_code)</li>
-      </ul>
-
-      <div style="margin-top:6px;"><strong>Ostrzeżenia:</strong>
-        {if $totalRows|intval == 0}
-          <span class="text-warning">Brak dopasowań dla podanej frazy.</span>
-        {else}
-          <span class="text-success">brak</span>
-        {/if}
-      </div>
-
-      <div style="margin-top:6px;"><strong>Błędy:</strong>
-        <span class="text-success">brak błędów technicznych zgłoszonych przez moduł.</span>
-      </div>
-    </div>
-  {/if}
-
   <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:10px;">
     <div class="text-muted">
       Łącznie zamówień: <strong>{$totalRows}</strong>
@@ -212,7 +154,6 @@
       <input type="hidden" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" />
-      <input type="hidden" name="filter_global_query" value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}" />
       {foreach from=$allegropro_filters.delivery_methods item=dv}
         <input type="hidden" name="filter_delivery_methods[]" value="{$dv|escape:'htmlall':'UTF-8'}" />
       {/foreach}
@@ -364,9 +305,6 @@
     adminLink: '{$admin_link|escape:'javascript':'UTF-8'}'
   };
 </script>
-
-  {$allegropro_refresh_orders_panel nofilter}
-
 {literal}
 <script>
 var ImportManager = {
@@ -641,26 +579,6 @@ $(document).ready(function() {
 
   $('#btnStartProcess').click(function() { ImportManager.start(); });
 
-  $('#orders_filters_form').on('submit', function() {
-    var $btn = $('#btn_global_search');
-    if (!$btn.length) return true;
-
-    var query = $.trim($('#global_quick_search').val() || '');
-    var debugBox = $('#global_search_debug_runtime');
-    debugBox
-      .show()
-      .removeClass('alert-danger')
-      .addClass('alert-info')
-      .html('<strong>Debug:</strong> start wyszukiwania dla frazy: <code>' + $('<div>').text(query).html() + '</code>. Czekam na odświeżenie wyników...');
-
-    $btn.prop('disabled', true);
-    $('#btn_global_search_icon').removeClass('icon-search').addClass('icon-refresh icon-spin');
-    $('#btn_global_search_text').text('Szukam...');
-
-    return true;
-  });
-
-
   $('.btn-details').click(function(e) {
     e.preventDefault();
     var cfId = $(this).data('id');
@@ -686,4 +604,3 @@ $(document).ready(function() {
 });
 </script>
 {/literal}
-{$allegropro_refresh_orders_script nofilter}

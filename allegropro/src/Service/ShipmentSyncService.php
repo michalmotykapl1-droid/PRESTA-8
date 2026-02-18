@@ -38,12 +38,6 @@ class ShipmentSyncService
         if (!$force && !$this->shipments->shouldSyncOrder($accountId, $checkoutFormId, $ttlSeconds)) {
             if ($debug) {
                 $debugLines[] = '[SYNC] pominięto przez TTL=' . (int)$ttlSeconds . 's';
-            }
-
-            // Nawet jeśli pomijamy sync (TTL), możemy naprawić godzinę płatności z danych lokalnych.
-            $this->backfillPrestashopPaymentDate($checkoutFormId, null, $debugLines, $debug);
-
-            if ($debug) {
                 $this->persistSyncDebug($checkoutFormId, $debugLines);
             }
             return ['ok' => true, 'skipped' => true, 'synced' => 0, 'debug_lines' => $debugLines];
@@ -65,11 +59,6 @@ class ShipmentSyncService
         }
         if ($orderResp['ok'] && is_array($orderResp['json'])) {
             $checkoutFormJson = $orderResp['json'];
-
-            // Płatność: pobierz finishedAt (UTC) i zaktualizuj Presta (date_add w order_payment)
-            $utcFinishedAt = $this->extractPaymentFinishedAtUtcFromCheckoutForm($orderResp['json']);
-            $this->backfillPrestashopPaymentDate($checkoutFormId, $utcFinishedAt, $debugLines, $debug);
-
             $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
             $this->currentOrderIsSmart = $smart['is_smart'];
             $this->currentOrderSmartPackageLimit = $smart['package_count'];
@@ -203,17 +192,6 @@ class ShipmentSyncService
             $this->shipments->mergeWzaFieldsForOrder($accountId, $checkoutFormId);
         }
 
-        // Dodatkowa korekta historycznych rekordów: dla size_details=CUSTOM kopiuj shipment_id -> wza_shipment_uuid,
-        // jeśli wza_shipment_uuid jest puste. Dzięki temu dane są spójne dla dalszych operacji w module.
-        if (method_exists($this->shipments, 'backfillWzaUuidFromShipmentIdForCustom')) {
-            $fixed = $this->shipments->backfillWzaUuidFromShipmentIdForCustom($accountId, $checkoutFormId);
-            if ($debug) {
-                $debugLines[] = '[SYNC] backfill CUSTOM: wza_shipment_uuid <- shipment_id, updated=' . (int)$fixed;
-                // jeżeli debug był włączony, dopiszemy te linie jeszcze raz do cache debug, bo wcześniejszy persist mógł już zajść
-                $this->persistSyncDebug($checkoutFormId, $debugLines);
-            }
-        }
-
         if (method_exists($this->shipments, 'rebalanceSmartFlagsForOrder')) {
             $this->shipments->rebalanceSmartFlagsForOrder(
                 $accountId,
@@ -223,148 +201,7 @@ class ShipmentSyncService
             );
         }
 
-        // Dla pewności: po pełnym syncu spróbuj jeszcze raz naprawić godzinę płatności z danych lokalnych.
-        $this->backfillPrestashopPaymentDate($checkoutFormId, null, $debugLines, $debug);
-
         return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'duplicates_removed' => $removedDuplicates, 'debug_lines' => $debugLines];
-    }
-
-    /**
-     * Wyciąga payment.finishedAt z checkout-form i zwraca jako UTC w formacie SQL (Y-m-d H:i:s).
-     */
-    private function extractPaymentFinishedAtUtcFromCheckoutForm(array $json): ?string
-    {
-        $raw = $json['payment']['finishedAt'] ?? null;
-        if (!is_string($raw) || trim($raw) === '') {
-            return null;
-        }
-
-        try {
-            $dt = new \DateTime(trim($raw));
-            $dt->setTimezone(new \DateTimeZone('UTC'));
-            return $dt->format('Y-m-d H:i:s');
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Poprawia godzinę płatności w PrestaShop (ps_order_payment.date_add) na podstawie Allegro payment.finishedAt.
-     * - Jeśli $utcFinishedAt jest podane -> aktualizuje także tabelę allegropro_order_payment.finished_at.
-     * - Jeśli $utcFinishedAt jest null -> używa danych lokalnych (allegropro_order_payment.finished_at).
-     */
-    private function backfillPrestashopPaymentDate(string $checkoutFormId, ?string $utcFinishedAt, array &$debugLines, bool $debug): void
-    {
-        try {
-            $cfEsc = pSQL($checkoutFormId);
-
-            // 1) Jeśli mamy świeże finishedAt z API, zapisz w DB (UTC)
-            if (is_string($utcFinishedAt) && $utcFinishedAt !== '') {
-                $exists = (int)\Db::getInstance()->getValue(
-                    "SELECT COUNT(*) FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE `checkout_form_id`='" . $cfEsc . "'"
-                );
-                if ($exists > 0) {
-                    \Db::getInstance()->execute(
-                        "UPDATE `" . _DB_PREFIX_ . "allegropro_order_payment` SET `finished_at`='" . pSQL($utcFinishedAt) . "' WHERE `checkout_form_id`='" . $cfEsc . "'"
-                    );
-                } else {
-                    \Db::getInstance()->insert('allegropro_order_payment', [
-                        'checkout_form_id' => $cfEsc,
-                        'finished_at' => pSQL($utcFinishedAt),
-                    ]);
-                }
-            }
-
-            // 2) Pobierz id_order_prestashop + finished_at (UTC) z danych lokalnych
-            $row = \Db::getInstance()->getRow(
-                "SELECT o.id_order_prestashop, p.finished_at FROM `" . _DB_PREFIX_ . "allegropro_order` o " .
-                "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_payment` p ON p.checkout_form_id=o.checkout_form_id " .
-                "WHERE o.checkout_form_id='" . $cfEsc . "' LIMIT 1"
-            );
-            if (!is_array($row) || empty($row['id_order_prestashop'])) {
-                if ($debug) {
-                    $debugLines[] = '[PAY] brak mapowania id_order_prestashop dla checkoutFormId';
-                }
-                return;
-            }
-
-            $idOrder = (int)$row['id_order_prestashop'];
-            $utc = trim((string)($row['finished_at'] ?? ''));
-            if ($utc === '') {
-                if ($debug) {
-                    $debugLines[] = '[PAY] brak finished_at w allegropro_order_payment';
-                }
-                return;
-            }
-
-            // 3) Konwersja UTC -> timezone Presty
-            $local = $this->utcSqlToPrestashopSql($utc);
-
-            // 4) Sprawdź czy już ustawione
-            $current = (string)\Db::getInstance()->getValue(
-                "SELECT op.date_add FROM `" . _DB_PREFIX_ . "order_payment` op " .
-                "INNER JOIN `" . _DB_PREFIX_ . "orders` o ON o.reference=op.order_reference " .
-                "WHERE o.id_order=" . (int)$idOrder . " AND op.transaction_id='" . $cfEsc . "' LIMIT 1"
-            );
-            if ($current !== '' && substr($current, 0, 19) === substr($local, 0, 19)) {
-                if ($debug) {
-                    $debugLines[] = '[PAY] ok (bez zmian), date_add=' . $current;
-                }
-                return;
-            }
-
-            // 5) Aktualizacja Presta: tylko płatność Allegro dla tego zamówienia
-            $sql = "UPDATE `" . _DB_PREFIX_ . "order_payment` op " .
-                "INNER JOIN `" . _DB_PREFIX_ . "orders` o ON o.reference=op.order_reference " .
-                "SET op.date_add='" . pSQL($local) . "' " .
-                "WHERE o.id_order=" . (int)$idOrder . " AND (op.transaction_id='" . $cfEsc . "' OR op.payment_method='Allegro')";
-            \Db::getInstance()->execute($sql);
-
-            if ($debug) {
-                $debugLines[] = '[PAY] ustawiono date_add=' . $local . ' (id_order=' . (int)$idOrder . ')';
-            }
-        } catch (\Exception $e) {
-            if ($debug) {
-                $debugLines[] = '[PAY] wyjątek: ' . $e->getMessage();
-            }
-        }
-    }
-
-    /**
-     * Konwertuje czas UTC zapisany jako SQL (Y-m-d H:i:s) do timezone PrestaShop i zwraca SQL.
-     */
-    private function utcSqlToPrestashopSql(string $utcSql): string
-    {
-        $utcSql = trim($utcSql);
-        if ($utcSql === '') {
-            return date('Y-m-d H:i:s');
-        }
-
-        try {
-            $dt = new \DateTime($utcSql, new \DateTimeZone('UTC'));
-        } catch (\Exception $e) {
-            return date('Y-m-d H:i:s');
-        }
-
-        $tzName = '';
-        if (class_exists('Configuration')) {
-            try {
-                $tzName = (string)\Configuration::get('PS_TIMEZONE');
-            } catch (\Exception $e) {
-                $tzName = '';
-            }
-        }
-        if ($tzName === '') {
-            $tzName = date_default_timezone_get() ?: 'UTC';
-        }
-
-        try {
-            $dt->setTimezone(new \DateTimeZone($tzName));
-        } catch (\Exception $e) {
-            // fallback: zostaw UTC
-        }
-
-        return $dt->format('Y-m-d H:i:s');
     }
 
     private function discoverShipmentIdsFromApi(array $account, string $checkoutFormId, array &$debugLines = []): array

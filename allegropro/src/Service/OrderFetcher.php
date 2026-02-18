@@ -101,11 +101,7 @@ class OrderFetcher
                 continue;
             }
 
-            $accountId = (int)$account['id_allegropro_account'];
-            $orderId = (string)$order['id'];
-            $exists = $this->repo->existsForAccount($accountId, $orderId) > 0;
-
-            if ($skipExisting && $exists && $this->repo->isOrderDataCompleteForAccount($accountId, $orderId)) {
+            if ($skipExisting && $this->repo->existsForAccount((int)$account['id_allegropro_account'], (string)$order['id'])) {
                 continue;
             }
 
@@ -176,10 +172,7 @@ class OrderFetcher
                 }
                 $seenInRun[$orderId] = true;
 
-                $accountId = (int)$account['id_allegropro_account'];
-                $exists = $this->repo->existsForAccount($accountId, $orderId) > 0;
-
-                if ($exists && $this->repo->isOrderDataCompleteForAccount($accountId, $orderId)) {
+                if ($this->repo->existsForAccount((int)$account['id_allegropro_account'], $orderId)) {
                     continue;
                 }
 

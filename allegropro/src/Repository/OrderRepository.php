@@ -7,13 +7,6 @@ use DbQuery;
 class OrderRepository
 {
     /**
-     * Cache dostępnych kolumn tabeli allegropro_order (dla zgodności ze starszymi instalacjami).
-     *
-     * @var array<string, bool>|null
-     */
-    private $orderTableColumns = null;
-
-    /**
      * Pobiera datę ostatniej aktualizacji zamówienia w bazie (globalnie).
      */
     public function getLastFetchedDate()
@@ -80,11 +73,9 @@ class OrderRepository
     public function countFiltered(array $filters): int
     {
         $q = new DbQuery();
-        $q->select('COUNT(DISTINCT o.id_allegropro_order)');
+        $q->select('COUNT(*)');
         $q->from('allegropro_order', 'o');
         $q->leftJoin('allegropro_order_shipping', 's', 's.checkout_form_id = o.checkout_form_id');
-        $q->leftJoin('allegropro_order_buyer', 'b', 'b.checkout_form_id = o.checkout_form_id');
-        $q->leftJoin('allegropro_account', 'a', 'a.id_allegropro_account = o.id_allegropro_account');
 
         $this->applyFilters($q, $filters);
 
@@ -136,65 +127,6 @@ class OrderRepository
         if (!empty($filters['checkout_form_id'])) {
             $q->where("o.checkout_form_id LIKE '%" . pSQL($filters['checkout_form_id']) . "%'");
         }
-
-        if (!empty($filters['global_query'])) {
-            $raw = (string)$filters['global_query'];
-            $search = pSQL($raw);
-            $digits = preg_replace('/\D+/', '', $raw);
-            $globalConditions = [
-                "o.checkout_form_id LIKE '%" . $search . "%'",
-                "o.status LIKE '%" . $search . "%'",
-                "s.method_name LIKE '%" . $search . "%'",
-                "b.firstname LIKE '%" . $search . "%'",
-                "b.lastname LIKE '%" . $search . "%'",
-                "b.email LIKE '%" . $search . "%'",
-                "b.login LIKE '%" . $search . "%'",
-                "b.phone_number LIKE '%" . $search . "%'",
-                "a.label LIKE '%" . $search . "%'",
-                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_shipment` sh WHERE sh.checkout_form_id = o.checkout_form_id AND ("
-                    . "sh.shipment_id LIKE '%" . $search . "%' OR sh.tracking_number LIKE '%" . $search . "%' OR sh.wza_command_id LIKE '%" . $search . "%' OR sh.wza_shipment_uuid LIKE '%" . $search . "%' OR sh.wza_label_shipment_id LIKE '%" . $search . "%'"
-                . "))",
-                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_item` oi WHERE oi.checkout_form_id = o.checkout_form_id AND ("
-                    . "oi.name LIKE '%" . $search . "%' OR oi.offer_id LIKE '%" . $search . "%' OR oi.ean LIKE '%" . $search . "%' OR oi.reference_number LIKE '%" . $search . "%'"
-                . "))",
-                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_payment` op WHERE op.checkout_form_id = o.checkout_form_id AND ("
-                    . "op.payment_id LIKE '%" . $search . "%' OR op.status LIKE '%" . $search . "%' OR op.provider LIKE '%" . $search . "%' OR CAST(op.paid_amount AS CHAR) LIKE '%" . $search . "%'"
-                . "))",
-                "EXISTS (SELECT 1 FROM `" . _DB_PREFIX_ . "allegropro_order_invoice` inv WHERE inv.checkout_form_id = o.checkout_form_id AND ("
-                    . "inv.company_name LIKE '%" . $search . "%' OR inv.tax_id LIKE '%" . $search . "%' OR inv.street LIKE '%" . $search . "%' OR inv.city LIKE '%" . $search . "%' OR inv.zip_code LIKE '%" . $search . "%'"
-                . "))",
-            ];
-            // Phone normalization: allow searching phone without spaces/+48 etc.
-            if ($digits !== '' && strlen($digits) >= 5) {
-                $digitsSql = pSQL($digits);
-                $digits9 = (strlen($digits) > 9) ? substr($digits, -9) : $digits;
-                $phoneExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(b.phone_number,' ',''),'+',''),'-',''),'(',''),')','')";
-                $globalConditions[] = $phoneExpr . " LIKE '%" . $digitsSql . "%'";
-                if ($digits9 !== $digits) {
-                    $globalConditions[] = $phoneExpr . " LIKE '%" . pSQL($digits9) . "%'";
-                }
-            }
-
-
-
-            if ($this->hasOrderTableColumn('buyer_login')) {
-                $globalConditions[] = "o.buyer_login LIKE '%" . $search . "%'";
-            }
-
-            if ($this->hasOrderTableColumn('buyer_email')) {
-                $globalConditions[] = "o.buyer_email LIKE '%" . $search . "%'";
-            }
-
-            if ($this->hasOrderTableColumn('currency')) {
-                $globalConditions[] = "o.currency LIKE '%" . $search . "%'";
-            }
-
-            if ($this->hasOrderTableColumn('total_amount')) {
-                $globalConditions[] = "CAST(o.total_amount AS CHAR) LIKE '%" . $search . "%'";
-            }
-
-            $q->where('(' . implode(' OR ', $globalConditions) . ')');
-        }
     }
 
     /**
@@ -238,46 +170,6 @@ class OrderRepository
             foreach ($rows as $r) {
                 $ids[] = $r['checkout_form_id'];
             }
-        }
-
-        return $ids;
-    }
-
-    /**
-     * Liczba wszystkich zamówień zapisanych lokalnie dla konta.
-     */
-    public function countStoredOrdersForAccount(int $accountId): int
-    {
-        $sql = 'SELECT COUNT(*)
-                FROM `' . _DB_PREFIX_ . 'allegropro_order`
-                WHERE `id_allegropro_account` = ' . (int)$accountId;
-
-        return (int)Db::getInstance()->getValue($sql);
-    }
-
-    /**
-     * Zwraca partię checkout_form_id lokalnie zapisanych zamówień dla konta.
-     */
-    public function getStoredOrderIdsForAccountBatch(int $accountId, int $limit = 50, int $offset = 0): array
-    {
-        if ($limit <= 0) {
-            $limit = 50;
-        }
-
-        if ($offset < 0) {
-            $offset = 0;
-        }
-
-        $sql = 'SELECT `checkout_form_id`
-                FROM `' . _DB_PREFIX_ . 'allegropro_order`
-                WHERE `id_allegropro_account` = ' . (int)$accountId . '
-                ORDER BY `id_allegropro_order` DESC
-                LIMIT ' . (int)$offset . ', ' . (int)$limit;
-
-        $rows = Db::getInstance()->executeS($sql) ?: [];
-        $ids = [];
-        foreach ($rows as $r) {
-            $ids[] = (string)$r['checkout_form_id'];
         }
 
         return $ids;
@@ -353,196 +245,6 @@ class OrderRepository
         return $out;
     }
 
-    public function getDistinctStatusesForAccount(int $accountId): array
-    {
-        return $this->getDistinctStatusesForAccounts([(int)$accountId]);
-    }
-
-    public function getDistinctStatusesForAccounts(array $accountIds): array
-    {
-        $safeAccountIds = $this->normalizeAccountIds($accountIds);
-        if (empty($safeAccountIds)) {
-            return [];
-        }
-
-        $sql = 'SELECT DISTINCT o.status
-'
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o
-'
-            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ')
-'
-            . '  AND o.status IS NOT NULL AND o.status != ""
-'
-            . 'ORDER BY o.status ASC';
-
-        $rows = Db::getInstance()->executeS($sql) ?: [];
-        $out = [];
-        foreach ($rows as $r) {
-            $out[] = (string)$r['status'];
-        }
-
-        return $out;
-    }
-
-    public function getDistinctShipmentStatusesForAccount(int $accountId): array
-    {
-        return $this->getDistinctShipmentStatusesForAccounts([(int)$accountId]);
-    }
-
-    public function getDistinctShipmentStatusesForAccounts(array $accountIds): array
-    {
-        $safeAccountIds = $this->normalizeAccountIds($accountIds);
-        if (empty($safeAccountIds)) {
-            return [];
-        }
-
-        $sql = 'SELECT DISTINCT sh.status
-'
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_shipment` sh
-'
-            . 'WHERE sh.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ')
-'
-            . '  AND sh.status IS NOT NULL AND sh.status != ""
-'
-            . 'ORDER BY sh.status ASC';
-
-        $rows = Db::getInstance()->executeS($sql) ?: [];
-        $out = [];
-        foreach ($rows as $r) {
-            $out[] = (string)$r['status'];
-        }
-
-        return $out;
-    }
-
-    public function countShipmentListFiltered(array $accountIds, array $filters, bool $withShipment): int
-    {
-        $safeAccountIds = $this->normalizeAccountIds($accountIds);
-        if (empty($safeAccountIds)) {
-            return 0;
-        }
-
-        $where = $this->buildShipmentFilterWhere($filters);
-        $shipmentConstraint = $withShipment ? 'shx.checkout_form_id IS NOT NULL' : 'shx.checkout_form_id IS NULL';
-
-        $sql = 'SELECT COUNT(*) '
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account '
-            . 'LEFT JOIN ( '
-            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id, id_allegropro_account '
-            . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
-            . '    GROUP BY checkout_form_id, id_allegropro_account '
-            . ') shx ON shx.checkout_form_id = o.checkout_form_id AND shx.id_allegropro_account = o.id_allegropro_account '
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
-            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ') '
-            . 'AND ' . $shipmentConstraint . ' '
-            . $where;
-
-        return (int)Db::getInstance()->getValue($sql);
-    }
-
-    public function getShipmentListFiltered(array $accountIds, array $filters, int $limit, int $offset, bool $withShipment): array
-    {
-        $safeAccountIds = $this->normalizeAccountIds($accountIds);
-        if (empty($safeAccountIds)) {
-            return [];
-        }
-
-        $limit = max(1, (int)$limit);
-        $offset = max(0, (int)$offset);
-
-        $where = $this->buildShipmentFilterWhere($filters);
-        $shipmentConstraint = $withShipment ? 'shx.checkout_form_id IS NOT NULL' : 'shx.checkout_form_id IS NULL';
-
-        $sql = 'SELECT o.id_allegropro_account, a.label AS account_label, a.allegro_login, '
-            . 'o.checkout_form_id, o.updated_at_allegro AS updated_at, o.status, o.total_amount, o.currency, o.buyer_login, '
-            . 's.method_name AS shipping_method_name, sh.shipment_id, sh.status AS shipment_status, sh.updated_at AS shipment_updated_at '
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` o '
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_account` a ON a.id_allegropro_account = o.id_allegropro_account '
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_order_shipping` s ON s.checkout_form_id = o.checkout_form_id '
-            . 'LEFT JOIN ( '
-            . '    SELECT MAX(id_allegropro_shipment) AS id_allegropro_shipment, checkout_form_id, id_allegropro_account '
-            . '    FROM `' . _DB_PREFIX_ . 'allegropro_shipment` '
-            . '    GROUP BY checkout_form_id, id_allegropro_account '
-            . ') shx ON shx.checkout_form_id = o.checkout_form_id AND shx.id_allegropro_account = o.id_allegropro_account '
-            . 'LEFT JOIN `' . _DB_PREFIX_ . 'allegropro_shipment` sh ON sh.id_allegropro_shipment = shx.id_allegropro_shipment '
-            . 'WHERE o.id_allegropro_account IN (' . implode(',', $safeAccountIds) . ') '
-            . 'AND ' . $shipmentConstraint . ' '
-            . $where
-            . 'ORDER BY o.updated_at_allegro DESC '
-            . 'LIMIT ' . $limit . ' OFFSET ' . $offset;
-
-        return Db::getInstance()->executeS($sql) ?: [];
-    }
-
-    private function normalizeAccountIds(array $accountIds): array
-    {
-        $safe = [];
-        foreach ($accountIds as $id) {
-            $id = (int)$id;
-            if ($id > 0) {
-                $safe[] = $id;
-            }
-        }
-
-        $safe = array_values(array_unique($safe));
-        sort($safe);
-
-        return $safe;
-    }
-
-    private function buildShipmentFilterWhere(array $filters): string
-    {
-        $parts = [];
-
-        if (!empty($filters['query'])) {
-            $query = pSQL((string)$filters['query']);
-            $parts[] = "(o.checkout_form_id LIKE '%" . $query . "%' OR o.buyer_login LIKE '%" . $query . "%' OR sh.shipment_id LIKE '%" . $query . "%' OR a.label LIKE '%" . $query . "%')";
-        }
-
-        if (!empty($filters['date_from'])) {
-            $parts[] = "o.updated_at_allegro >= '" . pSQL((string)$filters['date_from'] . ' 00:00:00') . "'";
-        }
-
-        if (!empty($filters['date_to'])) {
-            $parts[] = "o.updated_at_allegro <= '" . pSQL((string)$filters['date_to'] . ' 23:59:59') . "'";
-        }
-
-        if (!empty($filters['statuses']) && is_array($filters['statuses'])) {
-            $safeStatuses = [];
-            foreach ($filters['statuses'] as $status) {
-                $status = trim((string)$status);
-                if ($status === '') {
-                    continue;
-                }
-                $safeStatuses[] = "'" . pSQL($status) . "'";
-            }
-            if (!empty($safeStatuses)) {
-                $parts[] = 'o.status IN (' . implode(',', $safeStatuses) . ')';
-            }
-        }
-
-        if (!empty($filters['shipment_statuses']) && is_array($filters['shipment_statuses'])) {
-            $safeShipStatuses = [];
-            foreach ($filters['shipment_statuses'] as $status) {
-                $status = trim((string)$status);
-                if ($status === '') {
-                    continue;
-                }
-                $safeShipStatuses[] = "'" . pSQL($status) . "'";
-            }
-            if (!empty($safeShipStatuses)) {
-                $parts[] = 'sh.status IN (' . implode(',', $safeShipStatuses) . ')';
-            }
-        }
-
-        if (empty($parts)) {
-            return '';
-        }
-
-        return ' AND ' . implode(' AND ', $parts) . ' ';
-    }
-
     public function markAsFinished(string $checkoutFormId)
     {
         Db::getInstance()->update(
@@ -575,48 +277,6 @@ class OrderRepository
         $q->where("checkout_form_id = '" . pSQL($checkoutFormId) . "'");
 
         return (int)Db::getInstance()->getValue($q);
-    }
-
-    /**
-     * Sprawdza, czy lokalny rekord zamówienia ma komplet danych potrzebnych do importu/naprawy.
-     *
-     * Zamówienie uznajemy za kompletne, gdy:
-     * - istnieje rekord główny w allegropro_order,
-     * - istnieje co najmniej 1 pozycja w allegropro_order_item,
-     * - istnieje rekord buyer,
-     * - istnieje rekord shipping.
-     */
-    public function isOrderDataCompleteForAccount(int $accountId, string $checkoutFormId): bool
-    {
-        $accountId = (int)$accountId;
-        $checkoutFormIdEsc = pSQL($checkoutFormId);
-        $db = Db::getInstance();
-
-        $orderExists = (int)$db->getValue(
-            'SELECT id_allegropro_order FROM `' . _DB_PREFIX_ . 'allegropro_order` '
-            . 'WHERE id_allegropro_account = ' . $accountId . " AND checkout_form_id = '" . $checkoutFormIdEsc . "'"
-        );
-
-        if ($orderExists <= 0) {
-            return false;
-        }
-
-        $itemsCount = (int)$db->getValue(
-            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_item` '
-            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
-        );
-
-        $buyerCount = (int)$db->getValue(
-            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_buyer` '
-            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
-        );
-
-        $shippingCount = (int)$db->getValue(
-            'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'allegropro_order_shipping` '
-            . "WHERE checkout_form_id = '" . $checkoutFormIdEsc . "'"
-        );
-
-        return $itemsCount > 0 && $buyerCount > 0 && $shippingCount > 0;
     }
 
     public function updatePsOrderId($checkoutFormId, $psOrderId)
@@ -850,7 +510,6 @@ class OrderRepository
         $currency = $data['totalToPay']['currency'] ?? 'PLN';
         $newStatus = pSQL($data['status']);
 
-        $now = date('Y-m-d H:i:s');
         $orderData = [
             'id_allegropro_account' => (int)$data['account_id'],
             'checkout_form_id' => $cfIdEsc,
@@ -861,14 +520,8 @@ class OrderRepository
             'currency' => pSQL($currency),
             'created_at_allegro' => pSQL(str_replace(['T','Z'], [' ',''], $data['boughtAt'] ?? $data['updatedAt'])),
             'updated_at_allegro' => pSQL(str_replace(['T','Z'], [' ',''], $data['updatedAt'])),
+            'date_upd' => date('Y-m-d H:i:s'),
         ];
-
-        // Zgodność schematu: starsze wdrożenia mogą mieć created_at/updated_at zamiast date_add/date_upd.
-        if ($this->hasOrderTableColumn('date_upd')) {
-            $orderData['date_upd'] = $now;
-        } elseif ($this->hasOrderTableColumn('updated_at')) {
-            $orderData['updated_at'] = $now;
-        }
 
         $existingId = $this->exists($cfId);
 
@@ -879,15 +532,10 @@ class OrderRepository
                 $orderData['is_finished'] = 0;
             }
 
-            unset($orderData['date_add'], $orderData['created_at']);
+            unset($orderData['date_add']);
             $db->update('allegropro_order', $orderData, "id_allegropro_order = $existingId");
         } else {
-            if ($this->hasOrderTableColumn('date_add')) {
-                $orderData['date_add'] = $now;
-            } elseif ($this->hasOrderTableColumn('created_at')) {
-                $orderData['created_at'] = $now;
-            }
-
+            $orderData['date_add'] = date('Y-m-d H:i:s');
             $orderData['is_finished'] = 0;
             $db->insert('allegropro_order', $orderData);
         }
@@ -1011,36 +659,4 @@ class OrderRepository
             ]);
         }
     }
-
-    private function hasOrderTableColumn(string $column): bool
-    {
-        $columns = $this->getOrderTableColumns();
-        return isset($columns[$column]);
-    }
-
-    /**
-     * @return array<string, bool>
-     */
-    private function getOrderTableColumns(): array
-    {
-        if (is_array($this->orderTableColumns)) {
-            return $this->orderTableColumns;
-        }
-
-        $this->orderTableColumns = [];
-        $rows = Db::getInstance()->executeS('SHOW COLUMNS FROM `' . _DB_PREFIX_ . 'allegropro_order`');
-        if (!is_array($rows)) {
-            return $this->orderTableColumns;
-        }
-
-        foreach ($rows as $row) {
-            $field = isset($row['Field']) ? (string)$row['Field'] : '';
-            if ($field !== '') {
-                $this->orderTableColumns[$field] = true;
-            }
-        }
-
-        return $this->orderTableColumns;
-    }
-
 }

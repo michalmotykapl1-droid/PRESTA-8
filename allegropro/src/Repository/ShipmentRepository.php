@@ -37,40 +37,6 @@ class ShipmentRepository
         return (int) Db::getInstance()->getValue($sql) > 0;
     }
 
-
-    private function getColumnVarcharLength(string $column): ?int
-    {
-        try {
-            $sql = "SELECT CHARACTER_MAXIMUM_LENGTH
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = '" . pSQL($this->table) . "'
-                      AND COLUMN_NAME = '" . pSQL($column) . "'";
-            $val = Db::getInstance()->getValue($sql);
-            if ($val === false || $val === null) {
-                return null;
-            }
-            $len = (int)$val;
-            return $len > 0 ? $len : null;
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    private function ensureMinVarcharLength(string $column, int $minLen): void
-    {
-        try {
-            $len = $this->getColumnVarcharLength($column);
-            if ($len === null || $len >= $minLen) {
-                return;
-            }
-            // Nie znamy dokładnego typu (może być TEXT), więc modyfikujemy tylko, gdy to VARCHAR.
-            $sql = "ALTER TABLE `{$this->table}` MODIFY COLUMN `{$column}` VARCHAR(" . (int)$minLen . ") NULL";
-            Db::getInstance()->execute($sql);
-        } catch (\Exception $e) {
-        }
-    }
-
     /**
      * Dodaje kolumny potrzebne do Wysyłam z Allegro:
      * - wza_command_id (UUID komendy create-commands)
@@ -81,21 +47,8 @@ class ShipmentRepository
         try {
             $hasCommand = $this->columnExists('wza_command_id');
             $hasUuid = $this->columnExists('wza_shipment_uuid');
-            $hasLabelId = $this->columnExists('wza_label_shipment_id');
 
-            // Jeśli kolumny istnieją, upewniamy się, że mają sensowną długość (>=64),
-            // bo w praktyce trzymamy tu UUID i/lub base64 (np. INPOST:...).
-            if ($hasCommand) {
-                $this->ensureMinVarcharLength('wza_command_id', 64);
-            }
-            if ($hasUuid) {
-                $this->ensureMinVarcharLength('wza_shipment_uuid', 64);
-            }
-            if ($hasLabelId) {
-                $this->ensureMinVarcharLength('wza_label_shipment_id', 64);
-            }
-
-            if ($hasCommand && $hasUuid && $hasLabelId) {
+            if ($hasCommand && $hasUuid) {
                 return;
             }
 
@@ -107,11 +60,6 @@ class ShipmentRepository
             if (!$hasUuid) {
                 $alterParts[] = "ADD COLUMN `wza_shipment_uuid` VARCHAR(64) NULL";
                 $alterParts[] = "ADD INDEX `idx_wza_shipment_uuid` (`wza_shipment_uuid`)";
-            }
-            if (!$hasLabelId) {
-                // To pole przechowuje WZA shipmentId (UUID) używany do generowania etykiety przez /shipment-management/label
-                $alterParts[] = "ADD COLUMN `wza_label_shipment_id` VARCHAR(64) NULL";
-                $alterParts[] = "ADD INDEX `idx_wza_label_shipment_id` (`wza_label_shipment_id`)";
             }
 
             if (empty($alterParts)) {
@@ -633,148 +581,6 @@ class ShipmentRepository
         $val = is_string($val) ? trim($val) : '';
         return $val !== '' ? $val : null;
     }
-
-    public function getWzaLabelShipmentIdForShipmentRow(int $accountId, string $checkoutFormId, string $shipmentId): ?string
-    {
-        if (!$this->columnExists('wza_label_shipment_id')) {
-            return null;
-        }
-
-        $accountId = (int)$accountId;
-        $checkoutFormId = trim($checkoutFormId);
-        $shipmentId = trim($shipmentId);
-
-        if ($accountId <= 0 || $checkoutFormId === '' || $shipmentId === '') {
-            return null;
-        }
-
-        $sql = "SELECT wza_label_shipment_id
-                FROM `{$this->table}`
-                WHERE id_allegropro_account = {$accountId}
-                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
-                  AND shipment_id = '" . pSQL($shipmentId) . "'";
-        $val = Db::getInstance()->getValue($sql);
-        $val = is_string($val) ? trim($val) : '';
-        return $val !== '' ? $val : null;
-    }
-
-    public function setWzaLabelShipmentIdForShipmentRow(int $accountId, string $checkoutFormId, string $shipmentId, string $wzaLabelShipmentId): int
-    {
-        if (!$this->columnExists('wza_label_shipment_id')) {
-            return 0;
-        }
-
-        $accountId = (int)$accountId;
-        $checkoutFormId = trim($checkoutFormId);
-        $shipmentId = trim($shipmentId);
-        $wzaLabelShipmentId = trim($wzaLabelShipmentId);
-
-        if ($accountId <= 0 || $checkoutFormId === '' || $shipmentId === '' || $wzaLabelShipmentId === '') {
-            return 0;
-        }
-
-        $sql = "UPDATE `{$this->table}`
-                SET wza_label_shipment_id = '" . pSQL($wzaLabelShipmentId) . "',
-                    updated_at = NOW()
-                WHERE id_allegropro_account = {$accountId}
-                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
-                  AND shipment_id = '" . pSQL($shipmentId) . "'";
-        return Db::getInstance()->execute($sql) ? (int)Db::getInstance()->Affected_Rows() : 0;
-    }
-
-    public function getTrackingNumberForShipmentRow(int $accountId, string $checkoutFormId, string $shipmentId): ?string
-    {
-        $accountId = (int)$accountId;
-        $checkoutFormId = trim($checkoutFormId);
-        $shipmentId = trim($shipmentId);
-
-        if ($accountId <= 0 || $checkoutFormId === '' || $shipmentId === '') {
-            return null;
-        }
-
-        $sql = "SELECT tracking_number
-                FROM `{$this->table}`
-                WHERE id_allegropro_account = {$accountId}
-                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
-                  AND shipment_id = '" . pSQL($shipmentId) . "'";
-        $val = Db::getInstance()->getValue($sql);
-        $val = is_string($val) ? trim($val) : '';
-        return $val !== '' ? $val : null;
-    }
-
-    /**
-     * Uzupełnia (tylko dla SIZE_DETAILS=CUSTOM) pole wza_shipment_uuid wartością z shipment_id,
-     * jeżeli wza_shipment_uuid jest puste.
-     * Uwaga: to NIE jest UUID WZA, a referencja (często base64) potrzebna do innych procesów.
-     */
-    public function backfillCustomWzaShipmentUuidFromShipmentId(int $accountId): int
-    {
-        $accountId = (int)$accountId;
-        if ($accountId <= 0 || !$this->columnExists('wza_shipment_uuid')) {
-            return 0;
-        }
-
-        $sql = "UPDATE `{$this->table}`
-                SET wza_shipment_uuid = shipment_id,
-                    updated_at = NOW()
-                WHERE id_allegropro_account = {$accountId}
-                  AND (wza_shipment_uuid IS NULL OR wza_shipment_uuid = '')
-                  AND size_details = 'CUSTOM'
-                  AND shipment_id IS NOT NULL
-                  AND shipment_id <> ''";
-        Db::getInstance()->execute($sql);
-        return (int)Db::getInstance()->Affected_Rows();
-    }
-
-    /**
-     * Kompatybilność wsteczna: starsze kontrolery/GUI wołają tę metodę.
-     * Uzupełnia wza_shipment_uuid = shipment_id wyłącznie dla size_details=CUSTOM.
-     *
-     * @deprecated użyj backfillCustomWzaShipmentUuidFromShipmentId()
-     */
-    public function backfillWzaUuidFromShipmentIdForCustom(?int $accountId = null, ?string $checkoutFormId = null): int
-    {
-        // W tej wersji obsługujemy tylko tryb per-konto (w GUI Przesyłki)
-        if ($accountId === null) {
-            return 0;
-        }
-        $accountId = (int)$accountId;
-        if ($accountId <= 0) {
-            return 0;
-        }
-
-        // Jeśli podano checkoutFormId, ogranicz aktualizację do tego zamówienia.
-        if ($checkoutFormId !== null && trim((string)$checkoutFormId) !== '') {
-            return $this->backfillCustomWzaShipmentUuidFromShipmentIdForOrder($accountId, trim((string)$checkoutFormId));
-        }
-
-        return $this->backfillCustomWzaShipmentUuidFromShipmentId($accountId);
-    }
-
-    /**
-     * Wariant ograniczony do jednego zamówienia (checkoutFormId).
-     */
-    public function backfillCustomWzaShipmentUuidFromShipmentIdForOrder(int $accountId, string $checkoutFormId): int
-    {
-        $accountId = (int)$accountId;
-        $checkoutFormId = trim($checkoutFormId);
-        if ($accountId <= 0 || $checkoutFormId === '' || !$this->columnExists('wza_shipment_uuid')) {
-            return 0;
-        }
-
-        $sql = "UPDATE `{$this->table}`
-                SET wza_shipment_uuid = shipment_id,
-                    updated_at = NOW()
-                WHERE id_allegropro_account = {$accountId}
-                  AND checkout_form_id = '" . pSQL($checkoutFormId) . "'
-                  AND (wza_shipment_uuid IS NULL OR wza_shipment_uuid = '')
-                  AND size_details = 'CUSTOM'
-                  AND shipment_id IS NOT NULL
-                  AND shipment_id <> ''";
-        Db::getInstance()->execute($sql);
-        return (int)Db::getInstance()->Affected_Rows();
-    }
-
 
     /**
      * Uzupełnia wza_command_id / wza_shipment_uuid dla rekordów z danym tracking_number (waybill).

@@ -149,6 +149,7 @@
                                         <th>Typ</th>
                                         <th>Data</th>
                                         <th>Nr nadania</th>
+                                        <th>Tracking</th>
                                         <th class="text-right">Akcje</th>
                                     </tr>
                                 </thead>
@@ -199,7 +200,22 @@
                                                 <span class="text-muted">—</span>
                                             {/if}
                                         </td>
-                                        <td class="text-right">
+                                        
+                                        <td>
+                                            {if $ship.tracking_number}
+                                                <button type="button"
+                                                    class="btn btn-xs btn-outline-secondary btn-track-shipment"
+                                                    data-tracking="{$ship.tracking_number|escape:'htmlall':'UTF-8'}"
+                                                    data-status="{$ship.status|default:''|escape:'htmlall':'UTF-8'}"
+                                                    data-status-date="{if $ship.status_changed_at}{$ship.status_changed_at|date_format:"%d.%m.%Y %H:%M"}{/if}"
+                                                    title="Śledzenie przesyłki (Allegro)">
+                                                    <i class="material-icons" style="font-size:16px; vertical-align:middle;">travel_explore</i>
+                                                </button>
+                                            {else}
+                                                <span class="text-muted">—</span>
+                                            {/if}
+                                        </td>
+<td class="text-right">
                                             {if $ship.can_download_label && $ship.status != 'CANCELLED'}
                                                 <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
                                             {/if}
@@ -210,7 +226,7 @@
                                         </td>
                                     </tr>
                                 {foreachelse}
-                                    <tr><td colspan="6" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
+                                    <tr><td colspan="7" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
                                 {/foreach}
                                 </tbody>
                             </table>
@@ -260,6 +276,39 @@
         </div>
     </div>
 </div>
+
+
+
+<!-- AllegroPro: Modal śledzenia przesyłki -->
+<div class="modal fade" id="allegroproTrackingModal" tabindex="-1" role="dialog" aria-labelledby="allegroproTrackingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="allegroproTrackingModalLabel">
+          <i class="material-icons" style="font-size:18px;vertical-align:-3px;">local_shipping</i>
+          Śledzenie przesyłki
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" style="font-size:13px;">
+        <div class="mb-2"><strong>Numer:</strong> <code id="allegroproTrackNumber">—</code></div>
+        <div class="mb-2"><strong>Status:</strong> <span id="allegroproTrackStatus">—</span> <span class="text-muted" id="allegroproTrackStatusDate"></span></div>
+        <div class="alert alert-info p-2 mb-3" style="font-size:12px;">
+          Najbardziej aktualne, szczegółowe śledzenie jest dostępne w Allegro Delivery.
+        </div>
+        <div class="d-flex" style="gap:8px;flex-wrap:wrap;">
+          <a href="#" target="_blank" rel="noopener" class="btn btn-outline-primary" id="allegroproTrackOpenLink">
+            Otwórz śledzenie w Allegro
+          </a>
+          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Zamknij</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
@@ -559,5 +608,66 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     });
+
+    // --- 5. Śledzenie przesyłki (modal) ---
+    function allegroproStatusToPl(code) {
+        var c = (code || '').toUpperCase();
+        var map = {
+            'CREATED': 'Oczekuje na nadanie',
+            'PENDING': 'Oczekuje na nadanie',
+            'NEW': 'W trakcie tworzenia',
+            'IN_PROGRESS': 'W trakcie tworzenia',
+            'SENT': 'W drodze',
+            'IN_TRANSIT': 'W drodze',
+            'OUT_FOR_DELIVERY': 'W doręczeniu',
+            'RELEASED_FOR_DELIVERY': 'W doręczeniu',
+            'READY_FOR_PICKUP': 'Do odbioru',
+            'AVAILABLE_FOR_PICKUP': 'Do odbioru',
+            'DELIVERED': 'Dostarczona',
+            'CANCELLED': 'Anulowana',
+            'RETURNED_TO_SENDER': 'Zwrócona',
+            'RETURNED': 'Zwrócona',
+            'LOST': 'Zagubiona',
+            'DELIVERY_FAILED': 'Nieudana dostawa',
+            'UNDELIVERED': 'Nieudana dostawa'
+        };
+        return map[c] || (code || '—');
+    }
+
+    function allegroproOpenTrackingModal(trackingNumber, statusCode, statusDate) {
+        if (!trackingNumber) return;
+        var url = 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' + encodeURIComponent(trackingNumber);
+
+        var elNum = document.getElementById('allegroproTrackNumber');
+        var elStatus = document.getElementById('allegroproTrackStatus');
+        var elDate = document.getElementById('allegroproTrackStatusDate');
+        var elLink = document.getElementById('allegroproTrackOpenLink');
+
+        if (elNum) elNum.innerText = trackingNumber;
+        if (elStatus) elStatus.innerText = allegroproStatusToPl(statusCode);
+        if (elDate) {
+            var sd = (statusDate || '').trim();
+            elDate.innerText = sd ? ('(' + sd + ')') : '';
+        }
+        if (elLink) elLink.href = url;
+
+        // Presta BO ma bootstrap/jQuery - ale dajemy fallback na nową kartę
+        if (window.$ && window.$.fn && typeof window.$.fn.modal === 'function') {
+            window.$('#allegroproTrackingModal').modal('show');
+        } else {
+            window.open(url, '_blank');
+        }
+    }
+
+    document.querySelectorAll('.btn-track-shipment').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var tracking = this.getAttribute('data-tracking') || '';
+            var status = this.getAttribute('data-status') || '';
+            var statusDate = this.getAttribute('data-status-date') || '';
+            allegroproOpenTrackingModal(tracking, status, statusDate);
+        });
+    });
+
 });
 </script>

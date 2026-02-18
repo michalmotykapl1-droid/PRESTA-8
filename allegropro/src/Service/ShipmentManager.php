@@ -28,7 +28,6 @@ class ShipmentManager
             $api,
             $config,
             $orders,
-            $deliveryServices,
             $shipments
         );
 
