@@ -59,11 +59,6 @@ class ShipmentSyncService
         }
         if ($orderResp['ok'] && is_array($orderResp['json'])) {
             $checkoutFormJson = $orderResp['json'];
-
-            // Korekta czasu płatności w PrestaShop na podstawie Allegro payment.finishedAt.
-            // Nie blokuje synchronizacji w razie błędów.
-            $this->backfillPaymentDateFromCheckoutForm($checkoutFormId, $orderResp['json'], $debugLines, $debug);
-
             $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
             $this->currentOrderIsSmart = $smart['is_smart'];
             $this->currentOrderSmartPackageLimit = $smart['package_count'];
@@ -134,16 +129,53 @@ class ShipmentSyncService
             }
 
             $status = (string)($detail['json']['status'] ?? 'CREATED');
-            // Jeden shipment w shipment-management może mieć wiele paczek (packages[]), każda z osobnym waybill.
-            // Zapisujemy pierwszą paczkę w wierszu UUID, a pozostałe jako osobne wiersze (shipment_id=waybill).
-            $allWaybills = $this->extractAllTrackingNumbers($detail['json']);
-            $tracking = !empty($allWaybills) ? (string)$allWaybills[0] : $this->extractTrackingNumber($detail['json']);
+            $tracking = $this->extractTrackingNumber($detail['json']);
+            $detailWaybills = $this->extractAllWaybillsFromArray($detail['json']);
             $isSmart = $this->extractIsSmart($detail['json']);
             $carrierMode = $this->extractCarrierMode($detail['json']);
             $sizeDetails = $this->extractSizeDetails($detail['json']);
 
             $createdAt = $this->normalizeDateTime($detail['json']['createdAt'] ?? null);
             $statusChangedAt = $this->normalizeDateTime($detail['json']['statusChangedAt'] ?? ($detail['json']['updatedAt'] ?? null));
+
+            if ($debug) {
+                $pkgCnt = (!empty($detail['json']['packages']) && is_array($detail['json']['packages'])) ? count($detail['json']['packages']) : 0;
+                $debugLines[] = '[SYNC] shipment detail: shipmentId=' . $resolvedShipmentId
+                    . ', packages=' . $pkgCnt
+                    . ', waybills=' . (!empty($detailWaybills) ? implode('|', $detailWaybills) : '-');
+            }
+
+            // Jeśli Allegro ma więcej waybilli niż posiadamy w DB, dopisz brakujące jako osobne wiersze.
+            // Dzięki temu "Historia Przesyłek" może mieć tyle pozycji co Sales Center.
+            if (!empty($detailWaybills) && method_exists($this->shipments, 'trackingExistsForOrder')) {
+                foreach ($detailWaybills as $wb) {
+                    $wb = trim((string)$wb);
+                    if ($wb === '') {
+                        continue;
+                    }
+                    if ($this->shipments->trackingExistsForOrder($accountId, $checkoutFormId, $wb)) {
+                        continue;
+                    }
+
+                    // Wiersz "paczki" (waybill) – bez UUID/commandId, tylko do podglądu/trackingu.
+                    $this->shipments->upsertFromAllegro(
+                        $accountId,
+                        $checkoutFormId,
+                        $wb,
+                        $status,
+                        $wb,
+                        $isSmart,
+                        $carrierMode,
+                        $sizeDetails,
+                        $createdAt,
+                        $statusChangedAt
+                    );
+                    $synced++;
+                    if ($debug) {
+                        $debugLines[] = '[SYNC] dopisano brakujący waybill do DB: ' . $wb . ' (z shipmentId=' . $resolvedShipmentId . ')';
+                    }
+                }
+            }
 
             // Jeśli Allegro zwraca status bazowy (np. CREATED), spróbuj trackingu po numerze nadania
             if ($this->isBaseShipmentStatus($status)) {
@@ -175,43 +207,6 @@ class ShipmentSyncService
                 $createdAt,
                 $statusChangedAt
             );
-
-            // Dodatkowe paczki (multi-package) -> osobne rekordy w module
-            if (is_array($allWaybills) && count($allWaybills) > 1) {
-                $primary = strtoupper(trim((string)$tracking));
-                foreach ($allWaybills as $wb) {
-                    $wb = trim((string)$wb);
-                    if ($wb === '') {
-                        continue;
-                    }
-                    if ($primary !== '' && strtoupper($wb) === $primary) {
-                        continue;
-                    }
-
-                    $st = $status;
-                    $stAt = $statusChangedAt;
-                    $progress = $this->fetchTrackingProgressByWaybill($account, $carrierCandidates, $wb, $debugLines, $debug);
-                    if (is_array($progress) && !empty($progress['status'])) {
-                        $st = (string)$progress['status'];
-                        if (!empty($progress['at'])) {
-                            $stAt = (string)$progress['at'];
-                        }
-                    }
-
-                    $this->shipments->upsertFromAllegro(
-                        $accountId,
-                        $checkoutFormId,
-                        $wb,
-                        $st,
-                        $wb,
-                        $isSmart,
-                        $carrierMode,
-                        $sizeDetails,
-                        $createdAt,
-                        $stAt
-                    );
-                }
-            }
 
             if (is_string($tracking) && trim($tracking) !== '' && method_exists($this->shipments, 'backfillWzaForTrackingNumber')) {
                 $this->shipments->backfillWzaForTrackingNumber(
@@ -265,6 +260,9 @@ class ShipmentSyncService
         $found = [];
 
         $checkoutShipmentsResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId) . '/shipments');
+        if (!empty($debugLines)) {
+            $debugLines[] = '[API] GET /order/checkout-forms/{id}/shipments: HTTP ' . (int)($checkoutShipmentsResp['code'] ?? 0) . ', ok=' . (!empty($checkoutShipmentsResp['ok']) ? '1' : '0');
+        }
         if ($checkoutShipmentsResp['ok'] && is_array($checkoutShipmentsResp['json'])) {
             $rows = $this->resolver->extractShipmentRows($checkoutShipmentsResp['json']);
             if (!empty($debugLines)) {
@@ -275,13 +273,14 @@ class ShipmentSyncService
                     continue;
                 }
 
-                // Zachowaj identyfikator z pola "id" (często base64), bo działa w /shipment-management/shipments/{id}
-                if (!empty($row['id']) && is_string($row['id'])) {
-                    $rid = trim((string)$row['id']);
-                    if ($rid !== '') {
-                        $found[$rid] = true;
-                        $this->captureDiscoveredRowContext($rid, $row);
-                    }
+                // DEBUG: pokaż co dokładnie zwraca Allegro w tym wierszu
+                if (!empty($debugLines)) {
+                    $sidDbg = (string)($row['shipmentId'] ?? ($row['shipment_id'] ?? ($row['id'] ?? '')));
+                    $statusDbg = (string)($row['status'] ?? '');
+                    $wbsDbg = $this->extractAllWaybillsFromArray($row);
+                    $debugLines[] = '[SYNC] row: id=' . ($sidDbg !== '' ? $sidDbg : '-')
+                        . ', status=' . ($statusDbg !== '' ? $statusDbg : '-')
+                        . ', waybills=' . (!empty($wbsDbg) ? implode('|', $wbsDbg) : '-');
                 }
 
                 $refs = $this->resolver->extractCandidateReferencesFromArray($row);
@@ -291,6 +290,7 @@ class ShipmentSyncService
 
                 $sid = $this->resolver->extractShipmentIdFromRow($row);
                 $waybill = $this->resolver->extractWaybillFromRow($row);
+                $waybillsAll = $this->extractAllWaybillsFromArray($row);
 
                 if ($sid !== null) {
                     if ($this->resolver->looksLikeCreateCommandId($sid)) {
@@ -311,10 +311,72 @@ class ShipmentSyncService
                         $found[$sid] = true;
                     }
                 }
+
+                // Jeśli Allegro zwraca wiele paczek (packages[]), dopisz je jako osobne referencje (waybille)
+                // — dzięki temu moduł może odtworzyć pełną listę numerów nadania.
+                foreach ($waybillsAll as $wb) {
+                    $wb = trim((string)$wb);
+                    if ($wb === '') {
+                        continue;
+                    }
+                    $found[$wb] = true;
+                    // Kontekst dla upsertFromDiscoveredContext
+                    $this->captureDiscoveredRowContext($wb, $row);
+                    if (isset($this->discoveredShipmentContext[$wb])) {
+                        $this->discoveredShipmentContext[$wb]['tracking'] = $wb;
+                    }
+                }
             }
+        } elseif (!empty($debugLines)) {
+            $debugLines[] = '[SYNC] /order/.../shipments brak JSON. raw=' . $this->shortRaw($checkoutShipmentsResp['raw'] ?? '');
         }
 
         return array_keys($found);
+    }
+
+    /**
+     * Zwraca wszystkie waybille znalezione w strukturze (row/detail), np. row.waybill + packages[].waybill.
+     */
+    private function extractAllWaybillsFromArray(array $data): array
+    {
+        $out = [];
+
+        // 1) pole główne
+        foreach (['waybill', 'trackingNumber'] as $k) {
+            if (!empty($data[$k]) && is_string($data[$k])) {
+                $v = trim($data[$k]);
+                if ($v !== '') {
+                    $out[$v] = true;
+                }
+            }
+        }
+
+        // 2) tracking.number
+        if (!empty($data['tracking']) && is_array($data['tracking']) && !empty($data['tracking']['number']) && is_string($data['tracking']['number'])) {
+            $v = trim($data['tracking']['number']);
+            if ($v !== '') {
+                $out[$v] = true;
+            }
+        }
+
+        // 3) packages
+        if (!empty($data['packages']) && is_array($data['packages'])) {
+            foreach ($data['packages'] as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                foreach (['waybill', 'trackingNumber', 'waybillNumber'] as $k) {
+                    if (!empty($p[$k]) && is_string($p[$k])) {
+                        $v = trim($p[$k]);
+                        if ($v !== '') {
+                            $out[$v] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_keys($out);
     }
 
     private function captureDiscoveredRowContext(string $referenceId, array $row): void
@@ -410,47 +472,6 @@ class ShipmentSyncService
         }
 
         return null;
-    }
-
-    /**
-     * Zwraca wszystkie znalezione numery nadania (waybill) z obiektu shipment-management.
-     * Używane do rozbicia wielopaczek na osobne wpisy w module.
-     *
-     * @return string[]
-     */
-    private function extractAllTrackingNumbers(array $shipment): array
-    {
-        $out = [];
-        $add = function ($v) use (&$out) {
-            if (!is_string($v)) {
-                return;
-            }
-            $v = trim($v);
-            if ($v === '') {
-                return;
-            }
-            $out[strtoupper($v)] = $v;
-        };
-
-        if (!empty($shipment['packages']) && is_array($shipment['packages'])) {
-            foreach ($shipment['packages'] as $p) {
-                if (!is_array($p)) {
-                    continue;
-                }
-                $add($p['waybill'] ?? null);
-                $add($p['trackingNumber'] ?? null);
-                $add($p['waybillNumber'] ?? null);
-            }
-        }
-
-        $add($shipment['trackingNumber'] ?? null);
-        $add($shipment['waybill'] ?? null);
-        $add($shipment['waybillNumber'] ?? null);
-        if (!empty($shipment['tracking']) && is_array($shipment['tracking'])) {
-            $add($shipment['tracking']['number'] ?? null);
-        }
-
-        return array_values($out);
     }
 
     private function extractIsSmart(array $shipment): ?int
@@ -621,16 +642,6 @@ class ShipmentSyncService
             $t = $context['tracking'] ?? null;
             if (is_string($t) && trim($t) !== '') {
                 return trim($t);
-            }
-        }
-
-        // Obsługa wpisów technicznych: shipment_id może mieć postać "<uuid>#<WAYBILL>"
-        // (dla dodatkowych paczek w wielopaczce).
-        if (strpos($shipmentId, '#') !== false) {
-            $parts = explode('#', $shipmentId);
-            $last = trim((string)end($parts));
-            if ($last !== '' && !$this->resolver->looksLikeShipmentId($last) && !$this->resolver->looksLikeCreateCommandId($last)) {
-                return $last;
             }
         }
 
@@ -1008,56 +1019,6 @@ class ShipmentSyncService
         }
 
         return $raw;
-    }
-
-    /**
-     * Korekta daty płatności w PrestaShop: ustawia order_payment.date_add wg payment.finishedAt z Allegro.
-     * Bez ręcznych LIMIT (Db::getValue/getRow mogą dopinać LIMIT 1).
-     */
-    private function backfillPaymentDateFromCheckoutForm(string $checkoutFormId, array $checkoutFormJson, array &$debugLines = [], bool $debug = false): void
-    {
-        try {
-            $pay = $checkoutFormJson['payment'] ?? null;
-            if (!is_array($pay)) {
-                return;
-            }
-            $finishedAt = $pay['finishedAt'] ?? null;
-            if (!is_string($finishedAt) || trim($finishedAt) === '') {
-                return;
-            }
-
-            $dt = $this->convertIsoUtcToShopTime(trim($finishedAt));
-            if ($dt === null) {
-                return;
-            }
-
-            // Ustaw dla wszystkich wpisów order_payment powiązanych z checkoutFormId (transaction_id)
-            \Db::getInstance()->update('order_payment', ['date_add' => pSQL($dt)], "transaction_id='" . pSQL($checkoutFormId) . "'");
-
-            if ($debug) {
-                $debugLines[] = '[PAY] ok (bez zmian), date_add=' . $dt;
-            }
-        } catch (\Exception $e) {
-            if ($debug) {
-                $debugLines[] = '[PAY] wyjątek: ' . $e->getMessage();
-            }
-        }
-    }
-
-    private function convertIsoUtcToShopTime(string $iso): ?string
-    {
-        try {
-            // np. 2026-02-10T21:38:45.000Z
-            $iso = str_replace('Z', '', $iso);
-            $dt = new \DateTime($iso, new \DateTimeZone('UTC'));
-            $tz = (string)\Configuration::get('PS_TIMEZONE');
-            if ($tz !== '') {
-                $dt->setTimezone(new \DateTimeZone($tz));
-            }
-            return $dt->format('Y-m-d H:i:s');
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 
     private function persistSyncDebug(string $checkoutFormId, array $lines): void

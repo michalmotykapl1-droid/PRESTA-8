@@ -17,9 +17,8 @@ class AccountRepository
 
     public function all(): array
     {
-        $q = new DbQuery();
-        $q->select('*')->from('allegropro_account')->orderBy('id_allegropro_account DESC');
-        return Db::getInstance()->executeS($q) ?: [];
+        $sql = 'SELECT * FROM `' . $this->table . '` ORDER BY id_allegropro_account DESC';
+        return Db::getInstance()->executeS($sql) ?: [];
     }
 
     public function get(int $id): ?array

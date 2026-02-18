@@ -48,17 +48,104 @@
     if (!cfg.ajaxUrl) return;
 
     // Multi-select: "Zaznacz wszystkie" konta
-    var btnAll = document.getElementById('alproSelectAll');
-    if (btnAll) {
-      btnAll.addEventListener('click', function (e) {
-        e.preventDefault();
-        var sel = document.querySelector('select.alpro-accounts');
-        if (!sel) return;
-        for (var i = 0; i < sel.options.length; i++) {
-          sel.options[i].selected = true;
+    
+    function initAccountsMultiselect() {
+      var ms = document.getElementById('alproAccountsMs');
+      if (!ms) return;
+
+      var btn = ms.querySelector('.alpro-ms__btn');
+      var menu = ms.querySelector('.alpro-ms__menu');
+      var hidden = ms.querySelector('.alpro-ms__hidden');
+      var btnText = ms.querySelector('.alpro-ms__btnText');
+      var checks = ms.querySelectorAll('input[type="checkbox"]');
+
+      function syncHidden() {
+        if (!hidden) return;
+        hidden.innerHTML = '';
+        var labels = [];
+        for (var i = 0; i < checks.length; i++) {
+          var cb = checks[i];
+          if (cb.checked) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'id_allegropro_account[]';
+            inp.value = cb.value;
+            hidden.appendChild(inp);
+
+            var labelEl = cb.parentNode && cb.parentNode.querySelector('.alpro-ms__label');
+            if (labelEl) {
+              labels.push(labelEl.textContent.trim());
+            }
+          }
         }
+
+        var cnt = labels.length;
+        var t = 'Wybierz konto';
+        if (cnt === 1) t = labels[0];
+        else if (cnt > 1) t = 'Wybrane: ' + cnt;
+        if (btnText) btnText.textContent = t;
+      }
+
+      function openMenu() {
+        if (!menu) return;
+        menu.classList.add('open');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+      }
+      function closeMenu() {
+        if (!menu) return;
+        menu.classList.remove('open');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      }
+      function toggleMenu() {
+        if (!menu) return;
+        if (menu.classList.contains('open')) closeMenu();
+        else openMenu();
+      }
+
+      if (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          toggleMenu();
+        });
+      }
+
+      document.addEventListener('click', function (e) {
+        if (!ms.contains(e.target)) closeMenu();
       });
+
+      if (menu) {
+        menu.addEventListener('click', function (e) {
+          var a = e.target.closest && e.target.closest('a[data-act]');
+          if (!a) return;
+          e.preventDefault();
+          var act = a.getAttribute('data-act');
+          if (act === 'all') {
+            for (var i = 0; i < checks.length; i++) checks[i].checked = true;
+          } else if (act === 'none') {
+            for (var i = 0; i < checks.length; i++) checks[i].checked = false;
+          }
+          syncHidden();
+        });
+      }
+
+      for (var i = 0; i < checks.length; i++) {
+        checks[i].addEventListener('change', syncHidden);
+      }
+
+      var btnAll = document.getElementById('alproSelectAll');
+      if (btnAll) {
+        btnAll.addEventListener('click', function (e) {
+          e.preventDefault();
+          for (var i = 0; i < checks.length; i++) checks[i].checked = true;
+          syncHidden();
+          openMenu();
+        });
+      }
+
+      syncHidden();
     }
+
+    initAccountsMultiselect();
 
 
     var modal = document.getElementById('alproModal');
@@ -209,15 +296,7 @@
       var html = '';
       html += '<div class="alpro-legend-title">Rozbicie kosztów</div>';
       html += '<div class="alpro-legend-sub">% opłat = udział w kosztach opłat • % sprzedaży = koszt w relacji do sprzedaży</div>';
-      html += '<div class="table-responsive">';
-      html += '<table class="alpro-legend-table">'
-        + '<thead><tr>'
-        + '<th style="width:18px"></th>'
-        + '<th>Kategoria</th>'
-        + '<th class="r">Kwota</th>'
-        + '<th class="r">% opłat</th>'
-        + '<th class="r">% sprzedaży</th>'
-        + '</tr></thead><tbody>';
+      html += '<div class="alpro-legend-list">';
 
       for (var j = 0; j < slices.length; j++) {
         var sl = slices[j];
@@ -226,28 +305,35 @@
         var share = Number(sl.share || 0);
         var pctSales = Number(sl.pct_sales || 0);
 
-        html += '<tr>'
-          + '<td><span class="alpro-dot alpro-dot--' + escHtml(sl.key) + '"></span></td>'
-          + '<td class="name">' + label + '</td>'
-          + '<td class="r"><strong>' + fmtMoney(amount) + '</strong></td>'
-          + '<td class="r">' + fmtPct(share) + '</td>'
-          + '<td class="r">' + fmtPct(pctSales) + '</td>'
-          + '</tr>';
+        html += '<div class="alpro-legend-row">'
+          + '<span class="alpro-swatch alpro-swatch--' + escHtml(sl.key) + '"></span>'
+          + '<div>'
+            + '<div class="nm">' + label + '</div>'
+            + '<div class="meta">'
+              + '<span class="pill"><strong>' + fmtMoney(amount) + '</strong></span>'
+              + '<span class="pill">% opłat: <strong>' + fmtPct(share) + '</strong></span>'
+              + '<span class="pill">% sprzedaży: <strong>' + fmtPct(pctSales) + '</strong></span>'
+            + '</div>'
+          + '</div>'
+        + '</div>';
       }
 
       // Rabaty/zwroty pokazujemy informacyjnie (nie są kosztem opłat)
       var refundsAmt = Number(data.refunds || 0);
       if (refundsAmt !== 0) {
-        html += '<tr class="is-note">'
-          + '<td><span class="alpro-dot alpro-dot--refunds"></span></td>'
-          + '<td class="name">Rabaty / zwroty</td>'
-          + '<td class="r"><strong>' + fmtMoney(refundsAmt) + '</strong></td>'
-          + '<td class="r">—</td>'
-          + '<td class="r">—</td>'
-          + '</tr>';
+        html += '<div class="alpro-legend-row is-note">'
+          + '<span class="alpro-swatch alpro-swatch--refunds"></span>'
+          + '<div>'
+            + '<div class="nm">Rabaty / zwroty</div>'
+            + '<div class="meta">'
+              + '<span class="pill"><strong>' + fmtMoney(refundsAmt) + '</strong></span>'
+              + '<span class="pill">korekty / rekompensaty</span>'
+            + '</div>'
+          + '</div>'
+        + '</div>';
       }
 
-      html += '</tbody></table></div>';
+      html += '</div>';
       legend.innerHTML = html;
     }
 

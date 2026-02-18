@@ -359,19 +359,52 @@ class ShipmentRepository
             return;
         }
 
+        $isUuid = (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $shipmentId);
+
         $q = new DbQuery();
-        $q->select('id_allegropro_shipment');
+        $q->select('id_allegropro_shipment, shipment_id, tracking_number');
         $q->from('allegropro_shipment');
         $q->where('id_allegropro_account=' . (int)$accountId);
         $q->where("shipment_id='" . pSQL($shipmentId) . "'");
-        $existingId = (int) Db::getInstance()->getValue($q);
+
+        $existingRow = Db::getInstance()->getRow($q);
+        $existingId = (int)($existingRow['id_allegropro_shipment'] ?? 0);
+
+        // Jeśli synchronizacja przychodzi po UUID, a w DB mamy rekord "WZA" pod commandId,
+        // to wza_shipment_uuid=UUID. Nie tworzymy nowego wiersza i nie "podmieniamy" shipment_id,
+        // tylko aktualizujemy istniejący rekord (zachowując jego shipment_id = commandId).
+        if ($existingId <= 0 && $isUuid && $this->columnExists('wza_shipment_uuid')) {
+            $q2 = new DbQuery();
+            $q2->select('id_allegropro_shipment, shipment_id, tracking_number');
+            $q2->from('allegropro_shipment');
+            $q2->where('id_allegropro_account=' . (int)$accountId);
+            $q2->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+            $q2->where("wza_shipment_uuid='" . pSQL($shipmentId) . "'");
+            $q2->orderBy('id_allegropro_shipment DESC');
+
+            $existingRow2 = Db::getInstance()->getRow($q2);
+            if (is_array($existingRow2) && !empty($existingRow2['id_allegropro_shipment'])) {
+                $existingRow = $existingRow2;
+                $existingId = (int)$existingRow2['id_allegropro_shipment'];
+            }
+        }
+
+        $existingShipmentId = trim((string)($existingRow['shipment_id'] ?? ''));
+        $existingTracking = trim((string)($existingRow['tracking_number'] ?? ''));
+
+        // Jeśli Allegro chwilowo nie zwróciło trackingNumber, nie kasuj istniejącego.
+        $trackingFinal = trim((string)($trackingNumber ?? ''));
+        if ($trackingFinal === '' && $existingTracking !== '') {
+            $trackingFinal = $existingTracking;
+        }
 
         $row = [
             'id_allegropro_account' => (int)$accountId,
             'checkout_form_id' => pSQL($checkoutFormId),
-            'shipment_id' => pSQL($shipmentId),
+            // Nie podmieniamy shipment_id w istniejącym rekordzie (np. commandId). Nowy rekord dostaje $shipmentId.
+            'shipment_id' => pSQL($existingId > 0 && $existingShipmentId !== '' ? $existingShipmentId : $shipmentId),
             'status' => pSQL((string)($status ?: 'NEW')),
-            'tracking_number' => pSQL((string)($trackingNumber ?: '')),
+            'tracking_number' => pSQL($trackingFinal),
             'is_smart' => $isSmart === null ? 0 : (int)$isSmart,
             'carrier_mode' => pSQL((string)($carrierMode ?: 'COURIER')),
             'size_details' => pSQL((string)($sizeDetails ?: 'CUSTOM')),
@@ -391,7 +424,7 @@ class ShipmentRepository
         }
 
         if ($existingId > 0) {
-            Db::getInstance()->update('allegropro_shipment', $row, 'id_allegropro_shipment=' . $existingId);
+            Db::getInstance()->update('allegropro_shipment', $row, 'id_allegropro_shipment=' . (int)$existingId);
             return;
         }
 
@@ -423,6 +456,7 @@ class ShipmentRepository
         }
 
         $seenShipment = [];
+        $seenTracking = [];
         $toDelete = [];
 
         // Preferuj lepsze identyfikatory
@@ -462,9 +496,6 @@ class ShipmentRepository
             return ((int)($b['id_allegropro_shipment'] ?? 0)) <=> ((int)($a['id_allegropro_shipment'] ?? 0));
         });
 
-        // Duplikat definiujemy po shipment_id.
-        // NIE kasujemy rekordów tylko dlatego, że mają ten sam tracking_number,
-        // bo przy wielopaczkach i fallbackach (uuid + waybill) to celowo mogą być osobne wpisy.
         foreach ($rows as $row) {
             $id = (int)($row['id_allegropro_shipment'] ?? 0);
             if ($id <= 0) {
@@ -472,8 +503,13 @@ class ShipmentRepository
             }
 
             $shipmentId = trim((string)($row['shipment_id'] ?? ''));
+            $tracking = strtoupper(trim((string)($row['tracking_number'] ?? '')));
+
             $duplicate = false;
             if ($shipmentId !== '' && isset($seenShipment[$shipmentId])) {
+                $duplicate = true;
+            }
+            if ($tracking !== '' && isset($seenTracking[$tracking])) {
                 $duplicate = true;
             }
 
@@ -484,6 +520,9 @@ class ShipmentRepository
 
             if ($shipmentId !== '') {
                 $seenShipment[$shipmentId] = true;
+            }
+            if ($tracking !== '') {
+                $seenTracking[$tracking] = true;
             }
         }
 
@@ -539,28 +578,6 @@ class ShipmentRepository
         $val = Db::getInstance()->getValue($q);
         $val = is_string($val) ? trim($val) : '';
         return $val !== '' ? $val : null;
-    }
-
-
-    /**
-     * Sprawdza czy dla zamówienia istnieje już rekord z danym tracking_number.
-     */
-    public function hasShipmentWithTracking(int $accountId, string $checkoutFormId, string $trackingNumber): bool
-    {
-        $accountId = (int)$accountId;
-        $checkoutFormId = trim($checkoutFormId);
-        $trackingNumber = trim($trackingNumber);
-
-        if ($accountId <= 0 || $checkoutFormId === '' || $trackingNumber === '') {
-            return false;
-        }
-
-        $sql = 'SELECT COUNT(*) FROM `'.$this->table.'` '
-            . 'WHERE id_allegropro_account=' . $accountId
-            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
-            . " AND tracking_number='" . pSQL($trackingNumber) . "'";
-
-        return (int)Db::getInstance()->getValue($sql) > 0;
     }
 
     /**
@@ -716,6 +733,30 @@ class ShipmentRepository
         $val = Db::getInstance()->getValue($sql);
         $val = is_string($val) ? trim($val) : '';
         return $val !== '' ? $val : null;
+    }
+
+    /**
+     * Sprawdza czy dla zamówienia istnieje już wiersz z danym tracking_number.
+     * Używane do bezpiecznego dopisywania brakujących paczek (waybilli) bez duplikacji.
+     */
+    public function trackingExistsForOrder(int $accountId, string $checkoutFormId, string $trackingNumber): bool
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        $trackingNumber = trim($trackingNumber);
+
+        if ($accountId <= 0 || $checkoutFormId === '' || $trackingNumber === '') {
+            return false;
+        }
+
+        $q = new \DbQuery();
+        $q->select('id_allegropro_shipment');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . (int)$accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("tracking_number='" . pSQL($trackingNumber) . "'");
+
+        return (int)\Db::getInstance()->getValue($q) > 0;
     }
 
     /**

@@ -38,16 +38,63 @@
             <input type="hidden" name="page" value="1" />
 
             <div class="alpro-filter-row">
-              <div class="form-group" style="min-width:260px;">
+              <div class="form-group alpro-account-group" style="min-width:360px;">
                 <label class="form-control-label">Konto</label>
-                <select name="id_allegropro_account[]" class="form-control alpro-accounts" multiple size="1">
-                  {foreach from=$accounts item=a}
-                    <option value="{$a.id_allegropro_account|intval}" {if in_array($a.id_allegropro_account, $selected_account_ids)}selected{/if}>
-                      {$a.label|escape:'htmlall':'UTF-8'}{if $a.allegro_login} ({$a.allegro_login|escape:'htmlall':'UTF-8'}){/if}
-                    </option>
-                  {/foreach}
-                </select>
-                <div class="help-block" style="margin-top:4px;">Możesz wybrać kilka kont (Ctrl/⌘ + klik).</div>
+
+                <div class="alpro-account-pick">
+                  <div class="alpro-ms" id="alproAccountsMs">
+                    <button type="button" class="alpro-ms__btn" aria-haspopup="true" aria-expanded="false">
+                      <span class="alpro-ms__btnText">
+                        {assign var=__selCount value=$selected_account_ids|@count}
+                        {if $__selCount==1}
+                          {foreach from=$accounts item=a}
+                            {if in_array($a.id_allegropro_account, $selected_account_ids)}
+                              {$a.label|escape:'htmlall':'UTF-8'}{if $a.allegro_login} ({$a.allegro_login|escape:'htmlall':'UTF-8'}){/if}
+                            {/if}
+                          {/foreach}
+                        {elseif $__selCount>1}
+                          Wybrane: {$__selCount}
+                        {else}
+                          Wybierz konto
+                        {/if}
+                      </span>
+                      <span class="alpro-ms__chev">▾</span>
+                    </button>
+
+                    <div class="alpro-ms__menu" role="menu">
+                      <div class="alpro-ms__menuHead">
+                        <span class="alpro-ms__hint">Wybierz konto</span>
+                        <div class="alpro-ms__menuActions">
+                          <a href="#" data-act="all">Wszystkie</a>
+                          <a href="#" data-act="none">Wyczyść</a>
+                        </div>
+                      </div>
+
+                      <div class="alpro-ms__list">
+                        {foreach from=$accounts item=a}
+                          <label class="alpro-ms__item">
+                            <input type="checkbox" value="{$a.id_allegropro_account|intval}" {if in_array($a.id_allegropro_account, $selected_account_ids)}checked{/if}>
+                            <span class="alpro-ms__label">{$a.label|escape:'htmlall':'UTF-8'}{if $a.allegro_login} ({$a.allegro_login|escape:'htmlall':'UTF-8'}){/if}</span>
+                          </label>
+                        {/foreach}
+                      </div>
+                    </div>
+
+                    <div class="alpro-ms__hidden">
+                      {foreach from=$selected_account_ids item=aid}
+                        <input type="hidden" name="id_allegropro_account[]" value="{$aid|intval}" />
+                      {/foreach}
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-outline-secondary alpro-btn-pick" title="Pokaż dane dla wybranych kont">
+                    <i class="material-icons" style="font-size:18px; vertical-align:middle;">check</i>
+                    <span style="vertical-align:middle;">Wybierz</span>
+                  </button>
+                </div>
+
+                <div class="help-block alpro-help" style="margin-top:4px;">Możesz wybrać kilka kont i kliknąć „Wybierz”.</div>
+                <div class="help-block alpro-muted">Dostępne konta: {$accounts|@count}</div>
                 <a href="#" class="alpro-select-all" id="alproSelectAll">Zaznacz wszystkie</a>
               </div>
 
@@ -127,7 +174,10 @@
       {* KPI *}
       {if isset($summary.sales_total)}
 
-        <div class="mt-4 alpro-kpi-grid">
+        <div class="mt-4 alpro-dashboard">
+
+          <div class="alpro-dashboard__left">
+            <div class="alpro-kpi-grid alpro-kpi-grid--compact">
 
           <div class="alpro-kpi alpro-kpi--sales">
             <div class="top">
@@ -232,9 +282,12 @@
           </div>
 
         </div>
+          </div>
+
+          <div class="alpro-dashboard__right">
 
         {* Wykres kołowy: struktura opłat *}
-        <div class="mt-3 alpro-structure" id="alproStructure" data-structure="{$structure_chart_json|escape:'htmlall':'UTF-8'}">
+        <div class="alpro-structure" id="alproStructure" data-structure="{$structure_chart_json|escape:'htmlall':'UTF-8'}">
           <div class="alpro-structure__head">
             <div>
               <div class="ttl">Struktura opłat</div>
@@ -260,6 +313,8 @@
             <div class="alpro-structure__legend" id="alproLegend">
               <div class="muted">Ładowanie…</div>
             </div>
+          </div>
+        </div>
           </div>
         </div>
 
