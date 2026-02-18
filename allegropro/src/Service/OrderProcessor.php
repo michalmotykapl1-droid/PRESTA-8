@@ -19,6 +19,8 @@ use Carrier;
 use StockAvailable;
 use Currency;
 use Cache;
+use DateTimeImmutable;
+use DateTimeZone;
 
 class OrderProcessor
 {
@@ -263,7 +265,13 @@ class OrderProcessor
             $customer->secure_key
         );
 
-        return $paymentModule->currentOrder;
+        // Presta zapisuje datę płatności jako "teraz" (moment importu). My chcemy realny czas z Allegro.
+        $newOrderId = (int)$paymentModule->currentOrder;
+        if ($newOrderId > 0) {
+            $this->syncPsPaymentDate($newOrderId, (string)$orderRow['checkout_form_id']);
+        }
+
+        return $newOrderId;
     }
 
     private function fixOrderData($id_order, $orderRow, $items)
@@ -375,16 +383,103 @@ class OrderProcessor
 
         $orderObj = new Order($id_order);
         $ref = $orderObj->reference;
+
+        // Data płatności z Allegro (payment.finishedAt) -> timezone Presty.
+        $psPaymentDate = $this->resolveAllegroPaymentDate((string)$orderRow['checkout_form_id'], $orderRow);
+
         Db::getInstance()->delete('order_payment', "order_reference = '$ref'");
         Db::getInstance()->insert('order_payment', [
             'order_reference' => $ref,
             'id_currency' => (int)$orderObj->id_currency,
             'amount' => $totalPaidAllegro,
             'payment_method' => 'Allegro',
-            'date_add' => date('Y-m-d H:i:s'),
+            'date_add' => pSQL($psPaymentDate),
             'transaction_id' => pSQL($orderRow['checkout_form_id']),
             'card_number' => '', 'card_brand' => '', 'card_expiration' => '', 'card_holder' => ''
         ]);
+    }
+
+    /**
+     * Aktualizuje date_add w ps_order_payment dla świeżo utworzonego zamówienia.
+     * validateOrder() zawsze zapisuje bieżący czas.
+     */
+    private function syncPsPaymentDate(int $id_order, string $checkoutFormId): void
+    {
+        if ($id_order <= 0 || $checkoutFormId === '') {
+            return;
+        }
+
+        $orderObj = new Order($id_order);
+        if (!Validate::isLoadedObject($orderObj)) {
+            return;
+        }
+
+        $ref = pSQL($orderObj->reference);
+        $date = pSQL($this->resolveAllegroPaymentDate($checkoutFormId, ['created_at_allegro' => $orderObj->date_add]));
+
+        Db::getInstance()->execute(
+            "UPDATE " . _DB_PREFIX_ . "order_payment
+             SET date_add = '" . $date . "'
+             WHERE order_reference = '" . $ref . "'
+               AND transaction_id = '" . pSQL($checkoutFormId) . "'"
+        );
+    }
+
+    /**
+     * Zwraca datę/czas płatności zgodny z Allegro (payment.finishedAt) w timezone Presty.
+     * Jeśli brak finishedAt (np. nieopłacone), fallback: created_at_allegro/updated_at_allegro lub "teraz".
+     */
+    private function resolveAllegroPaymentDate(string $checkoutFormId, array $orderRow = []): string
+    {
+        $checkoutFormId = (string)$checkoutFormId;
+        $finishedAt = null;
+
+        if ($checkoutFormId !== '') {
+            $finishedAt = Db::getInstance()->getValue(
+                "SELECT finished_at FROM " . _DB_PREFIX_ . "allegropro_order_payment
+                 WHERE checkout_form_id = '" . pSQL($checkoutFormId) . "'
+                 LIMIT 1"
+            );
+        }
+
+        $candidate = '';
+        if (!empty($finishedAt)) {
+            $candidate = (string)$finishedAt;
+        } elseif (!empty($orderRow['created_at_allegro'])) {
+            $candidate = (string)$orderRow['created_at_allegro'];
+        } elseif (!empty($orderRow['updated_at_allegro'])) {
+            $candidate = (string)$orderRow['updated_at_allegro'];
+        }
+
+        // Timezone Presty
+        $psTz = (string)\Configuration::get('PS_TIMEZONE');
+        if ($psTz === '') {
+            $psTz = date_default_timezone_get() ?: 'UTC';
+        }
+
+        if ($candidate === '') {
+            return (new DateTimeImmutable('now', new DateTimeZone($psTz)))->format('Y-m-d H:i:s');
+        }
+
+        // Ucinamy mikrosekundy (.000) – MySQL DATETIME tego nie potrzebuje.
+        $candidateTrim = preg_replace('/\\.\\d+$/', '', $candidate);
+        if (!is_string($candidateTrim)) {
+            $candidateTrim = (string)$candidate;
+        }
+
+        try {
+            // Jeśli mamy ISO (T/Z) – DateTime rozpozna timezone.
+            if (strpos($candidate, 'T') !== false) {
+                $dt = new DateTimeImmutable($candidate);
+            } else {
+                // Lokalnie przechowujemy już "YYYY-mm-dd HH:ii:ss" bez Z, ale to pochodzi z UTC.
+                $dt = new DateTimeImmutable($candidateTrim, new DateTimeZone('UTC'));
+            }
+            $dtLocal = $dt->setTimezone(new DateTimeZone($psTz));
+            return $dtLocal->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return (new DateTimeImmutable('now', new DateTimeZone($psTz)))->format('Y-m-d H:i:s');
+        }
     }
 
     private function setCancelledStatus($id_order)
