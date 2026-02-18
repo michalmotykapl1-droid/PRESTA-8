@@ -14,14 +14,41 @@
     </div>
   </div>
 
-  <form method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:12px; border-radius:10px; margin-bottom:15px;">
+  <form id="orders_filters_form" method="get" action="{$admin_link|escape:'htmlall':'UTF-8'}" class="panel" style="padding:14px; border-radius:14px; margin-bottom:15px; border:1px solid #d9e2ec; background:#fff;">
     <input type="hidden" name="controller" value="AdminAllegroProOrders" />
     <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
+    <input type="hidden" id="filter_global_query_hidden" name="filter_global_query" value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}" />
+
+    <div class="row">
+      <div class="col-md-12">
+        <label style="font-weight:700; margin-bottom:6px;">Szukaj globalnie (wszystkie kolumny w całej bazie modułu)</label>
+        <div class="input-group">
+          <input
+            id="global_quick_search"
+            data-name="filter_global_query"
+            value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}"
+            type="text"
+            class="form-control"
+            placeholder="Np. checkout_form_id, telefon (dowolny format), e-mail, login, EAN, SKU, nr przesyłki, firma/NIP..."
+            style="height:40px;border-radius:10px 0 0 10px;"
+          />
+          <span class="input-group-btn">
+            <button id="btn_global_search" type="submit" class="btn btn-primary" style="min-width:140px;height:40px;border-radius:0 10px 10px 0;">
+              <i id="btn_global_search_icon" class="icon icon-search"></i>
+              <span id="btn_global_search_text">Szukaj</span>
+            </button>
+          </span>
+        </div>
+        <small class="text-muted">Wyszukiwanie działa w całej bazie modułu (nie tylko na tej stronie listy). Telefon może być wpisany bez spacji, z +48 lub myślnikami.</small>
+      </div>
+    </div>
+
+    <hr style="margin:14px 0; border-top:1px solid #eef2f7;" />
 
     <div class="row">
       <div class="col-md-3">
-        <label>Konto</label>
-        <select name="filter_account" class="form-control">
+        <label style="font-weight:700; margin-bottom:6px;">Konto</label>
+        <select name="filter_account" class="form-control" style="border-radius:10px;">
           <option value="0">Wszystkie konta</option>
           {foreach from=$allegropro_accounts item=a}
             <option value="{$a.id_allegropro_account|intval}" {if $allegropro_filters.id_allegropro_account == $a.id_allegropro_account}selected{/if}>
@@ -30,54 +57,66 @@
           {/foreach}
         </select>
       </div>
+
       <div class="col-md-2">
-        <label>Data od</label>
-        <input type="date" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" class="form-control" />
+        <label style="font-weight:700; margin-bottom:6px;">Data od</label>
+        <input type="date" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" class="form-control" style="border-radius:10px;" />
       </div>
+
       <div class="col-md-2">
-        <label>Data do</label>
-        <input type="date" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" class="form-control" />
+        <label style="font-weight:700; margin-bottom:6px;">Data do</label>
+        <input type="date" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" class="form-control" style="border-radius:10px;" />
       </div>
+
+      <div class="col-md-3">
+        <label style="font-weight:700; margin-bottom:6px;">ID Allegro (checkout_form_id)</label>
+        <input type="text" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" class="form-control" style="border-radius:10px;" placeholder="np. b19f39d0-..." />
+      </div>
+
       <div class="col-md-2">
-        <label>Dostawa (wielokrotny wybór)</label>
-        <div style="max-height:120px; overflow:auto; border:1px solid #d8e3ef; border-radius:8px; padding:6px; background:#fff;">
+        <label style="font-weight:700; margin-bottom:6px;">Na stronę</label>
+        <select name="per_page" class="form-control" style="border-radius:10px;">
+          {foreach from=$allegropro_pagination.allowed_per_page item=pp}
+            <option value="{$pp|intval}" {if $allegropro_pagination.per_page == $pp}selected{/if}>{$pp|intval}</option>
+          {/foreach}
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div class="col-md-6">
+        <label style="font-weight:700; margin-bottom:6px;">Dostawa</label>
+        <div style="max-height:150px; overflow:auto; border:1px solid #d8e3ef; border-radius:12px; padding:10px; background:#f8fafc;">
           {foreach from=$allegropro_delivery_options item=delivery}
-            <label style="display:block; margin:0 0 4px 0; font-weight:normal;">
+            <label style="display:block; margin:0 0 6px 0; font-weight:normal;">
               <input type="checkbox" name="filter_delivery_methods[]" value="{$delivery|escape:'htmlall':'UTF-8'}" {if in_array($delivery, $allegropro_filters.delivery_methods)}checked{/if} />
               {$delivery|escape:'htmlall':'UTF-8'}
             </label>
           {/foreach}
         </div>
       </div>
-      <div class="col-md-2">
-        <label>Status (wielokrotny wybór)</label>
-        <div style="max-height:120px; overflow:auto; border:1px solid #d8e3ef; border-radius:8px; padding:6px; background:#fff;">
+
+      <div class="col-md-6">
+        <label style="font-weight:700; margin-bottom:6px;">Status</label>
+        <div style="max-height:150px; overflow:auto; border:1px solid #d8e3ef; border-radius:12px; padding:10px; background:#f8fafc;">
           {foreach from=$allegropro_status_options key=statusCode item=statusMeta}
-            <label style="display:block; margin:0 0 4px 0; font-weight:normal;">
+            <label style="display:block; margin:0 0 6px 0; font-weight:normal;">
               <input type="checkbox" name="filter_statuses[]" value="{$statusCode|escape:'htmlall':'UTF-8'}" {if in_array($statusCode, $allegropro_selected_status_codes)}checked{/if} />
               {$statusMeta.label|escape:'htmlall':'UTF-8'}
             </label>
           {/foreach}
         </div>
       </div>
-      <div class="col-md-1">
-        <label>ID Allegro</label>
-        <input type="text" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" class="form-control" placeholder="checkout_form_id" />
-      </div>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <div class="col-md-2">
-        <label>Na stronę</label>
-        <select name="per_page" class="form-control">
-          {foreach from=$allegropro_pagination.allowed_per_page item=pp}
-            <option value="{$pp|intval}" {if $allegropro_pagination.per_page == $pp}selected{/if}>{$pp|intval}</option>
-          {/foreach}
-        </select>
-      </div>
-      <div class="col-md-10" style="display:flex; align-items:flex-end; gap:8px;">
-        <button type="submit" class="btn btn-primary"><i class="icon icon-search"></i> Filtruj</button>
-        <a class="btn btn-default" href="{$admin_link|escape:'htmlall':'UTF-8'}"><i class="icon icon-eraser"></i> Wyczyść filtry</a>
+    <div class="row" style="margin-top:14px;">
+      <div class="col-md-12" style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+        <button id="btn_apply_filters" type="submit" class="btn btn-primary" style="border-radius:10px; min-width:160px;">
+          <i class="icon icon-filter"></i> Zastosuj filtry
+        </button>
+        <a class="btn btn-default" href="{$admin_link|escape:'htmlall':'UTF-8'}" style="border-radius:10px; min-width:160px;">
+          <i class="icon icon-eraser"></i> Wyczyść
+        </a>
       </div>
     </div>
   </form>
@@ -154,6 +193,7 @@
       <input type="hidden" name="filter_date_from" value="{$allegropro_filters.date_from|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_date_to" value="{$allegropro_filters.date_to|escape:'htmlall':'UTF-8'}" />
       <input type="hidden" name="filter_checkout_form_id" value="{$allegropro_filters.checkout_form_id|escape:'htmlall':'UTF-8'}" />
+      <input type="hidden" name="filter_global_query" value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}" />
       {foreach from=$allegropro_filters.delivery_methods item=dv}
         <input type="hidden" name="filter_delivery_methods[]" value="{$dv|escape:'htmlall':'UTF-8'}" />
       {/foreach}
@@ -305,6 +345,9 @@
     adminLink: '{$admin_link|escape:'javascript':'UTF-8'}'
   };
 </script>
+
+  {$allegropro_refresh_orders_panel nofilter}
+
 {literal}
 <script>
 var ImportManager = {
@@ -579,6 +622,38 @@ $(document).ready(function() {
 
   $('#btnStartProcess').click(function() { ImportManager.start(); });
 
+  function syncGlobalQueryValue() {
+    $('#filter_global_query_hidden').val($('#global_quick_search').val());
+  }
+
+  $('#global_quick_search').on('input change', syncGlobalQueryValue);
+
+  $('#orders_filters_form').on('submit', function(e) {
+    syncGlobalQueryValue();
+
+    var submitterId = '';
+    if (e && e.originalEvent && e.originalEvent.submitter) {
+      submitterId = $(e.originalEvent.submitter).attr('id') || '';
+    }
+    var activeId = (document.activeElement && document.activeElement.id) ? document.activeElement.id : '';
+    var isGlobalSearch = (submitterId === 'btn_global_search') || (activeId === 'global_quick_search');
+
+    // Dla zwykłych filtrów nie zmieniaj przycisku "Szukaj"
+    if (!isGlobalSearch) {
+      return true;
+    }
+
+    var $btn = $('#btn_global_search');
+    if (!$btn.length) return true;
+
+    $btn.prop('disabled', true);
+    $('#btn_global_search_icon').removeClass('icon-search').addClass('icon-refresh icon-spin');
+    $('#btn_global_search_text').text('Szukam...');
+
+    return true;
+  });
+
+
   $('.btn-details').click(function(e) {
     e.preventDefault();
     var cfId = $(this).data('id');
@@ -604,3 +679,4 @@ $(document).ready(function() {
 });
 </script>
 {/literal}
+{$allegropro_refresh_orders_script nofilter}

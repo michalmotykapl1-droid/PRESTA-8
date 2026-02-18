@@ -2,7 +2,7 @@
 /**
  * ALLEGRO PRO - PrestaShop 8.x
  * (c) BigBio
- * Wersja 2.2.0 - Rozliczenia (billing) + poprawki DB
+ * Wersja 2.1.1 - Added "No Payment" Status
  */
 if (!defined('_PS_VERSION_')) {
     exit;
@@ -16,7 +16,7 @@ class AllegroPro extends Module
     {
         $this->name = 'allegropro';
         $this->tab = 'administration';
-        $this->version = '2.2.0';
+        $this->version = '2.1.5';
         $this->author = 'BigBio';
         $this->need_instance = 0;
         $this->bootstrap = true;
@@ -46,6 +46,37 @@ class AllegroPro extends Module
         });
     }
 
+    /**
+     * Zapewnia kompatybilność schematu DB po aktualizacjach modułu.
+     * Dodaje brakujące kolumny bez konieczności reinstalacji.
+     */
+    public function ensureDbSchema(): void
+    {
+        try {
+            $db = \Db::getInstance();
+            $p = _DB_PREFIX_;
+            $table = $p . 'allegropro_account';
+
+            $cols = $db->executeS('SHOW COLUMNS FROM `' . pSQL($table) . '`');
+            $fields = [];
+            if (is_array($cols)) {
+                foreach ($cols as $c) {
+                    if (isset($c['Field'])) $fields[] = $c['Field'];
+                }
+            }
+
+            if (!in_array('shipx_token', $fields, true)) {
+                $db->execute('ALTER TABLE `' . pSQL($table) . '` ADD `shipx_token` TEXT NULL AFTER `oauth_state`');
+            }
+            if (!in_array('shipx_token_updated_at', $fields, true)) {
+                $db->execute('ALTER TABLE `' . pSQL($table) . '` ADD `shipx_token_updated_at` DATETIME NULL AFTER `shipx_token`');
+            }
+        } catch (\Throwable $e) {
+            // Nie przerywamy działania modułu - schemat będzie można poprawić ręcznie.
+        }
+    }
+
+
     public function install()
     {
         if (!parent::install()) {
@@ -55,6 +86,7 @@ class AllegroPro extends Module
         if (!$this->installDb()) {
             return false;
         }
+        $this->ensureDbSchema();
 
         if (!$this->installTabs()) {
             return false;
@@ -175,7 +207,7 @@ class AllegroPro extends Module
         $sql = [];
 
         // 1. KONTA
-        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_account` (`id_allegropro_account` INT UNSIGNED NOT NULL AUTO_INCREMENT, `label` VARCHAR(128) NOT NULL, `allegro_user_id` VARCHAR(64) NULL, `allegro_login` VARCHAR(128) NULL, `sandbox` TINYINT(1) DEFAULT 0, `active` TINYINT(1) DEFAULT 1, `is_default` TINYINT(1) DEFAULT 0, `access_token` TEXT NULL, `refresh_token` TEXT NULL, `token_expires_at` DATETIME NULL, `oauth_state` VARCHAR(80) NULL, `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_allegropro_account`)) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
+        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_account` (`id_allegropro_account` INT UNSIGNED NOT NULL AUTO_INCREMENT, `label` VARCHAR(128) NOT NULL, `allegro_user_id` VARCHAR(64) NULL, `allegro_login` VARCHAR(128) NULL, `sandbox` TINYINT(1) DEFAULT 0, `active` TINYINT(1) DEFAULT 1, `is_default` TINYINT(1) DEFAULT 0, `access_token` TEXT NULL, `refresh_token` TEXT NULL, `token_expires_at` DATETIME NULL, `oauth_state` VARCHAR(80) NULL, `shipx_token` TEXT NULL, `shipx_token_updated_at` DATETIME NULL, `created_at` DATETIME NOT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_allegropro_account`)) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
         
         // 2. ZAMÓWIENIA
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_order` (
@@ -240,8 +272,9 @@ class AllegroPro extends Module
             `tracking_number` VARCHAR(64) NULL,
             `wza_command_id` VARCHAR(64) NULL,
             `wza_shipment_uuid` VARCHAR(64) NULL,
-            `carrier_mode` VARCHAR(32) DEFAULT 'BOX',
-            `size_details` VARCHAR(32) NULL,
+            `wza_label_shipment_id` VARCHAR(64) NULL,
+            `carrier_mode` VARCHAR(64) DEFAULT 'BOX',
+            `size_details` VARCHAR(64) NULL,
             `is_smart` TINYINT(1) DEFAULT 0,
             `status` VARCHAR(32) DEFAULT 'CREATED',
             `label_path` VARCHAR(255) NULL,
@@ -252,38 +285,12 @@ class AllegroPro extends Module
             KEY `idx_cf` (`checkout_form_id`),
             KEY `idx_wza_cmd` (`wza_command_id`),
             KEY `idx_wza_uuid` (`wza_shipment_uuid`),
+            KEY `idx_wza_label_shipment_id` (`wza_label_shipment_id`),
             KEY `idx_status_changed_at` (`status_changed_at`)
         ) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
         
         // 9. METODY DOSTAWY
         $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_delivery_service` (`id_allegropro_delivery_service` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, `id_allegropro_account` INT UNSIGNED NOT NULL, `delivery_method_id` VARCHAR(64) NOT NULL, `delivery_service_id` VARCHAR(64) NOT NULL, `credentials_id` VARCHAR(64) NULL, `name` VARCHAR(255) NULL, `carrier_id` VARCHAR(64) NULL, `owner` VARCHAR(16) NULL, `additional_properties_json` TEXT NULL, `updated_at` DATETIME NOT NULL, PRIMARY KEY (`id_allegropro_delivery_service`)) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
-
-        // 10. BILLING (ROZLICZENIA)
-        $sql[] = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_billing_entry` (
-            `id_allegropro_billing_entry` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            `id_allegropro_account` INT UNSIGNED NOT NULL,
-            `billing_entry_id` VARCHAR(64) NOT NULL,
-            `occurred_at` DATETIME NOT NULL,
-            `type_id` VARCHAR(16) NULL,
-            `type_name` VARCHAR(255) NULL,
-            `offer_id` VARCHAR(64) NULL,
-            `offer_name` VARCHAR(512) NULL,
-            `order_id` VARCHAR(64) NULL,
-            `value_amount` DECIMAL(20,2) NOT NULL DEFAULT 0.00,
-            `value_currency` VARCHAR(3) NOT NULL DEFAULT 'PLN',
-            `balance_amount` DECIMAL(20,2) NULL,
-            `balance_currency` VARCHAR(3) NULL,
-            `tax_percentage` DECIMAL(10,2) NULL,
-            `tax_annotation` VARCHAR(32) NULL,
-            `raw_json` LONGTEXT NULL,
-            `created_at` DATETIME NOT NULL,
-            `updated_at` DATETIME NOT NULL,
-            PRIMARY KEY (`id_allegropro_billing_entry`),
-            UNIQUE KEY `uniq_billing_entry` (`billing_entry_id`),
-            KEY `idx_acc_date` (`id_allegropro_account`,`occurred_at`),
-            KEY `idx_order_id` (`order_id`),
-            KEY `idx_offer_id` (`offer_id`)
-        ) ENGINE=$engine DEFAULT CHARSET=utf8mb4;";
 
         foreach ($sql as $q) {
             if (!$db->execute($q)) return false;
@@ -298,7 +305,7 @@ class AllegroPro extends Module
         $tables = [
             'allegropro_order_item', 'allegropro_order_shipping', 'allegropro_order_buyer',
             'allegropro_order_payment', 'allegropro_order_invoice', 'allegropro_order',
-            'allegropro_shipment', 'allegropro_delivery_service', 'allegropro_billing_entry', 'allegropro_account'
+            'allegropro_shipment', 'allegropro_delivery_service', 'allegropro_account'
         ];
         
         foreach ($tables as $t) {
@@ -347,13 +354,7 @@ class AllegroPro extends Module
             $tab = new \Tab(); $tab->active = 1; $tab->class_name = 'AdminAllegroPro'; $tab->name = array_fill_keys(\Language::getIDs(false), 'Allegro Pro'); $tab->id_parent = 0; $tab->module = $this->name; $tab->add();
             $idParent = (int)$tab->id;
         }
-        $tabs = [
-            ['AdminAllegroProAccounts', 'Konta', 'people'],
-            ['AdminAllegroProOrders', 'Zamówienia', 'receipt_long'],
-            ['AdminAllegroProShipments', 'Przesyłki', 'local_shipping'],
-            ['AdminAllegroProSettlements', 'Rozliczenia', 'paid'],
-            ['AdminAllegroProSettings', 'Ustawienia', 'settings'],
-        ];
+        $tabs = [['AdminAllegroProAccounts', 'Konta', 'people'], ['AdminAllegroProOrders', 'Zamówienia', 'receipt_long'], ['AdminAllegroProShipments', 'Przesyłki', 'local_shipping'], ['AdminAllegroProSettings', 'Ustawienia', 'settings']];
         foreach ($tabs as $t) {
             if (!\Tab::getIdFromClassName($t[0])) {
                 $tab = new \Tab(); $tab->active = 1; $tab->class_name = $t[0]; $tab->name = array_fill_keys(\Language::getIDs(false), $t[1]); $tab->id_parent = $idParent; $tab->module = $this->name; $tab->icon = $t[2]; $tab->add();
@@ -364,7 +365,7 @@ class AllegroPro extends Module
 
     private function uninstallTabs()
     {
-        $tabs = ['AdminAllegroPro','AdminAllegroProAccounts','AdminAllegroProOrders','AdminAllegroProShipments','AdminAllegroProSettlements','AdminAllegroProSettings'];
+        $tabs = ['AdminAllegroPro','AdminAllegroProAccounts','AdminAllegroProOrders','AdminAllegroProShipments','AdminAllegroProSettings'];
         foreach ($tabs as $c) {
             $id = (int)\Tab::getIdFromClassName($c);
             if ($id) (new \Tab($id))->delete();

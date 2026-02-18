@@ -192,6 +192,17 @@ class ShipmentSyncService
             $this->shipments->mergeWzaFieldsForOrder($accountId, $checkoutFormId);
         }
 
+        // Dodatkowa korekta historycznych rekordów: dla size_details=CUSTOM kopiuj shipment_id -> wza_shipment_uuid,
+        // jeśli wza_shipment_uuid jest puste. Dzięki temu dane są spójne dla dalszych operacji w module.
+        if (method_exists($this->shipments, 'backfillWzaUuidFromShipmentIdForCustom')) {
+            $fixed = $this->shipments->backfillWzaUuidFromShipmentIdForCustom($accountId, $checkoutFormId);
+            if ($debug) {
+                $debugLines[] = '[SYNC] backfill CUSTOM: wza_shipment_uuid <- shipment_id, updated=' . (int)$fixed;
+                // jeżeli debug był włączony, dopiszemy te linie jeszcze raz do cache debug, bo wcześniejszy persist mógł już zajść
+                $this->persistSyncDebug($checkoutFormId, $debugLines);
+            }
+        }
+
         if (method_exists($this->shipments, 'rebalanceSmartFlagsForOrder')) {
             $this->shipments->rebalanceSmartFlagsForOrder(
                 $accountId,
@@ -219,6 +230,14 @@ class ShipmentSyncService
                 $refs = $this->resolver->extractCandidateReferencesFromArray($row);
                 foreach ($refs as $ref) {
                     $this->captureDiscoveredRowContext($ref, $row);
+                    // Ważne: endpoint /order/checkout-forms/{id}/shipments potrafi zwracać przesyłki,
+                    // które nie mają osobnego pola waybill/trackingNumber, a identyfikator jest tylko w polu `id`.
+                    // Wtedy $sid === null, ale `ref` jest już pełną referencją (UUID/command/waybill/base64).
+                    // Żeby nie gubić takich paczek, dodajemy referencję jako kandydat.
+                    $refKey = trim((string)$ref);
+                    if ($refKey !== '') {
+                        $found[$refKey] = true;
+                    }
                 }
 
                 $sid = $this->resolver->extractShipmentIdFromRow($row);
@@ -246,6 +265,35 @@ class ShipmentSyncService
             }
         }
 
+        // Dodatkowy fallback: część kont i scenariuszy pokazuje komplet przesyłek w /shipment-management/shipments
+        // (np. gdy /order/.../shipments zwraca tylko część danych lub brak waybilli).
+        // Best-effort, bez wywalania widoku przy błędzie.
+        $shipListResp = $this->api->get($account, '/shipment-management/shipments', ['checkoutFormId' => $checkoutFormId, 'limit' => 200]);
+        if (!empty($shipListResp['ok']) && is_array($shipListResp['json'])) {
+            $rows2 = $this->resolver->extractShipmentRows($shipListResp['json']);
+            foreach ($rows2 as $row2) {
+                if (!is_array($row2)) {
+                    continue;
+                }
+
+                $id2 = isset($row2['id']) ? trim((string)$row2['id']) : '';
+                if ($id2 !== '') {
+                    $this->captureDiscoveredRowContext($id2, $row2);
+                    $found[$id2] = true;
+                }
+
+                // Dodaj też ewentualne referencje (np. commandId) z wiersza
+                $refs2 = $this->resolver->extractCandidateReferencesFromArray($row2);
+                foreach ($refs2 as $ref2) {
+                    $this->captureDiscoveredRowContext($ref2, $row2);
+                    $ref2Key = trim((string)$ref2);
+                    if ($ref2Key !== '') {
+                        $found[$ref2Key] = true;
+                    }
+                }
+            }
+        }
+
         return array_keys($found);
     }
 
@@ -262,6 +310,24 @@ class ShipmentSyncService
         }
 
         $tracking = $this->resolver->extractWaybillFromRow($row);
+
+        // Jeśli API nie zwróciło osobnego pola waybill/trackingNumber, spróbuj wyciągnąć je z samej referencji.
+        // Przykłady: "ALLEGRO:AD0...", base64("INPOST:620..."), "DPD:AD0...".
+        if (!is_string($tracking) || trim($tracking) === '') {
+            $decoded = $this->resolver->decodeShipmentReference($referenceId);
+            $candidate = is_string($decoded) && trim($decoded) !== '' ? trim($decoded) : $referenceId;
+
+            // Nie nadpisuj, jeśli to wygląda na UUID shipmentu lub token commandId.
+            if ($candidate !== '' && !$this->resolver->looksLikeShipmentId($candidate) && !$this->resolver->looksLikeCreateCommandId($candidate)) {
+                // Jeśli mamy prefiks przewoźnika (CARRIER:WAYBILL), weź tylko waybill.
+                if (preg_match('/^[A-Z0-9_]{2,20}:(.+)$/', $candidate, $m)) {
+                    $candidate = trim((string)$m[1]);
+                }
+                if ($candidate !== '') {
+                    $tracking = $candidate;
+                }
+            }
+        }
 
         $isSmart = null;
         if (isset($row['smart'])) {
@@ -519,7 +585,11 @@ class ShipmentSyncService
         if (is_string($decoded)) {
             $decoded = trim($decoded);
             if ($decoded !== '' && !$this->resolver->looksLikeShipmentId($decoded) && !$this->resolver->looksLikeCreateCommandId($decoded)) {
-                return $decoded;
+                // jeśli to format CARRIER:WAYBILL → zwróć tylko WAYBILL
+                if (preg_match('/^[A-Z0-9_]{2,20}:(.+)$/', $decoded, $m)) {
+                    $decoded = trim((string)$m[1]);
+                }
+                return $decoded !== '' ? $decoded : null;
             }
         }
 

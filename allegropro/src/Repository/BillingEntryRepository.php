@@ -2,6 +2,7 @@
 namespace AllegroPro\Repository;
 
 use Db;
+use Configuration;
 
 class BillingEntryRepository
 {
@@ -38,6 +39,38 @@ class BillingEntryRepository
         ) ENGINE={$engine} DEFAULT CHARSET=utf8mb4;";
 
         Db::getInstance()->execute($sql);
+
+        // For older installations: add missing columns safely.
+        try {
+            $cols = Db::getInstance()->executeS('SHOW COLUMNS FROM `' . bqSQL($p . 'allegropro_billing_entry') . '`');
+            $have = [];
+            if (is_array($cols)) {
+                foreach ($cols as $c) {
+                    if (!empty($c['Field'])) {
+                        $have[$c['Field']] = true;
+                    }
+                }
+            }
+
+            $alter = [];
+            if (empty($have['order_id'])) {
+                $alter[] = 'ADD COLUMN `order_id` VARCHAR(64) NULL';
+            }
+            if (empty($have['raw_json'])) {
+                $alter[] = 'ADD COLUMN `raw_json` LONGTEXT NULL';
+            }
+            if (empty($have['created_at'])) {
+                $alter[] = 'ADD COLUMN `created_at` DATETIME NOT NULL';
+            }
+            if (empty($have['updated_at'])) {
+                $alter[] = 'ADD COLUMN `updated_at` DATETIME NOT NULL';
+            }
+            if (!empty($alter)) {
+                Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ' . implode(', ', $alter));
+            }
+        } catch (\Exception $e) {
+            // do not break page load
+        }
     }
 
     /**
@@ -64,17 +97,7 @@ class BillingEntryRepository
             $typeName = pSQL((string)($e['type']['name'] ?? ''));
             $offerId = pSQL((string)($e['offer']['id'] ?? ''));
             $offerName = pSQL((string)($e['offer']['name'] ?? ''));
-            $orderId = pSQL((string)($e['order']['id'] ?? ''));
-
-            // czasem orderId bywa w additionalInfo
-            if ($orderId === '' && !empty($e['additionalInfo']) && is_array($e['additionalInfo'])) {
-                foreach ($e['additionalInfo'] as $ai) {
-                    if (is_array($ai) && ($ai['type'] ?? '') === 'orderId' && !empty($ai['value'])) {
-                        $orderId = pSQL((string)$ai['value']);
-                        break;
-                    }
-                }
-            }
+            $orderId = pSQL($this->extractOrderId($e));
 
             $valAmount = (float)($e['value']['amount'] ?? 0);
             $valCurrency = pSQL((string)($e['value']['currency'] ?? 'PLN'));
@@ -87,7 +110,7 @@ class BillingEntryRepository
             $now = date('Y-m-d H:i:s');
 
             // czy istnieje?
-            $exists = (int)Db::getInstance()->getValue('SELECT id_allegropro_billing_entry FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` WHERE billing_entry_id = "' . $billingId . '"');
+            $exists = (int)Db::getInstance()->getValue('SELECT id_allegropro_billing_entry FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` WHERE billing_entry_id = \'' . $billingId . '\'');
 
             $row = [
                 'id_allegropro_account' => (int)$accountId,
@@ -121,21 +144,153 @@ class BillingEntryRepository
         return ['inserted' => $inserted, 'updated' => $updated];
     }
 
+    /**
+     * Try to extract Allegro order id / checkout form id from multiple possible shapes.
+     */
+    private function extractOrderId(array $e): string
+    {
+        // Najczęstsze przypadki (różne warianty struktury API).
+        // 1) order: { id: "..." }
+        if (!empty($e['order']) && is_array($e['order'])) {
+            $orderId = (string)($e['order']['id'] ?? '');
+            if ($orderId !== '') {
+                return $orderId;
+            }
+            // czasem: order: { checkoutFormId: "..." }
+            $orderId = (string)($e['order']['checkoutFormId'] ?? $e['order']['checkout_form_id'] ?? '');
+            if ($orderId !== '') {
+                return $orderId;
+            }
+        }
+
+        // 2) order: "..." (string)
+        if (!empty($e['order']) && is_string($e['order'])) {
+            $orderId = trim((string)$e['order']);
+            if ($orderId !== '') {
+                return $orderId;
+            }
+        }
+
+        // 3) top-level
+        $orderId = (string)($e['orderId'] ?? $e['order_id'] ?? '');
+        if ($orderId !== '') {
+            return $orderId;
+        }
+        $orderId = (string)($e['checkoutFormId'] ?? $e['checkout_form_id'] ?? '');
+        if ($orderId !== '') {
+            return $orderId;
+        }
+
+        // 4) checkoutForm: { id: "..." }
+        if (!empty($e['checkoutForm']) && is_array($e['checkoutForm'])) {
+            $orderId = (string)($e['checkoutForm']['id'] ?? $e['checkoutForm']['checkoutFormId'] ?? $e['checkoutForm']['checkout_form_id'] ?? '');
+            if ($orderId !== '') {
+                return $orderId;
+            }
+        }
+
+        // Sometimes in additionalInfo.
+        if (!empty($e['additionalInfo']) && is_array($e['additionalInfo'])) {
+            foreach ($e['additionalInfo'] as $ai) {
+                if (!is_array($ai)) {
+                    continue;
+                }
+                $type = strtolower((string)($ai['type'] ?? ''));
+                $val = (string)($ai['value'] ?? '');
+                if ($val === '') {
+                    continue;
+                }
+
+                // Known variants in the wild.
+                if (in_array($type, ['orderid', 'order_id', 'checkoutformid', 'checkout_form_id', 'checkoutform.id', 'checkoutform', 'checkout-form-id'], true)) {
+                    return $val;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * SQL: filtr "opłat".
+     *
+     * Allegro Billing Entries potrafią zawierać też operacje "środków" (wpłaty/wypłaty),
+     * które rozwalają sumy opłat (bo są dodatnie).
+     *
+     * Zostawiamy:
+     * - wszystkie ujemne wpisy (opłaty)
+     * - dodatnie tylko jeśli są ewidentną korektą/rabatem/zwrotem
+     */
+    private function buildFeeWhereSql(string $typeNameExpr): string
+    {
+        // Zasada:
+        // - bierzemy wszystkie ujemne operacje (opłaty)
+        // - oraz dodatnie tylko wtedy, gdy są korektą/rabatem/zwrotem
+        // - wykluczamy przepływy środków (wpłaty/wypłaty/przelewy/"środki"), bo one
+        //   potrafią „zerować” sumy opłat i nie odpowiadają widokowi w Sales Center.
+
+        $include = "(value_amount < 0 OR {$typeNameExpr} LIKE '%zwrot%' OR {$typeNameExpr} LIKE '%rabat%' OR {$typeNameExpr} LIKE '%korekt%' OR {$typeNameExpr} LIKE '%rekompens%')";
+        $exclude = "({$typeNameExpr} LIKE '%wypł%' OR {$typeNameExpr} LIKE '%wypl%' OR {$typeNameExpr} LIKE '%wpł%' OR {$typeNameExpr} LIKE '%wpl%' OR {$typeNameExpr} LIKE '%przelew%' OR {$typeNameExpr} LIKE '%środk%' OR {$typeNameExpr} LIKE '%srodk%')";
+        return "({$include} AND NOT {$exclude})";
+    }
+
+    /**
+     * Pobiera wpisy billingowe dla zamówienia, ale akceptuje wiele kandydatów order_id.
+     * Używane, gdy Allegro zwraca order_id w innym formacie (np. bez myślników).
+     */
+    public function listForOrderCandidates(int $accountId, array $orderIds, string $dateFrom, string $dateTo): array
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $vals = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') {
+                continue;
+            }
+            $vals[] = "'" . pSQL($id) . "'";
+        }
+        if (empty($vals)) {
+            return [];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        $sql = "SELECT *\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+            . "WHERE id_allegropro_account=" . (int)$accountId . "\n"
+            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+            . "  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  AND {$feeWhere}\n"
+            . "ORDER BY occurred_at DESC";
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
     public function getCategorySums(int $accountId, string $dateFrom, string $dateTo): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        // UWAGA: total i kategorie liczymy TYLKO po opłatach (patrz $feeWhere)
+        // Wcześniej feeWhere było w CASE, co w praktyce (przy pewnych danych) potrafiło
+        // dawać niespójne sumy. Tu filtrujemy w WHERE i sumujemy prosto.
         $sql = "SELECT
             SUM(value_amount) AS total,
-            SUM(CASE WHEN type_id='SUC' OR type_name LIKE '%Prowizja%' THEN value_amount ELSE 0 END) AS commission,
-            SUM(CASE WHEN type_name LIKE '%SMART%' OR type_name LIKE '%Smart%' THEN value_amount ELSE 0 END) AS smart,
-            SUM(CASE WHEN type_name LIKE '%Dostaw%' OR type_name LIKE '%przesy%' THEN value_amount ELSE 0 END) AS delivery,
-            SUM(CASE WHEN type_name LIKE '%Promow%' OR type_name LIKE '%reklam%' THEN value_amount ELSE 0 END) AS promotion,
-            SUM(CASE WHEN value_amount > 0 OR type_name LIKE '%Zwrot%' THEN value_amount ELSE 0 END) AS refunds
+            SUM(CASE WHEN (type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN value_amount ELSE 0 END) AS commission,
+            SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN value_amount ELSE 0 END) AS smart,
+            SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN value_amount ELSE 0 END) AS delivery,
+            SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN value_amount ELSE 0 END) AS promotion,
+            SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN value_amount ELSE 0 END) AS refunds
         FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
         WHERE id_allegropro_account=" . (int)$accountId . "
-          AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'";
+          AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+          AND {$feeWhere}";
 
         $row = Db::getInstance()->getRow($sql) ?: [];
         return [
@@ -153,11 +308,15 @@ class BillingEntryRepository
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
         $sql = "SELECT order_id, SUM(value_amount) AS sum_amount
                 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
                 WHERE id_allegropro_account=" . (int)$accountId . "
                   AND order_id IS NOT NULL AND order_id <> ''
                   AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+                  AND {$feeWhere}
                 GROUP BY order_id";
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
@@ -174,11 +333,15 @@ class BillingEntryRepository
         $to = pSQL($dateTo . ' 23:59:59');
         $orderId = pSQL($orderId);
 
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
         $sql = "SELECT *
                 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
                 WHERE id_allegropro_account=" . (int)$accountId . "
                   AND order_id='" . $orderId . "'
                   AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+                  AND {$feeWhere}
                 ORDER BY occurred_at DESC";
 
         return Db::getInstance()->executeS($sql) ?: [];
@@ -189,11 +352,15 @@ class BillingEntryRepository
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
         $sql = "SELECT COUNT(*)
                 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
                 WHERE id_allegropro_account=" . (int)$accountId . "
                   AND (order_id IS NULL OR order_id='')
-                  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'";
+                  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+                  AND {$feeWhere}";
 
         return (int)Db::getInstance()->getValue($sql);
     }
@@ -203,14 +370,34 @@ class BillingEntryRepository
         if ($iso === '') {
             return null;
         }
-        // 2026-02-16T14:12:10.453Z
-        $iso = str_replace('T', ' ', $iso);
-        $iso = str_replace('Z', '', $iso);
-        // usuń ms
-        $iso = preg_replace('/\.[0-9]+$/', '', $iso);
-        if (!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/', $iso)) {
+
+        // Use DateTime parser to support: Z, milliseconds, and timezone offsets (+01:00).
+        try {
+            $dt = new \DateTimeImmutable($iso);
+        } catch (\Exception $e) {
             return null;
         }
-        return $iso;
+
+        $tzId = (string)(Configuration::get('PS_TIMEZONE') ?: 'UTC');
+        try {
+            $tz = new \DateTimeZone($tzId);
+        } catch (\Exception $e) {
+            $tz = new \DateTimeZone('UTC');
+        }
+
+        return $dt->setTimezone($tz)->format('Y-m-d H:i:s');
+    }
+
+    public function countInRange(int $accountId, string $dateFrom, string $dateTo): int
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $sql = "SELECT COUNT(*)
+                FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'";
+
+        return (int)Db::getInstance()->getValue($sql);
     }
 }

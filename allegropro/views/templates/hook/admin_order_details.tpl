@@ -200,22 +200,20 @@
                                                 <span class="text-muted">—</span>
                                             {/if}
                                         </td>
-                                        
                                         <td>
                                             {if $ship.tracking_number}
                                                 <button type="button"
-                                                    class="btn btn-xs btn-outline-secondary btn-track-shipment"
-                                                    data-tracking="{$ship.tracking_number|escape:'htmlall':'UTF-8'}"
-                                                    data-status="{$ship.status|default:''|escape:'htmlall':'UTF-8'}"
-                                                    data-status-date="{if $ship.status_changed_at}{$ship.status_changed_at|date_format:"%d.%m.%Y %H:%M"}{/if}"
-                                                    title="Śledzenie przesyłki (Allegro)">
-                                                    <i class="material-icons" style="font-size:16px; vertical-align:middle;">travel_explore</i>
-                                                </button>
+                                                    class="btn btn-xs btn-default ap-track-btn"
+                                                    title="Śledź przesyłkę"
+                                                    data-number="{$ship.tracking_number|escape:'htmlall':'UTF-8'}"
+                                                    data-carrier="{$ship.carrier_id|escape:'htmlall':'UTF-8'}"
+                                                    data-url="https://allegro.pl/allegrodelivery/sledzenie-paczki?numer={$ship.tracking_number|escape:'url'}"
+                                                ><i class="material-icons">search</i></button>
                                             {else}
                                                 <span class="text-muted">—</span>
                                             {/if}
                                         </td>
-<td class="text-right">
+                                        <td class="text-right">
                                             {if $ship.can_download_label && $ship.status != 'CANCELLED'}
                                                 <button class="btn btn-xs btn-default btn-get-label" data-id="{$ship.shipment_id}" title="Pobierz Etykietę"><i class="material-icons">print</i></button>
                                             {/if}
@@ -226,7 +224,7 @@
                                         </td>
                                     </tr>
                                 {foreachelse}
-                                    <tr><td colspan="7" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted">Brak wygenerowanych etykiet.</td></tr>
                                 {/foreach}
                                 </tbody>
                             </table>
@@ -276,39 +274,6 @@
         </div>
     </div>
 </div>
-
-
-
-<!-- AllegroPro: Modal śledzenia przesyłki -->
-<div class="modal fade" id="allegroproTrackingModal" tabindex="-1" role="dialog" aria-labelledby="allegroproTrackingModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="allegroproTrackingModalLabel">
-          <i class="material-icons" style="font-size:18px;vertical-align:-3px;">local_shipping</i>
-          Śledzenie przesyłki
-        </h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" style="font-size:13px;">
-        <div class="mb-2"><strong>Numer:</strong> <code id="allegroproTrackNumber">—</code></div>
-        <div class="mb-2"><strong>Status:</strong> <span id="allegroproTrackStatus">—</span> <span class="text-muted" id="allegroproTrackStatusDate"></span></div>
-        <div class="alert alert-info p-2 mb-3" style="font-size:12px;">
-          Najbardziej aktualne, szczegółowe śledzenie jest dostępne w Allegro Delivery.
-        </div>
-        <div class="d-flex" style="gap:8px;flex-wrap:wrap;">
-          <a href="#" target="_blank" rel="noopener" class="btn btn-outline-primary" id="allegroproTrackOpenLink">
-            Otwórz śledzenie w Allegro
-          </a>
-          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Zamknij</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
@@ -608,66 +573,283 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     });
+});
+</script>
 
-    // --- 5. Śledzenie przesyłki (modal) ---
-    function allegroproStatusToPl(code) {
-        var c = (code || '').toUpperCase();
+
+<style>
+    /* AllegroPro tracking modal */
+    #apTrackingModal .ap-track-date { white-space: nowrap; color: #6c757d; font-size: 12px; }
+    #apTrackingModal .ap-track-desc { font-size: 13px; }
+    #apTrackingModal tr.ap-track-latest { font-weight: 700; }
+    #apTrackingModal tr.ap-track-latest td { position: relative; }
+    #apTrackingModal tr.ap-track-latest td:first-child { border-left: 4px solid #17a2b8; }
+    #apTrackingModal tr.ap-track-latest.ap-track-done td:first-child { border-left-color: #28a745; }
+    #apTrackingModal tr.ap-track-latest.ap-track-bad td:first-child { border-left-color: #dc3545; }
+    #apTrackingModal tr.ap-track-latest.ap-track-pickup td:first-child { border-left-color: #6f42c1; }
+    #apTrackingModal tr.ap-track-latest { background: #f8f9fa; }
+    #apTrackingModal tr.ap-track-latest.ap-track-done { background: #eaf7ee; }
+    #apTrackingModal tr.ap-track-latest.ap-track-bad { background: #fdecea; }
+    #apTrackingModal tr.ap-track-latest.ap-track-pickup { background: #f2effb; }
+</style>
+
+<div class="modal fade" id="apTrackingModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title"><i class="material-icons" style="vertical-align:middle;">local_shipping</i> Śledzenie przesyłki</h4>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="apTrackAlert" class="alert alert-info" style="margin-bottom:12px;">Ładowanie…</div>
+
+        <div id="apTrackMeta" style="margin-bottom:10px;">
+          <div><strong>Numer:</strong> <code id="apTrackNumber">—</code></div>
+          <div><strong>Status:</strong> <span id="apTrackCurrent">—</span></div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm" style="font-size:13px;">
+            <thead>
+              <tr>
+                <th style="width:180px;">Data</th>
+                <th>Zdarzenie</th>
+              </tr>
+            </thead>
+            <tbody id="apTrackTbody">
+              <tr><td colspan="2" class="text-muted">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a href="#" class="btn btn-primary" id="apTrackOpen" target="_blank" rel="noopener">Otwórz śledzenie w Allegro</a>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Zamknij</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+    function apIsPolishText(s){
+        if (!s) return false;
+        // prosta heurystyka: polskie znaki lub słowo "Przesyłka"
+        return /[ąćęłńóśżź]/i.test(s) || /przesyłk/i.test(s);
+    }
+
+    function apCodeToPlShort(code){
         var map = {
-            'CREATED': 'Oczekuje na nadanie',
             'PENDING': 'Oczekuje na nadanie',
-            'NEW': 'W trakcie tworzenia',
-            'IN_PROGRESS': 'W trakcie tworzenia',
-            'SENT': 'W drodze',
             'IN_TRANSIT': 'W drodze',
-            'OUT_FOR_DELIVERY': 'W doręczeniu',
             'RELEASED_FOR_DELIVERY': 'W doręczeniu',
-            'READY_FOR_PICKUP': 'Do odbioru',
+            'OUT_FOR_DELIVERY': 'W doręczeniu',
             'AVAILABLE_FOR_PICKUP': 'Do odbioru',
+            'READY_FOR_PICKUP': 'Do odbioru',
+            'NOTICE_LEFT': 'Awizo',
+            'ISSUE': 'Problem z przesyłką',
             'DELIVERED': 'Dostarczona',
-            'CANCELLED': 'Anulowana',
-            'RETURNED_TO_SENDER': 'Zwrócona',
             'RETURNED': 'Zwrócona',
+            'RETURNED_TO_SENDER': 'Zwrócona',
+            'SENT': 'Nadana',
             'LOST': 'Zagubiona',
             'DELIVERY_FAILED': 'Nieudana dostawa',
             'UNDELIVERED': 'Nieudana dostawa'
         };
-        return map[c] || (code || '—');
+        return map[code] || code || '—';
     }
 
-    function allegroproOpenTrackingModal(trackingNumber, statusCode, statusDate) {
-        if (!trackingNumber) return;
-        var url = 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' + encodeURIComponent(trackingNumber);
+    function apCodeToPlLong(code){
+        var map = {
+            'PENDING': 'Przesyłka oczekuje na nadanie',
+            'SENT': 'Przesyłka została nadana',
+            'IN_TRANSIT': 'Przesyłka jest w drodze',
+            'RELEASED_FOR_DELIVERY': 'Przesyłka została wydana do doręczenia',
+            'OUT_FOR_DELIVERY': 'Przesyłka została wydana do doręczenia',
+            'AVAILABLE_FOR_PICKUP': 'Przesyłka czeka na odbiór',
+            'READY_FOR_PICKUP': 'Przesyłka czeka na odbiór',
+            'DELIVERED': 'Przesyłka została doręczona',
+            'RETURNED_TO_SENDER': 'Przesyłka została zwrócona do nadawcy',
+            'RETURNED': 'Przesyłka została zwrócona',
+            'ISSUE': 'Wystąpił problem z przesyłką',
+            'LOST': 'Przesyłka została uznana za zagubioną',
+            'DELIVERY_FAILED': 'Doręczenie przesyłki nie powiodło się',
+            'UNDELIVERED': 'Doręczenie przesyłki nie powiodło się'
+        };
+        return map[code] || apCodeToPlShort(code);
+    }
 
-        var elNum = document.getElementById('allegroproTrackNumber');
-        var elStatus = document.getElementById('allegroproTrackStatus');
-        var elDate = document.getElementById('allegroproTrackStatusDate');
-        var elLink = document.getElementById('allegroproTrackOpenLink');
+    function apDescToPl(desc, code){
+        if (!desc) return '';
+        desc = String(desc).trim();
+        if (!desc) return '';
+        if (apIsPolishText(desc)) return desc;
 
-        if (elNum) elNum.innerText = trackingNumber;
-        if (elStatus) elStatus.innerText = allegroproStatusToPl(statusCode);
-        if (elDate) {
-            var sd = (statusDate || '').trim();
-            elDate.innerText = sd ? ('(' + sd + ')') : '';
+        var d = desc.toLowerCase();
+
+        var map = [
+            [/parcel has been delivered/i, 'Przesyłka została doręczona'],
+            [/parcel has been released for delivery/i, 'Przesyłka została wydana do doręczenia'],
+            [/parcel has been accepted at the destination center/i, 'Przesyłka została przyjęta w oddziale doręczającym'],
+            [/parcel has been accepted at the delivery center/i, 'Przesyłka została przyjęta w oddziale doręczającym'],
+            [/parcel has been accepted at the branch/i, 'Przesyłka została przyjęta w oddziale'],
+            [/parcel has been picked up by the courier/i, 'Przesyłka została odebrana przez kuriera'],
+            [/parcel has been prepared by the sender/i, 'Przesyłka została przygotowana przez nadawcę'],
+            [/parcel has been prepared by sender/i, 'Przesyłka została przygotowana przez nadawcę'],
+            [/parcel is in transit/i, 'Przesyłka jest w drodze'],
+            [/parcel is ready for pickup/i, 'Przesyłka czeka na odbiór'],
+            [/parcel is available for pickup/i, 'Przesyłka czeka na odbiór'],
+            [/parcel has been returned to sender/i, 'Przesyłka została zwrócona do nadawcy'],
+            [/parcel has been returned/i, 'Przesyłka została zwrócona'],
+            [/parcel has been handed over to the carrier/i, 'Przesyłka została przekazana przewoźnikowi'],
+            [/parcel has been accepted/i, 'Przesyłka została przyjęta'],
+        ];
+
+        for (var i = 0; i < map.length; i++){
+            if (map[i][0].test(desc)) return map[i][1];
         }
-        if (elLink) elLink.href = url;
 
-        // Presta BO ma bootstrap/jQuery - ale dajemy fallback na nową kartę
-        if (window.$ && window.$.fn && typeof window.$.fn.modal === 'function') {
-            window.$('#allegroproTrackingModal').modal('show');
-        } else {
-            window.open(url, '_blank');
+        // fallback: dłuższy opis z kodu
+        return apCodeToPlLong(code || '');
+    }
+
+    function apLatestClass(code){
+        code = (code || '').toUpperCase();
+        if (code === 'DELIVERED') return 'ap-track-done';
+        if (code === 'READY_FOR_PICKUP' || code === 'AVAILABLE_FOR_PICKUP') return 'ap-track-pickup';
+        if (code === 'ISSUE' || code === 'LOST' || code === 'DELIVERY_FAILED' || code === 'UNDELIVERED') return 'ap-track-bad';
+        return '';
+    }
+
+    function apEventText(code, desc){
+        var pl = apDescToPl(desc || '', code || '');
+        if (pl) return pl;
+        return apCodeToPlLong(code || '');
+    }
+
+    function apFmt(dtStr){
+        try {
+            var d = new Date(dtStr);
+            if (isNaN(d.getTime())) return dtStr || '';
+            return d.toLocaleString('pl-PL');
+        } catch(e){
+            return dtStr || '';
         }
     }
 
-    document.querySelectorAll('.btn-track-shipment').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            var tracking = this.getAttribute('data-tracking') || '';
-            var status = this.getAttribute('data-status') || '';
-            var statusDate = this.getAttribute('data-status-date') || '';
-            allegroproOpenTrackingModal(tracking, status, statusDate);
+    function apSetAlert(type, msg){
+        var el = document.getElementById('apTrackAlert');
+        if (!el) return;
+        el.className = 'alert alert-' + (type || 'info');
+        el.textContent = msg || '';
+    }
+
+    function apRenderStatuses(statuses){
+        var tbody = document.getElementById('apTrackTbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        var list = Array.isArray(statuses) ? statuses.slice() : [];
+        if (!list.length){
+            var tr0 = document.createElement('tr');
+            var td0 = document.createElement('td');
+            td0.colSpan = 2;
+            td0.className = 'text-muted';
+            td0.textContent = 'Brak zdarzeń trackingu.';
+            tr0.appendChild(td0);
+            tbody.appendChild(tr0);
+            return;
+        }
+
+        // sort: najnowsze na górze (jak w Allegro Delivery)
+        list.sort(function(a, b){
+            var ta = (a && a.occurredAt) ? String(a.occurredAt) : '';
+            var tb = (b && b.occurredAt) ? String(b.occurredAt) : '';
+            return tb.localeCompare(ta);
+        });
+
+        list.forEach(function(st, idx){
+            var tr = document.createElement('tr');
+            if (idx === 0) {
+                var cls = apLatestClass(st.code || '');
+                tr.className = 'ap-track-latest' + (cls ? (' ' + cls) : '');
+            }
+
+            var tdDate = document.createElement('td');
+            tdDate.className = 'ap-track-date';
+            tdDate.textContent = apFmt(st.occurredAt || '');
+
+            var tdDesc = document.createElement('td');
+            tdDesc.className = 'ap-track-desc';
+            tdDesc.textContent = apEventText(st.code || '', st.description || '');
+
+            tr.appendChild(tdDate);
+            tr.appendChild(tdDesc);
+            tbody.appendChild(tr);
+        });
+
+        // current status line (najnowszy)
+        var latest = list[0];
+        var curText = apEventText(latest.code || '', latest.description || '');
+        var curEl = document.getElementById('apTrackCurrent');
+        if (curEl) curEl.textContent = curText + ' (' + apFmt(latest.occurredAt || '') + ')';
+    }
+
+    document.addEventListener('click', function(ev){
+        var btn = ev.target && ev.target.closest ? ev.target.closest('.ap-track-btn') : null;
+        if (!btn) return;
+
+        ev.preventDefault();
+
+        var number = (btn.getAttribute('data-number') || '').trim();
+        var carrier = (btn.getAttribute('data-carrier') || '').trim().toUpperCase();
+        var openUrl = (btn.getAttribute('data-url') || ('https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' + encodeURIComponent(number)));
+
+        document.getElementById('apTrackNumber').textContent = number || '—';
+        document.getElementById('apTrackOpen').setAttribute('href', openUrl);
+
+        apSetAlert('info', 'Ładowanie historii…');
+        document.getElementById('apTrackCurrent').textContent = '—';
+        document.getElementById('apTrackTbody').innerHTML = '<tr><td colspan="2" class="text-muted">Ładowanie…</td></tr>';
+
+        // pokaż modal (fallback: nowa karta)
+        if (typeof $ === 'undefined' || !$('#apTrackingModal').modal) {
+            window.open(openUrl, '_blank');
+            return;
+        }
+        $('#apTrackingModal').modal('show');
+
+        var accId = {$allegro_data.order.id_allegropro_account|intval};
+
+        var endpoint = 'index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=get_tracking&ajax=1';
+        var fd = new FormData();
+        fd.append('id_allegropro_account', accId);
+        fd.append('tracking_number', number);
+        fd.append('carrier_id', carrier);
+
+        fetch(endpoint, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin'
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(json){
+            if (!json || !json.success){
+                apSetAlert('danger', (json && json.message) ? json.message : 'Nie udało się pobrać trackingu.');
+                return;
+            }
+            if (json.message) {
+                apSetAlert('info', json.message);
+            } else {
+                apSetAlert('success', 'Pobrano historię trackingu.');
+            }
+            apRenderStatuses(json.statuses || []);
+        })
+        .catch(function(err){
+            apSetAlert('danger', 'Błąd połączenia: ' + (err && err.message ? err.message : err));
         });
     });
-
-});
+})();
 </script>

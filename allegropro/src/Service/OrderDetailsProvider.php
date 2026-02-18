@@ -88,27 +88,81 @@ class OrderDetailsProvider
         foreach ($shipmentsHistory as &$sh) {
             $wzaCommand = trim((string)($sh['wza_command_id'] ?? ''));
             $wzaUuid = trim((string)($sh['wza_shipment_uuid'] ?? ''));
-            $isModuleShipment = ($wzaCommand !== '' || $wzaUuid !== '');
+            // Za "utworzoną w module" uznajemy przesyłkę gdy:
+            // - mamy commandId (WZA create-command) lub
+            // - mamy prawdziwy UUID shipmentu (do etykiet WZA). 
+            // (Nie traktujemy dowolnego stringa w wza_shipment_uuid jako modułowego, bo czasem trzymamy tam kopię shipment_id.)
+            $isUuid = ($wzaUuid !== '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $wzaUuid));
+            $isModuleShipment = ($wzaCommand !== '' || $isUuid);
 
-            $sh['can_download_label'] = $isModuleShipment;
+            $tracking = trim((string)($sh['tracking_number'] ?? ''));
+            $size = strtoupper(trim((string)($sh['size_details'] ?? '')));
+            // Drukarka także dla przesyłek pobranych z Allegro, ale tylko CUSTOM + ma tracking_number
+            $isInpostExternal = false;
+            $ref = trim((string)($sh['shipment_id'] ?? ''));
+
+            // CarrierId dla trackingu (/order/carriers/{carrierId}/tracking?waybill=...)
+            $carrierId = '';
+            if ($ref !== '') {
+                $decCarrier = '';
+                $dec = base64_decode($ref, true);
+                if (is_string($dec) && $dec !== '' && strpos($dec, ':') !== false) {
+                    $decCarrier = (string)strtok($dec, ':');
+                } elseif (strpos($ref, ':') !== false) {
+                    $decCarrier = (string)strtok($ref, ':');
+                }
+                $decCarrier = strtoupper(trim($decCarrier));
+                if ($decCarrier !== '' && preg_match('/^[A-Z0-9_]{2,20}$/', $decCarrier)) {
+                    $carrierId = $decCarrier;
+                }
+            }
+            if ($carrierId === '') {
+                $mn = strtolower((string)($shipping['method_name'] ?? ''));
+                if (strpos($mn, 'inpost') !== false) { $carrierId = 'INPOST'; }
+                elseif (strpos($mn, 'dpd') !== false) { $carrierId = 'DPD'; }
+                elseif (strpos($mn, 'dhl') !== false) { $carrierId = 'DHL'; }
+                elseif (strpos($mn, 'orlen') !== false) { $carrierId = 'ORLEN'; }
+                elseif (strpos($mn, 'gls') !== false) { $carrierId = 'GLS'; }
+                elseif (strpos($mn, 'ups') !== false) { $carrierId = 'UPS'; }
+                elseif (strpos($mn, 'allegro one') !== false || strpos($mn, 'one box') !== false) { $carrierId = 'ALLEGRO'; }
+            }
+            $sh['carrier_id'] = $carrierId;
+            if ($ref !== '') {
+                if (strpos($ref, 'SU5QT1NU') === 0) {
+                    $isInpostExternal = true; // base64 zaczyna się od "INPOST"
+                } else {
+                    $dec = base64_decode($ref, true);
+                    if (is_string($dec) && strpos($dec, 'INPOST:') === 0) {
+                        $isInpostExternal = true;
+                    }
+                }
+            }
+
+            $hasShipx = (!empty($account['shipx_token']));
+            // Drukarka dla przesyłek pobranych z Allegro: tylko CUSTOM + tracking + INPOST + skonfigurowany ShipX token
+            $isExternalEligible = (!$isModuleShipment && $tracking !== '' && $size === 'CUSTOM' && $isInpostExternal && $hasShipx);
+
+            $sh['can_download_label'] = ($isModuleShipment || $isExternalEligible);
             $sh['origin_is_module'] = $isModuleShipment ? 1 : 0;
             $sh['origin_label'] = $isModuleShipment ? 'UTWORZONA W MODULE' : 'POBRANA Z ALLEGRO';
         }
         unset($sh);
 
         // Smart: liczymy po zsynchronizowanej historii
-        $smartLimit = (int)($shipping['package_count'] ?? 0);
+        $isSmartOrder = ((int)($shipping['is_smart'] ?? 0) === 1);
+        $smartLimit = $isSmartOrder ? (int)($shipping['package_count'] ?? 0) : 0;
         $smartUsed = 0;
-        foreach ($shipmentsHistory as $sh) {
-            if ((string)($sh['status'] ?? '') === 'CANCELLED') {
-                continue;
-            }
-
-            if ((int)($sh['is_smart'] ?? 0) === 1) {
-                $smartUsed++;
+        if ($isSmartOrder) {
+            foreach ($shipmentsHistory as $sh) {
+                if ((string)($sh['status'] ?? '') === 'CANCELLED') {
+                    continue;
+                }
+                if ((int)($sh['is_smart'] ?? 0) === 1) {
+                    $smartUsed++;
+                }
             }
         }
-        $smartLeft = max(0, $smartLimit - $smartUsed);
+        $smartLeft = $isSmartOrder ? max(0, $smartLimit - $smartUsed) : 0;
 
         // 5. Statusy
         $psStatusName = 'Nieznany';
