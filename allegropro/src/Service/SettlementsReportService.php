@@ -146,11 +146,16 @@ class SettlementsReportService
             $whereQ = " AND (b.order_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
+        // Uwaga: Allegro potrafi zwracać order_id w billing-entries w różnych wariantach (z/bez myślników, różna wielkość liter).
+        // Łączymy po znormalizowanym UUID (lower + bez myślników), aby nie gubić dopasowań do tabeli allegropro_order.
         $sql = "SELECT COUNT(*) FROM (
                     SELECT b.id_allegropro_account, b.order_id
                     FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
                     LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                      ON (o.id_allegropro_account=b.id_allegropro_account AND o.checkout_form_id=b.order_id)
+                      ON (
+                        o.id_allegropro_account=b.id_allegropro_account
+                        AND LOWER(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_','')) = LOWER(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''))
+                      )
                     WHERE b.id_allegropro_account IN " . $in . "
                       AND b.order_id IS NOT NULL AND b.order_id <> ''
                       AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
@@ -207,6 +212,7 @@ class SettlementsReportService
             $whereQ = " AND (b.order_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
+        // Jak wyżej: dopasowanie po znormalizowanym UUID.
         $sql = "SELECT 
                     b.id_allegropro_account,
                     b.order_id AS checkout_form_id,
@@ -219,7 +225,10 @@ class SettlementsReportService
                     a.label AS account_label
                 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
                 LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                  ON (o.id_allegropro_account=b.id_allegropro_account AND o.checkout_form_id=b.order_id)
+                  ON (
+                    o.id_allegropro_account=b.id_allegropro_account
+                    AND LOWER(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_','')) = LOWER(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''))
+                  )
                 LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a
                   ON (a.id_allegropro_account=b.id_allegropro_account)
                 WHERE b.id_allegropro_account IN " . $in . "
@@ -234,16 +243,14 @@ class SettlementsReportService
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
-            $r['total_amount'] = isset($r['total_amount']) ? (float)$r['total_amount'] : 0.0;
+            // Jeśli brak danych o zamówieniu (brak dopasowania do allegropro_order) — nie pokazuj sztucznego 0.00.
+            $ta = isset($r['total_amount']) ? (float)$r['total_amount'] : 0.0;
+            $r['total_amount'] = ($ta > 0.0) ? $ta : null;
             $r['fees_total'] = (float)($r['fees_total'] ?? 0);
 
             // date_display = data operacji billing
             $r['date_display'] = (string)($r['occurred_at_max'] ?? $r['created_at_allegro'] ?? '');
-            if (!empty($r['total_amount'])) {
-                $r['net_after_fees'] = (float)$r['total_amount'] + (float)$r['fees_total'];
-            } else {
-                $r['net_after_fees'] = null;
-            }
+            $r['net_after_fees'] = ($r['total_amount'] !== null) ? ((float)$r['total_amount'] + (float)$r['fees_total']) : null;
         }
         unset($r);
 
@@ -264,8 +271,12 @@ class SettlementsReportService
             $cf = (string)($o['checkout_form_id'] ?? '');
             if ($cf === '') continue;
             $candidates[] = $cf;
-            $noDash = str_replace('-', '', $cf);
-            if ($noDash !== '' && $noDash !== $cf) $candidates[] = $noDash;
+            $dash = str_replace('_', '-', $cf);
+            if ($dash !== '' && $dash !== $cf) $candidates[] = $dash;
+            $under = str_replace('-', '_', $cf);
+            if ($under !== '' && $under !== $cf) $candidates[] = $under;
+            $noSep = str_replace(['-','_'], '', $cf);
+            if ($noSep !== '' && $noSep !== $cf) $candidates[] = $noSep;
             $lower = strtolower($cf);
             if ($lower !== $cf) $candidates[] = $lower;
             $upper = strtoupper($cf);
@@ -323,8 +334,12 @@ class SettlementsReportService
         $candidates = [];
         if ($cf !== '') {
             $candidates[] = $cf;
-            $noDash = str_replace('-', '', $cf);
-            if ($noDash !== '' && $noDash !== $cf) $candidates[] = $noDash;
+            $dash = str_replace('_', '-', $cf);
+            if ($dash !== '' && $dash !== $cf) $candidates[] = $dash;
+            $under = str_replace('-', '_', $cf);
+            if ($under !== '' && $under !== $cf) $candidates[] = $under;
+            $noSep = str_replace(['-','_'], '', $cf);
+            if ($noSep !== '' && $noSep !== $cf) $candidates[] = $noSep;
             $lower = strtolower($cf);
             if ($lower !== $cf) $candidates[] = $lower;
             $upper = strtoupper($cf);
@@ -440,8 +455,12 @@ class SettlementsReportService
             $id = trim((string)$id);
             if ($id === '') continue;
             $c[] = $id;
-            $noDash = str_replace('-', '', $id);
-            if ($noDash !== '' && $noDash !== $id) $c[] = $noDash;
+            $dash = str_replace('_', '-', $id);
+            if ($dash !== '' && $dash !== $id) $c[] = $dash;
+            $under = str_replace('-', '_', $id);
+            if ($under !== '' && $under !== $id) $c[] = $under;
+            $noSep = str_replace(['-','_'], '', $id);
+            if ($noSep !== '' && $noSep !== $id) $c[] = $noSep;
             $lower = strtolower($id);
             if ($lower !== $id) $c[] = $lower;
             $upper = strtoupper($id);
@@ -462,16 +481,20 @@ class SettlementsReportService
         $tn = "LOWER(IFNULL(b.type_name,''))";
         $feeWhere = $this->feeWhere('b.value_amount', $tn);
 
+        // Suma sprzedaży dla zamówień, do których naliczono opłaty w okresie (billing) — dopasowanie po znormalizowanym UUID.
         $sql = "SELECT SUM(o.total_amount) AS sales_total
                 FROM `" . _DB_PREFIX_ . "allegropro_order` o
                 INNER JOIN (
-                    SELECT DISTINCT b.id_allegropro_account, b.order_id
+                    SELECT DISTINCT b.id_allegropro_account, LOWER(REPLACE(REPLACE(b.order_id,'-',''),'_','')) AS order_key
                     FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
                     WHERE b.id_allegropro_account IN " . $in . "
                       AND b.order_id IS NOT NULL AND b.order_id <> ''
                       AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
                       AND {$feeWhere}
-                ) x ON (x.id_allegropro_account=o.id_allegropro_account AND x.order_id=o.checkout_form_id)";
+                ) x ON (
+                    x.id_allegropro_account=o.id_allegropro_account
+                    AND x.order_key = LOWER(REPLACE(REPLACE(o.checkout_form_id,'-',''),'_',''))
+                )";
         return (float)Db::getInstance()->getValue($sql);
     }
 
@@ -505,7 +528,8 @@ class SettlementsReportService
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
-            $r['total_amount'] = (float)$r['total_amount'];
+            $ta = (float)$r['total_amount'];
+            $r['total_amount'] = ($ta > 0.0) ? $ta : null;
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
         }
         unset($r);
@@ -519,11 +543,13 @@ class SettlementsReportService
             return null;
         }
 
+        $key = pSQL($this->normalizeId($cf));
+
         $sql = 'SELECT checkout_form_id, buyer_login, total_amount, currency, created_at_allegro '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` '
             . 'WHERE id_allegropro_account=' . (int)$accountId . ' '
-            . "AND checkout_form_id='" . pSQL($cf) . "' "
-            . 'ORDER BY created_at_allegro DESC';
+            . "AND (checkout_form_id='" . pSQL($cf) . "' OR LOWER(REPLACE(REPLACE(checkout_form_id,'-',''),'_',''))='" . $key . "') "
+            . 'ORDER BY created_at_allegro DESC LIMIT 1';
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         $row = !empty($rows[0]) ? $rows[0] : null;

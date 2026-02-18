@@ -90,6 +90,11 @@
 
 /* Table */
 .alpro-id{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;}
+.alpro-idwrap{display:flex;align-items:center;gap:8px;}
+.alpro-idwrap .alpro-id{white-space:nowrap;word-break:break-word;}
+.alpro-copy{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;border:1px solid rgba(0,0,0,.06);background:rgba(0,0,0,.03);color:#495057;}
+.alpro-copy:hover{background:rgba(0,0,0,.06);text-decoration:none;}
+.alpro-copy.is-copied{background:rgba(40,167,69,.15);border-color:rgba(40,167,69,.35);color:#1e7e34;}
 .alpro-table thead th{white-space:nowrap;}
 .alpro-table tbody td{vertical-align:middle;}
 .alpro-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.06);background:rgba(0,0,0,.03);font-size:12px;color:#495057;}

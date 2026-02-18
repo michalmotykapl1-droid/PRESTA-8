@@ -371,13 +371,25 @@
         <tbody>
           {foreach from=$orders_rows item=o}
             {assign var=saldo value=$o.net_after_fees}
-            {assign var=idShort value=$o.checkout_form_id|truncate:18:"…":true}
-            <tr>
+                        <tr>
               <td>{$o.date_display|default:$o.created_at_allegro|escape:'htmlall':'UTF-8'}</td>
               <td><span class="alpro-badge" title="Konto Allegro">{$o.account_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
-              <td><span class="alpro-id" title="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}">{$idShort|escape:'htmlall':'UTF-8'}</span></td>
+              <td>
+                <div class="alpro-idwrap">
+                  <span class="alpro-id" title="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}">{$o.checkout_form_id|escape:'htmlall':'UTF-8'}</span>
+                  <a href="#" class="alpro-copy js-alpro-copy" data-copy="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}" title="Kopiuj ID">
+                    <i class="material-icons" style="font-size:16px;">content_copy</i>
+                  </a>
+                </div>
+              </td>
               <td>{$o.buyer_login|escape:'htmlall':'UTF-8'}</td>
-              <td class="text-right">{$o.total_amount|number_format:2:',':' '} {$o.currency|escape:'htmlall':'UTF-8'}</td>
+              <td class="text-right">
+                {if $o.total_amount && $o.total_amount > 0}
+                  {$o.total_amount|number_format:2:',':' '} {$o.currency|escape:'htmlall':'UTF-8'}
+                {else}
+                  <span class="alpro-muted">—</span>
+                {/if}
+              </td>
               <td class="text-right {if $o.fees_total < 0}text-danger{elseif $o.fees_total > 0}text-success{/if}">
                 {$o.fees_total|number_format:2:',':' '} zł
               </td>

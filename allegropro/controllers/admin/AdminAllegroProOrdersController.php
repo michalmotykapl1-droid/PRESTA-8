@@ -673,21 +673,21 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     }
 
 
-    public function displayAjaxGetTracking()
+        public function displayAjaxGetTracking()
     {
         header('Content-Type: application/json');
 
         $accountId = (int)Tools::getValue('id_allegropro_account');
-        $carrierId = (string)Tools::getValue('carrier_id');
+        $carrierId = (string)Tools::getValue('carrier_id'); // opcjonalny (UI może nie wysyłać)
         $waybill = (string)Tools::getValue('tracking_number');
 
         $carrierId = strtoupper(trim($carrierId));
         $waybill = trim($waybill);
 
-        if ($accountId <= 0 || $carrierId === '' || $waybill === '') {
+        if ($accountId <= 0 || $waybill === '') {
             $this->ajaxDie(json_encode([
                 'success' => false,
-                'message' => 'Brak danych: konto/carrier/numer przesyłki.',
+                'message' => 'Brak danych: konto/numer przesyłki.',
             ]));
         }
 
@@ -703,8 +703,18 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Konto Allegro jest nieaktywne.']));
         }
 
+        // Fallback carrierIds (jeśli UI nie przekaże carrier_id)
         $deliveryRepo = new \AllegroPro\Repository\DeliveryServiceRepository();
         $fallbackCarrierIds = $deliveryRepo->listCarrierIdsForAccount($accountId);
+
+        if ($carrierId === '' && empty($fallbackCarrierIds)) {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Brak carrier_id oraz brak listy przewoźników (delivery-services) do autodetekcji.',
+                'number' => $waybill,
+                'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
+            ]));
+        }
 
         $svc = new AllegroCarrierTrackingService($api);
         $res = $svc->fetch($account, $carrierId, $waybill, $fallbackCarrierIds);
@@ -719,15 +729,123 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             ]));
         }
 
+        $statuses = $res['statuses'] ?? [];
+        if (!is_array($statuses)) {
+            $statuses = [];
+        }
+
+        // Sortujemy malejąco po occurredAt, żeby pierwszy event był "aktualny"
+        usort($statuses, function ($a, $b) {
+            $da = is_array($a) ? (string)($a['occurredAt'] ?? '') : '';
+            $db = is_array($b) ? (string)($b['occurredAt'] ?? '') : '';
+            return strcmp($db, $da);
+        });
+
+        // UI (admin_order_details.tpl) oczekuje: current + events[]
+        $events = [];
+        foreach ($statuses as $st) {
+            if (!is_array($st)) {
+                continue;
+            }
+
+            $occurredAt = (string)($st['occurredAt'] ?? '');
+            $code = (string)($st['code'] ?? '');
+            $desc = (string)($st['description'] ?? '');
+
+            $ui = $this->mapTrackingCodeToUi($code);
+            if ((($ui['label_pl'] ?? '') === '' || ($ui['label_pl'] ?? '') === $code) && trim($desc) !== '') {
+                $ui['label_pl'] = trim($desc);
+            }
+
+            $events[] = [
+                'status' => $code,
+                'occurred_at' => $occurredAt,
+                'occurred_at_formatted' => $this->formatTrackingDatePl($occurredAt),
+                'severity' => $ui['severity'] ?? 'secondary',
+                'short_pl' => $ui['short_pl'] ?? ($code ?: '—'),
+                'label_pl' => $ui['label_pl'] ?? ($code ?: '—'),
+            ];
+        }
+
+        $current = !empty($events) ? $events[0] : null;
+
         $this->ajaxDie(json_encode([
             'success' => true,
-            'carrier_id' => (string)($res['carrierId'] ?? $carrierId),
+            'carrier_id' => (string)($res['carrierId'] ?? ($carrierId ?: ($fallbackCarrierIds[0] ?? ''))),
             'number' => (string)($res['waybill'] ?? $waybill),
-            'statuses' => $res['statuses'] ?? [],
+            // format dla UI (modal)
+            'current' => $current,
+            'events' => $events,
+            // surowe dane (debug / kompatybilność)
+            'statuses' => $statuses,
             'message' => (string)($res['message'] ?? ''),
             'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
         ]));
     }
+
+    private function formatTrackingDatePl(string $iso): string
+    {
+        $iso = trim($iso);
+        if ($iso === '') {
+            return '';
+        }
+
+        try {
+            $dt = new \DateTime($iso);
+            return $dt->format('d.m.Y (H:i)');
+        } catch (\Exception $e) {
+            return $iso;
+        }
+    }
+
+    /**
+     * Mapowanie kodów trackingu (API Allegro) do UI (PL + kolor/severity).
+     * Nie jest kompletne dla wszystkich przewoźników, ale obejmuje najczęstsze przypadki.
+     */
+    private function mapTrackingCodeToUi(string $code): array
+    {
+        $c = strtoupper(trim($code));
+
+        $map = [
+            'DELIVERED' => ['severity' => 'success', 'short_pl' => 'Dostarczona', 'label_pl' => 'Przesyłka dostarczona'],
+            'AVAILABLE_FOR_PICKUP' => ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => 'Przesyłka gotowa do odbioru'],
+            'READY_FOR_PICKUP' => ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => 'Przesyłka gotowa do odbioru'],
+            'OUT_FOR_DELIVERY' => ['severity' => 'info', 'short_pl' => 'W doręczeniu', 'label_pl' => 'Przesyłka w doręczeniu'],
+            'RELEASED_FOR_DELIVERY' => ['severity' => 'info', 'short_pl' => 'W doręczeniu', 'label_pl' => 'Przesyłka w doręczeniu'],
+            'IN_TRANSIT' => ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => 'Przesyłka w drodze'],
+            'SENT' => ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => 'Przesyłka w drodze'],
+            'CREATED' => ['severity' => 'secondary', 'short_pl' => 'Utworzona', 'label_pl' => 'Utworzono przesyłkę'],
+            'PENDING' => ['severity' => 'secondary', 'short_pl' => 'Oczekuje', 'label_pl' => 'Oczekuje na nadanie'],
+            'READY_FOR_PROCESSING' => ['severity' => 'secondary', 'short_pl' => 'Oczekuje', 'label_pl' => 'Oczekuje na nadanie'],
+            'CANCELLED' => ['severity' => 'secondary', 'short_pl' => 'Anulowana', 'label_pl' => 'Przesyłka anulowana'],
+            'RETURNED' => ['severity' => 'secondary', 'short_pl' => 'Zwrócona', 'label_pl' => 'Przesyłka zwrócona'],
+            'RETURNED_TO_SENDER' => ['severity' => 'secondary', 'short_pl' => 'Zwrócona', 'label_pl' => 'Przesyłka zwrócona do nadawcy'],
+            'DELIVERY_FAILED' => ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => 'Problem z doręczeniem'],
+            'UNDELIVERED' => ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => 'Problem z doręczeniem'],
+            'LOST' => ['severity' => 'danger', 'short_pl' => 'Zagubiona', 'label_pl' => 'Przesyłka zagubiona'],
+        ];
+
+        if (isset($map[$c])) {
+            return $map[$c];
+        }
+
+        // Heurystyka dla nieznanych kodów
+        if (strpos($c, 'DELIVER') !== false) {
+            return ['severity' => 'info', 'short_pl' => 'Doręczenie', 'label_pl' => $code];
+        }
+        if (strpos($c, 'PICKUP') !== false) {
+            return ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => $code];
+        }
+        if (strpos($c, 'TRANSIT') !== false || strpos($c, 'SENT') !== false) {
+            return ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => $code];
+        }
+        if (strpos($c, 'FAIL') !== false || strpos($c, 'ERROR') !== false || strpos($c, 'UNDEL') !== false || strpos($c, 'LOST') !== false) {
+            return ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => $code];
+        }
+
+        return ['severity' => 'secondary', 'short_pl' => ($code ?: '—'), 'label_pl' => ($code ?: '—')];
+    }
+
 
     public function initContent()
     {

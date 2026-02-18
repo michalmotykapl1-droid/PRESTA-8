@@ -148,6 +148,39 @@
 
     initAccountsMultiselect();
 
+    // Copy helper (ID zamówienia itd.)
+    document.addEventListener('click', function (e) {
+      var el = e.target && (e.target.closest ? e.target.closest('.js-alpro-copy') : null);
+      if (!el) return;
+      e.preventDefault();
+      var text = el.getAttribute('data-copy') || '';
+      if (!text) return;
+
+      function flash() {
+        el.classList.add('is-copied');
+        window.setTimeout(function () { el.classList.remove('is-copied'); }, 900);
+      }
+
+      function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (err) {}
+        document.body.removeChild(ta);
+        flash();
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash).catch(fallback);
+      } else {
+        fallback();
+      }
+    });
+
 
     var modal = document.getElementById('alproModal');
     var modalMeta = document.getElementById('alproModalMeta');
