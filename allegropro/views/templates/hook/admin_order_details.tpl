@@ -91,32 +91,22 @@
                             <div id="label_download_debug_box" class="alert alert-secondary" style="display:none; font-size:11px; white-space:pre-wrap; max-height:240px; overflow:auto;"></div>
                         {/if}
                         
-                        {* BANER SMART *}
-                        {if isset($allegro_data.shipping)}
-                            {if isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart}
-                                <div style="background-color: #ffece5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <strong style="color:#ff5a00;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
-                                        <small>Wysyłka opłacona przez Allegro.</small>
-                                    </div>
-                                    <div style="text-align:right; border: 1px solid #f4d5c6; padding: 5px 8px; background: #fff4ef;">
-                                        <small style="display:block;color:#999;">POZOSTAŁO:</small>
-                                        <strong style="font-size:22px; color:#ff5a00;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
-                                    </div>
-                                </div>
-                            {else}
-                                <div style="background-color: #f5f5f5; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <strong style="color:#5a6570;"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
-                                        <small>To nie jest wysyłka Smart (standardowa wysyłka).</small>
-                                    </div>
-                                    <div style="text-align:right; border: 1px solid #e0e0e0; padding: 5px 8px; background: #ffffff;">
-                                        <small style="display:block;color:#999;">POZOSTAŁO:</small>
-                                        <strong style="font-size:22px; color:#5a6570;">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
-                                    </div>
-                                </div>
-                            {/if}
-                        {/if}
+                        {* BANER SMART (zawsze widoczny) *}
+                        {assign var=isSmartOrder value=(isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart)}
+                        <div style="background-color:{if $isSmartOrder}#ffece5{else}#f7f7f7{/if}; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color:{if $isSmartOrder}#ff5a00{else}#555{/if};"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
+                                {if $isSmartOrder}
+                                    <small>Wysyłka opłacona przez Allegro.</small>
+                                {else}
+                                    <small>To nie jest wysyłka Smart (standardowa wysyłka).</small>
+                                {/if}
+                            </div>
+                            <div style="text-align:right; border: 1px solid {if $isSmartOrder}#f4d5c6{else}#e1e1e1{/if}; padding: 5px 8px; background: {if $isSmartOrder}#fff4ef{else}#ffffff{/if};">
+                                <small style="display:block;color:#999;">POZOSTAŁO:</small>
+                                <strong style="font-size:22px; color:{if $isSmartOrder}#ff5a00{else}#555{/if};">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
+                            </div>
+                        </div>
                         
                         <p><strong>Metoda:</strong> {$allegro_data.shipping.method_name|default:'-'}</p>
 
@@ -172,9 +162,13 @@
                                             {elseif $ship_status == 'NEW'}<span class="badge badge-info">W TOKU</span>
                                             {elseif $ship_status == 'IN_PROGRESS'}<span class="badge badge-info">PRZETWARZANIE</span>
                                             {elseif $ship_status == 'SENT'}<span class="badge badge-primary">NADANA</span>
-                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'OUT_FOR_DELIVERY'}<span class="badge badge-primary">W DRODZE</span>
-                                            {elseif $ship_status == 'READY_FOR_PICKUP'}<span class="badge badge-warning">DO ODBIORU</span>
+                                            {elseif $ship_status == 'IN_TRANSIT'}<span class="badge badge-primary">W DRODZE</span>
+                                            {elseif $ship_status == 'OUT_FOR_DELIVERY' || $ship_status == 'RELEASED_FOR_DELIVERY'}<span class="badge badge-primary">W DORĘCZENIU</span>
+                                            {elseif $ship_status == 'READY_FOR_PICKUP' || $ship_status == 'AVAILABLE_FOR_PICKUP'}<span class="badge badge-primary">DO ODBIORU</span>
                                             {elseif $ship_status == 'DELIVERED'}<span class="badge badge-primary">DORĘCZONA</span>
+                                            {elseif $ship_status == 'RETURNED_TO_SENDER' || $ship_status == 'RETURNED'}<span class="badge badge-secondary">ZWRÓCONA</span>
+                                            {elseif $ship_status == 'LOST'}<span class="badge badge-danger">ZAGUBIONA</span>
+                                            {elseif $ship_status == 'DELIVERY_FAILED' || $ship_status == 'UNDELIVERED'}<span class="badge badge-warning">NIEUDANA</span>
                                             {else}<span class="badge badge-warning">{$ship_status|escape:'htmlall':'UTF-8'}</span>{/if}
 
                                             <br><span class="text-muted" style="font-size:9px;">{$ship.origin_label|default:'POBRANA Z ALLEGRO'|escape:'htmlall':'UTF-8'}</span>
@@ -183,11 +177,14 @@
                                         <td>
                                             {if $ship_status == 'CREATED' || $ship_status == 'PENDING'}Oczekuje na nadanie
                                             {elseif $ship_status == 'NEW' || $ship_status == 'IN_PROGRESS'}W trakcie tworzenia
-                                            {elseif $ship_status == 'SENT'}Nadana
-                                            {elseif $ship_status == 'IN_TRANSIT' || $ship_status == 'OUT_FOR_DELIVERY'}W drodze
-                                            {elseif $ship_status == 'READY_FOR_PICKUP'}Do odbioru
+                                            {elseif $ship_status == 'SENT' || $ship_status == 'IN_TRANSIT'}W drodze
+                                            {elseif $ship_status == 'OUT_FOR_DELIVERY' || $ship_status == 'RELEASED_FOR_DELIVERY'}W doręczeniu
+                                            {elseif $ship_status == 'READY_FOR_PICKUP' || $ship_status == 'AVAILABLE_FOR_PICKUP'}Do odbioru
                                             {elseif $ship_status == 'DELIVERED'}Dostarczona
                                             {elseif $ship_status == 'CANCELLED'}Anulowana
+                                            {elseif $ship_status == 'RETURNED_TO_SENDER' || $ship_status == 'RETURNED'}Zwrócona
+                                            {elseif $ship_status == 'LOST'}Zagubiona
+                                            {elseif $ship_status == 'DELIVERY_FAILED' || $ship_status == 'UNDELIVERED'}Nieudana dostawa
                                             {else}{$ship_status|escape:'htmlall':'UTF-8'}{/if}
                                         {if $ship.status_changed_at}
                                                 <br><span class="text-muted" style="font-size:9px;">{$ship.status_changed_at|date_format:"%d.%m.%Y (%H:%M)"}</span>

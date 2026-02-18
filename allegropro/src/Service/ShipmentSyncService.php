@@ -38,6 +38,12 @@ class ShipmentSyncService
         if (!$force && !$this->shipments->shouldSyncOrder($accountId, $checkoutFormId, $ttlSeconds)) {
             if ($debug) {
                 $debugLines[] = '[SYNC] pominięto przez TTL=' . (int)$ttlSeconds . 's';
+            }
+
+            // Nawet jeśli pomijamy sync (TTL), możemy naprawić godzinę płatności z danych lokalnych.
+            $this->backfillPrestashopPaymentDate($checkoutFormId, null, $debugLines, $debug);
+
+            if ($debug) {
                 $this->persistSyncDebug($checkoutFormId, $debugLines);
             }
             return ['ok' => true, 'skipped' => true, 'synced' => 0, 'debug_lines' => $debugLines];
@@ -59,6 +65,11 @@ class ShipmentSyncService
         }
         if ($orderResp['ok'] && is_array($orderResp['json'])) {
             $checkoutFormJson = $orderResp['json'];
+
+            // Płatność: pobierz finishedAt (UTC) i zaktualizuj Presta (date_add w order_payment)
+            $utcFinishedAt = $this->extractPaymentFinishedAtUtcFromCheckoutForm($orderResp['json']);
+            $this->backfillPrestashopPaymentDate($checkoutFormId, $utcFinishedAt, $debugLines, $debug);
+
             $smart = $this->extractSmartDataFromCheckoutForm($orderResp['json']);
             $this->currentOrderIsSmart = $smart['is_smart'];
             $this->currentOrderSmartPackageLimit = $smart['package_count'];
@@ -212,26 +223,157 @@ class ShipmentSyncService
             );
         }
 
+        // Dla pewności: po pełnym syncu spróbuj jeszcze raz naprawić godzinę płatności z danych lokalnych.
+        $this->backfillPrestashopPaymentDate($checkoutFormId, null, $debugLines, $debug);
+
         return ['ok' => true, 'synced' => $synced, 'skipped' => false, 'duplicates_removed' => $removedDuplicates, 'debug_lines' => $debugLines];
+    }
+
+    /**
+     * Wyciąga payment.finishedAt z checkout-form i zwraca jako UTC w formacie SQL (Y-m-d H:i:s).
+     */
+    private function extractPaymentFinishedAtUtcFromCheckoutForm(array $json): ?string
+    {
+        $raw = $json['payment']['finishedAt'] ?? null;
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        try {
+            $dt = new \DateTime(trim($raw));
+            $dt->setTimezone(new \DateTimeZone('UTC'));
+            return $dt->format('Y-m-d H:i:s');
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Poprawia godzinę płatności w PrestaShop (ps_order_payment.date_add) na podstawie Allegro payment.finishedAt.
+     * - Jeśli $utcFinishedAt jest podane -> aktualizuje także tabelę allegropro_order_payment.finished_at.
+     * - Jeśli $utcFinishedAt jest null -> używa danych lokalnych (allegropro_order_payment.finished_at).
+     */
+    private function backfillPrestashopPaymentDate(string $checkoutFormId, ?string $utcFinishedAt, array &$debugLines, bool $debug): void
+    {
+        try {
+            $cfEsc = pSQL($checkoutFormId);
+
+            // 1) Jeśli mamy świeże finishedAt z API, zapisz w DB (UTC)
+            if (is_string($utcFinishedAt) && $utcFinishedAt !== '') {
+                $exists = (int)\Db::getInstance()->getValue(
+                    "SELECT COUNT(*) FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE `checkout_form_id`='" . $cfEsc . "'"
+                );
+                if ($exists > 0) {
+                    \Db::getInstance()->execute(
+                        "UPDATE `" . _DB_PREFIX_ . "allegropro_order_payment` SET `finished_at`='" . pSQL($utcFinishedAt) . "' WHERE `checkout_form_id`='" . $cfEsc . "'"
+                    );
+                } else {
+                    \Db::getInstance()->insert('allegropro_order_payment', [
+                        'checkout_form_id' => $cfEsc,
+                        'finished_at' => pSQL($utcFinishedAt),
+                    ]);
+                }
+            }
+
+            // 2) Pobierz id_order_prestashop + finished_at (UTC) z danych lokalnych
+            $row = \Db::getInstance()->getRow(
+                "SELECT o.id_order_prestashop, p.finished_at FROM `" . _DB_PREFIX_ . "allegropro_order` o " .
+                "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_payment` p ON p.checkout_form_id=o.checkout_form_id " .
+                "WHERE o.checkout_form_id='" . $cfEsc . "' LIMIT 1"
+            );
+            if (!is_array($row) || empty($row['id_order_prestashop'])) {
+                if ($debug) {
+                    $debugLines[] = '[PAY] brak mapowania id_order_prestashop dla checkoutFormId';
+                }
+                return;
+            }
+
+            $idOrder = (int)$row['id_order_prestashop'];
+            $utc = trim((string)($row['finished_at'] ?? ''));
+            if ($utc === '') {
+                if ($debug) {
+                    $debugLines[] = '[PAY] brak finished_at w allegropro_order_payment';
+                }
+                return;
+            }
+
+            // 3) Konwersja UTC -> timezone Presty
+            $local = $this->utcSqlToPrestashopSql($utc);
+
+            // 4) Sprawdź czy już ustawione
+            $current = (string)\Db::getInstance()->getValue(
+                "SELECT op.date_add FROM `" . _DB_PREFIX_ . "order_payment` op " .
+                "INNER JOIN `" . _DB_PREFIX_ . "orders` o ON o.reference=op.order_reference " .
+                "WHERE o.id_order=" . (int)$idOrder . " AND op.transaction_id='" . $cfEsc . "' LIMIT 1"
+            );
+            if ($current !== '' && substr($current, 0, 19) === substr($local, 0, 19)) {
+                if ($debug) {
+                    $debugLines[] = '[PAY] ok (bez zmian), date_add=' . $current;
+                }
+                return;
+            }
+
+            // 5) Aktualizacja Presta: tylko płatność Allegro dla tego zamówienia
+            $sql = "UPDATE `" . _DB_PREFIX_ . "order_payment` op " .
+                "INNER JOIN `" . _DB_PREFIX_ . "orders` o ON o.reference=op.order_reference " .
+                "SET op.date_add='" . pSQL($local) . "' " .
+                "WHERE o.id_order=" . (int)$idOrder . " AND (op.transaction_id='" . $cfEsc . "' OR op.payment_method='Allegro')";
+            \Db::getInstance()->execute($sql);
+
+            if ($debug) {
+                $debugLines[] = '[PAY] ustawiono date_add=' . $local . ' (id_order=' . (int)$idOrder . ')';
+            }
+        } catch (\Exception $e) {
+            if ($debug) {
+                $debugLines[] = '[PAY] wyjątek: ' . $e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * Konwertuje czas UTC zapisany jako SQL (Y-m-d H:i:s) do timezone PrestaShop i zwraca SQL.
+     */
+    private function utcSqlToPrestashopSql(string $utcSql): string
+    {
+        $utcSql = trim($utcSql);
+        if ($utcSql === '') {
+            return date('Y-m-d H:i:s');
+        }
+
+        try {
+            $dt = new \DateTime($utcSql, new \DateTimeZone('UTC'));
+        } catch (\Exception $e) {
+            return date('Y-m-d H:i:s');
+        }
+
+        $tzName = '';
+        if (class_exists('Configuration')) {
+            try {
+                $tzName = (string)\Configuration::get('PS_TIMEZONE');
+            } catch (\Exception $e) {
+                $tzName = '';
+            }
+        }
+        if ($tzName === '') {
+            $tzName = date_default_timezone_get() ?: 'UTC';
+        }
+
+        try {
+            $dt->setTimezone(new \DateTimeZone($tzName));
+        } catch (\Exception $e) {
+            // fallback: zostaw UTC
+        }
+
+        return $dt->format('Y-m-d H:i:s');
     }
 
     private function discoverShipmentIdsFromApi(array $account, string $checkoutFormId, array &$debugLines = []): array
     {
         $found = [];
 
-        $debug = !empty($debugLines);
-
         $checkoutShipmentsResp = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId) . '/shipments');
-        if ($debug) {
-            $debugLines[] = '[API] GET /order/checkout-forms/{id}/shipments: HTTP ' . (int)($checkoutShipmentsResp['code'] ?? 0) . ', ok=' . (!empty($checkoutShipmentsResp['ok']) ? '1' : '0');
-        }
         if ($checkoutShipmentsResp['ok'] && is_array($checkoutShipmentsResp['json'])) {
             $rows = $this->resolver->extractShipmentRows($checkoutShipmentsResp['json']);
-
-            if ($debug) {
-                $debugLines[] = '[SYNC] /checkout-forms/{id}/shipments rows=' . count($rows);
-            }
-
             foreach ($rows as $row) {
                 if (!is_array($row)) {
                     continue;
@@ -240,23 +382,10 @@ class ShipmentSyncService
                 $refs = $this->resolver->extractCandidateReferencesFromArray($row);
                 foreach ($refs as $ref) {
                     $this->captureDiscoveredRowContext($ref, $row);
-                    // ważne: w /order/checkout-forms/{id}/shipments "id" bywa base64("CARRIER:WAYBILL")
-                    // i nie przechodzi przez extractShipmentIdFromRow(). Dodajemy więc wszystkie referencje jako kandydaty.
-                    $found[$ref] = true;
                 }
 
                 $sid = $this->resolver->extractShipmentIdFromRow($row);
                 $waybill = $this->resolver->extractWaybillFromRow($row);
-                $carrierId = $this->resolver->extractCarrierIdFromRow($row);
-
-                // Jeżeli mamy waybill, to twórzmy też kanoniczną referencję (base64("CARRIER:WAYBILL")),
-                // żeby moduł mógł rozpoznać np. INPOST po prefiksie oraz trzymać spójne ID.
-                if (is_string($waybill) && trim($waybill) !== '') {
-                    $carrierId = is_string($carrierId) && trim($carrierId) !== '' ? strtoupper(trim($carrierId)) : 'ALLEGRO';
-                    $canonicalRef = base64_encode($carrierId . ':' . trim($waybill));
-                    $this->captureDiscoveredRowContext($canonicalRef, $row);
-                    $found[$canonicalRef] = true;
-                }
 
                 if ($sid !== null) {
                     if ($this->resolver->looksLikeCreateCommandId($sid)) {
@@ -276,9 +405,6 @@ class ShipmentSyncService
                     } else {
                         $found[$sid] = true;
                     }
-                } elseif ($waybill !== null) {
-                    // Jeśli API zwróciło tylko waybill, też mamy pełną informację do historii i trackingu.
-                    // Zapiszemy jako referencję kanoniczną powyżej (base64("CARRIER:WAYBILL")).
                 }
             }
         }
@@ -534,15 +660,8 @@ class ShipmentSyncService
 
     private function isBaseShipmentStatus(string $status): bool
     {
-        // W praktyce endpoint /shipment-management/shipments/{id} potrafi zwracać status "SENT" przez dłuższy czas,
-        // podczas gdy /order/carriers/{carrierId}/tracking?waybill=... ma już bardziej szczegółowy status.
-        // Żeby w BO statusy były "żywe" (np. W DRODZE / DO ODBIORU), próbujemy trackingu dla wszystkich
-        // statusów poza finalnymi.
         $status = strtoupper(trim($status));
-        if ($status === '') {
-            return true;
-        }
-        return !in_array($status, ['DELIVERED', 'CANCELLED'], true);
+        return $status === '' || in_array($status, ['CREATED', 'NEW', 'IN_PROGRESS'], true);
     }
 
     /**
@@ -563,17 +682,6 @@ class ShipmentSyncService
         if (is_string($decoded)) {
             $decoded = trim($decoded);
             if ($decoded !== '' && !$this->resolver->looksLikeShipmentId($decoded) && !$this->resolver->looksLikeCreateCommandId($decoded)) {
-                // W /order/checkout-forms/{id}/shipments identyfikator bywa w formacie "CARRIER:WAYBILL".
-                // Do trackingu potrzebujemy SAMEGO waybilla.
-                if (strpos($decoded, ':') !== false) {
-                    $parts = explode(':', $decoded, 2);
-                    if (count($parts) === 2) {
-                        $wb = trim((string)$parts[1]);
-                        if ($wb !== '') {
-                            return $wb;
-                        }
-                    }
-                }
                 return $decoded;
             }
         }
@@ -886,21 +994,8 @@ class ShipmentSyncService
             return 'DELIVERED';
         }
 
-        // Statusy "w drodze" trzymamy rozdzielnie, żeby UI mogło pokazać progres (NADANA -> W DRODZE -> DO ODBIORU).
-        if (in_array($s, ['IN_TRANSIT', 'ON_THE_WAY'], true)) {
-            return 'IN_TRANSIT';
-        }
-
-        if ($s === 'OUT_FOR_DELIVERY') {
-            return 'OUT_FOR_DELIVERY';
-        }
-
-        if ($s === 'READY_FOR_PICKUP') {
-            return 'READY_FOR_PICKUP';
-        }
-
-        // Część integracji zwraca "SHIPPED" zamiast "SENT".
-        if ($s === 'SHIPPED') {
+        // Statusy "w drodze" mapujemy do SENT (żeby BO nie pokazywało tylko CREATED)
+        if (in_array($s, ['IN_TRANSIT', 'ON_THE_WAY', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'], true)) {
             return 'SENT';
         }
 
