@@ -437,8 +437,7 @@ class OrderProcessor
         if ($checkoutFormId !== '') {
             $finishedAt = Db::getInstance()->getValue(
                 "SELECT finished_at FROM " . _DB_PREFIX_ . "allegropro_order_payment
-                 WHERE checkout_form_id = '" . pSQL($checkoutFormId) . "'
-                 LIMIT 1"
+                 WHERE checkout_form_id = '" . pSQL($checkoutFormId) . "'"
             );
         }
 
