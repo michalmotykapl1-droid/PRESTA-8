@@ -10,7 +10,10 @@
           <strong>Rozliczenia</strong>
 
           {if isset($selected_account_label) && $selected_account_label}
-            <span class="alpro-badge" title="Wybrane konto">Konto: <strong>{$selected_account_label|escape:'htmlall':'UTF-8'}</strong></span>
+            {assign var=__multi value=($selected_account_ids|@count > 1)}
+            <span class="alpro-badge" title="{if $__multi}Wybrane konta: {foreach from=$selected_account_labels item=lbl name=lab}{$lbl|escape:'htmlall':'UTF-8'}{if !$smarty.foreach.lab.last}, {/if}{/foreach}{else}Wybrane konto{/if}">
+              {if $__multi}Konta:{else}Konto:{/if} <strong>{$selected_account_label|escape:'htmlall':'UTF-8'}</strong>
+            </span>
           {/if}
 
           {if isset($summary.unassigned_count) && $summary.unassigned_count > 0}
@@ -37,13 +40,15 @@
             <div class="alpro-filter-row">
               <div class="form-group" style="min-width:260px;">
                 <label class="form-control-label">Konto</label>
-                <select name="id_allegropro_account" class="form-control">
+                <select name="id_allegropro_account[]" class="form-control alpro-accounts" multiple size="1">
                   {foreach from=$accounts item=a}
-                    <option value="{$a.id_allegropro_account|intval}" {if $a.id_allegropro_account == $selected_account_id}selected{/if}>
+                    <option value="{$a.id_allegropro_account|intval}" {if in_array($a.id_allegropro_account, $selected_account_ids)}selected{/if}>
                       {$a.label|escape:'htmlall':'UTF-8'}{if $a.allegro_login} ({$a.allegro_login|escape:'htmlall':'UTF-8'}){/if}
                     </option>
                   {/foreach}
                 </select>
+                <div class="help-block" style="margin-top:4px;">Możesz wybrać kilka kont (Ctrl/⌘ + klik).</div>
+                <a href="#" class="alpro-select-all" id="alproSelectAll">Zaznacz wszystkie</a>
               </div>
 
               <div class="form-group" style="min-width:160px;">
@@ -82,7 +87,7 @@
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$settlements_link|escape:'htmlall':'UTF-8'}&id_allegropro_account={$selected_account_id|intval}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$settlements_link|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
@@ -95,7 +100,7 @@
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 
-            <button type="submit" name="submitAllegroProBillingSync" value="1" class="btn btn-primary">
+            <button type="submit" name="submitAllegroProBillingSync" value="1" class="btn btn-primary" {if $selected_account_ids|@count > 1}disabled title="Synchronizacja działa dla jednego konta naraz — wybierz jedno konto."{/if}>
               <i class="material-icons" style="font-size:18px; vertical-align:middle;">cloud_download</i>
               <span style="vertical-align:middle;">Synchronizuj opłaty</span>
             </button>
@@ -121,7 +126,6 @@
 
       {* KPI *}
       {if isset($summary.sales_total)}
-        {assign var=fees_other value=($fee_shares.fees_other_amount|default:0)}
 
         <div class="mt-4 alpro-kpi-grid">
 
@@ -229,44 +233,33 @@
 
         </div>
 
-        {* Breakdown bars *}
-        <div class="mt-3 alpro-break">
-          <div style="font-weight:700; margin-bottom:8px;">Struktura opłat</div>
-
-          <div class="row">
-            <div class="name">Prowizje</div>
-            <div class="alpro-bar alpro-bar--purple"><span style="width:{$fee_shares.commission|intval}%"></span></div>
-            <div class="amount">{$summary.fees_commission|number_format:2:',':' '} zł</div>
+        {* Wykres kołowy: struktura opłat *}
+        <div class="mt-3 alpro-structure" id="alproStructure" data-structure="{$structure_chart_json|escape:'htmlall':'UTF-8'}">
+          <div class="alpro-structure__head">
+            <div>
+              <div class="ttl">Struktura opłat</div>
+              <div class="sub">udział kosztów w opłatach oraz w sprzedaży</div>
+            </div>
+            <div class="alpro-structure__hint">
+              <span class="chip">Koszt opłat: <strong id="alproFeesRate">—</strong></span>
+              <span class="chip">Opłaty łącznie: <strong id="alproFeesTotal">—</strong></span>
+              <span class="chip">Rabaty/zwroty: <strong id="alproRefunds">—</strong></span>
+            </div>
           </div>
 
-          <div class="row">
-            <div class="name">Dostawa</div>
-            <div class="alpro-bar alpro-bar--info"><span style="width:{$fee_shares.delivery|intval}%"></span></div>
-            <div class="amount">{$summary.fees_delivery|number_format:2:',':' '} zł</div>
-          </div>
+          <div class="alpro-structure__grid">
+            <div class="alpro-structure__chart">
+              <div class="alpro-pie" id="alproPie"></div>
+              <div class="alpro-pie-center">
+                <div class="k">Koszty opłat</div>
+                <div class="v" id="alproPieTotal">—</div>
+                <div class="sub" id="alproPieSub">—</div>
+              </div>
+            </div>
 
-          <div class="row">
-            <div class="name">Smart</div>
-            <div class="alpro-bar alpro-bar--warning"><span style="width:{$fee_shares.smart|intval}%"></span></div>
-            <div class="amount">{$summary.fees_smart|number_format:2:',':' '} zł</div>
-          </div>
-
-          <div class="row">
-            <div class="name">Promocja</div>
-            <div class="alpro-bar alpro-bar--danger"><span style="width:{$fee_shares.promotion|intval}%"></span></div>
-            <div class="amount">{$summary.fees_promotion|number_format:2:',':' '} zł</div>
-          </div>
-
-          <div class="row">
-            <div class="name">Rabaty / zwroty</div>
-            <div class="alpro-bar alpro-bar--success"><span style="width:{$fee_shares.refunds|intval}%"></span></div>
-            <div class="amount">{$summary.fees_refunds|number_format:2:',':' '} zł</div>
-          </div>
-
-          <div class="row">
-            <div class="name">Pozostałe</div>
-            <div class="alpro-bar"><span style="width:{$fee_shares.other|intval}%"></span></div>
-            <div class="amount">{$fees_other|number_format:2:',':' '} zł</div>
+            <div class="alpro-structure__legend" id="alproLegend">
+              <div class="muted">Ładowanie…</div>
+            </div>
           </div>
         </div>
 
@@ -316,7 +309,7 @@
                 {$saldo|number_format:2:',':' '} zł
               </td>
               <td>
-                <a class="btn btn-outline-secondary btn-sm js-alpro-details" href="#" data-checkout="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}">Szczegóły</a>
+                <a class="btn btn-outline-secondary btn-sm js-alpro-details" href="#" data-checkout="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}" data-account-id="{$o.id_allegropro_account|intval}">Szczegóły</a>
               </td>
             </tr>
           {/foreach}
@@ -358,8 +351,7 @@
 {* Konfiguracja JS (bez {literal} — dane jako data-*) *}
 <div id="alpro-settlements"
      data-ajax-url="{$ajax_url|escape:'htmlall':'UTF-8'}"
-     data-account-id="{$selected_account_id|intval}"
-     data-date-from="{$date_from|escape:'htmlall':'UTF-8'}"
+          data-date-from="{$date_from|escape:'htmlall':'UTF-8'}"
      data-date-to="{$date_to|escape:'htmlall':'UTF-8'}"
 ></div>
 

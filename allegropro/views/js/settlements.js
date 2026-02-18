@@ -41,17 +41,33 @@
 
     var cfg = {
       ajaxUrl: cfgEl.getAttribute('data-ajax-url') || '',
-      accountId: cfgEl.getAttribute('data-account-id') || '',
       dateFrom: cfgEl.getAttribute('data-date-from') || '',
       dateTo: cfgEl.getAttribute('data-date-to') || ''
     };
 
     if (!cfg.ajaxUrl) return;
 
+    // Multi-select: "Zaznacz wszystkie" konta
+    var btnAll = document.getElementById('alproSelectAll');
+    if (btnAll) {
+      btnAll.addEventListener('click', function (e) {
+        e.preventDefault();
+        var sel = document.querySelector('select.alpro-accounts');
+        if (!sel) return;
+        for (var i = 0; i < sel.options.length; i++) {
+          sel.options[i].selected = true;
+        }
+      });
+    }
+
+
     var modal = document.getElementById('alproModal');
     var modalMeta = document.getElementById('alproModalMeta');
     var modalLoading = document.getElementById('alproModalLoading');
     var modalContent = document.getElementById('alproModalContent');
+
+    // wykres kołowy na górze
+    renderMainStructure();
 
     var lastFocus = null;
 
@@ -127,6 +143,112 @@
         other: 'alpro-pill--other'
       };
       return map[key] || 'alpro-pill--other';
+    }
+
+
+
+    function renderMainStructure() {
+      var el = document.getElementById('alproStructure');
+      if (!el) return;
+      var raw = el.getAttribute('data-structure') || '';
+      if (!raw) {
+        var lg = document.getElementById('alproLegend');
+        if (lg) lg.innerHTML = '<div class="muted">Brak danych do wykresu.</div>';
+        return;
+      }
+
+      var data = null;
+      try { data = JSON.parse(raw); } catch (e) { data = null; }
+      if (!data) {
+        var lg2 = document.getElementById('alproLegend');
+        if (lg2) lg2.innerHTML = '<div class="alert alert-warning">Nie udało się odczytać danych wykresu.</div>';
+        return;
+      }
+
+      var slices = Array.isArray(data.slices) ? data.slices : [];
+      var costsAbs = 0;
+      for (var i = 0; i < slices.length; i++) {
+        costsAbs += Number(slices[i].value || 0);
+      }
+
+      var pieEl = document.getElementById('alproPie');
+      if (pieEl) {
+        // build gradient using shares
+        pieEl.style.background = buildPieGradient(slices);
+      }
+
+      var feesTotalEl = document.getElementById('alproFeesTotal');
+      if (feesTotalEl) feesTotalEl.textContent = fmtMoney(Number(data.fees_total || 0));
+
+      var refundsEl = document.getElementById('alproRefunds');
+      if (refundsEl) refundsEl.textContent = fmtMoney(Number(data.refunds || 0));
+
+      var feesRateEl = document.getElementById('alproFeesRate');
+      if (feesRateEl) feesRateEl.textContent = fmtPct(Number(data.fees_rate_pct || 0));
+
+      var pieTotalEl = document.getElementById('alproPieTotal');
+      if (pieTotalEl) pieTotalEl.textContent = fmtMoney(-costsAbs);
+
+      var pieSubEl = document.getElementById('alproPieSub');
+      if (pieSubEl) {
+        if (costsAbs > 0) {
+          pieSubEl.textContent = fmtPct(Number(data.fees_rate_pct || 0)) + ' sprzedaży';
+        } else {
+          pieSubEl.textContent = 'brak kosztów do wykresu';
+        }
+      }
+
+      var legend = document.getElementById('alproLegend');
+      if (!legend) return;
+
+      if (!slices.length) {
+        legend.innerHTML = '<div class="muted">Brak kosztów opłat w wybranym okresie.</div>';
+        return;
+      }
+
+      var html = '';
+      html += '<div class="alpro-legend-title">Rozbicie kosztów</div>';
+      html += '<div class="alpro-legend-sub">% opłat = udział w kosztach opłat • % sprzedaży = koszt w relacji do sprzedaży</div>';
+      html += '<div class="table-responsive">';
+      html += '<table class="alpro-legend-table">'
+        + '<thead><tr>'
+        + '<th style="width:18px"></th>'
+        + '<th>Kategoria</th>'
+        + '<th class="r">Kwota</th>'
+        + '<th class="r">% opłat</th>'
+        + '<th class="r">% sprzedaży</th>'
+        + '</tr></thead><tbody>';
+
+      for (var j = 0; j < slices.length; j++) {
+        var sl = slices[j];
+        var label = escHtml(sl.label || catLabel(sl.key));
+        var amount = Number(sl.amount || 0);
+        var share = Number(sl.share || 0);
+        var pctSales = Number(sl.pct_sales || 0);
+
+        html += '<tr>'
+          + '<td><span class="alpro-dot alpro-dot--' + escHtml(sl.key) + '"></span></td>'
+          + '<td class="name">' + label + '</td>'
+          + '<td class="r"><strong>' + fmtMoney(amount) + '</strong></td>'
+          + '<td class="r">' + fmtPct(share) + '</td>'
+          + '<td class="r">' + fmtPct(pctSales) + '</td>'
+          + '</tr>';
+      }
+
+      // Rabaty/zwroty pokazujemy informacyjnie (nie są kosztem opłat)
+      var refundsAmt = Number(data.refunds || 0);
+      if (refundsAmt !== 0) {
+        html += '<tr class="is-note">'
+          + '<td><span class="alpro-dot alpro-dot--refunds"></span></td>'
+          + '<td class="name">Rabaty / zwroty</td>'
+          + '<td class="r"><strong>' + fmtMoney(refundsAmt) + '</strong></td>'
+          + '<td class="r">—</td>'
+          + '<td class="r">—</td>'
+          + '</tr>';
+      }
+
+      html += '</tbody></table></div>';
+      legend.innerHTML = html;
     }
 
     function renderDetails(data) {
@@ -250,7 +372,7 @@
       modalContent.style.display = 'block';
     }
 
-    function loadDetails(checkoutFormId) {
+    function loadDetails(accountId, checkoutFormId) {
       modalLoading.style.display = 'flex';
       modalContent.style.display = 'none';
       modalContent.innerHTML = '';
@@ -259,7 +381,7 @@
       var params = {
         ajax: 1,
         action: 'OrderDetails',
-        id_allegropro_account: cfg.accountId,
+        id_allegropro_account: accountId,
         checkoutFormId: checkoutFormId,
         date_from: cfg.dateFrom,
         date_to: cfg.dateTo
@@ -325,9 +447,10 @@
       if (el) {
         e.preventDefault();
         var checkout = el.getAttribute('data-checkout') || '';
-        if (!checkout) return;
+        var accountId = el.getAttribute('data-account-id') || '';
+        if (!checkout || !accountId) return;
         openModal();
-        loadDetails(checkout);
+        loadDetails(accountId, checkout);
       }
     });
 

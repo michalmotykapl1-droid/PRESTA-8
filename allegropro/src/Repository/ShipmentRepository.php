@@ -423,7 +423,6 @@ class ShipmentRepository
         }
 
         $seenShipment = [];
-        $seenTracking = [];
         $toDelete = [];
 
         // Preferuj lepsze identyfikatory
@@ -463,6 +462,9 @@ class ShipmentRepository
             return ((int)($b['id_allegropro_shipment'] ?? 0)) <=> ((int)($a['id_allegropro_shipment'] ?? 0));
         });
 
+        // Duplikat definiujemy po shipment_id.
+        // NIE kasujemy rekordów tylko dlatego, że mają ten sam tracking_number,
+        // bo przy wielopaczkach i fallbackach (uuid + waybill) to celowo mogą być osobne wpisy.
         foreach ($rows as $row) {
             $id = (int)($row['id_allegropro_shipment'] ?? 0);
             if ($id <= 0) {
@@ -470,13 +472,8 @@ class ShipmentRepository
             }
 
             $shipmentId = trim((string)($row['shipment_id'] ?? ''));
-            $tracking = strtoupper(trim((string)($row['tracking_number'] ?? '')));
-
             $duplicate = false;
             if ($shipmentId !== '' && isset($seenShipment[$shipmentId])) {
-                $duplicate = true;
-            }
-            if ($tracking !== '' && isset($seenTracking[$tracking])) {
                 $duplicate = true;
             }
 
@@ -487,9 +484,6 @@ class ShipmentRepository
 
             if ($shipmentId !== '') {
                 $seenShipment[$shipmentId] = true;
-            }
-            if ($tracking !== '') {
-                $seenTracking[$tracking] = true;
             }
         }
 
@@ -545,6 +539,28 @@ class ShipmentRepository
         $val = Db::getInstance()->getValue($q);
         $val = is_string($val) ? trim($val) : '';
         return $val !== '' ? $val : null;
+    }
+
+
+    /**
+     * Sprawdza czy dla zamówienia istnieje już rekord z danym tracking_number.
+     */
+    public function hasShipmentWithTracking(int $accountId, string $checkoutFormId, string $trackingNumber): bool
+    {
+        $accountId = (int)$accountId;
+        $checkoutFormId = trim($checkoutFormId);
+        $trackingNumber = trim($trackingNumber);
+
+        if ($accountId <= 0 || $checkoutFormId === '' || $trackingNumber === '') {
+            return false;
+        }
+
+        $sql = 'SELECT COUNT(*) FROM `'.$this->table.'` '
+            . 'WHERE id_allegropro_account=' . $accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . " AND tracking_number='" . pSQL($trackingNumber) . "'";
+
+        return (int)Db::getInstance()->getValue($sql) > 0;
     }
 
     /**

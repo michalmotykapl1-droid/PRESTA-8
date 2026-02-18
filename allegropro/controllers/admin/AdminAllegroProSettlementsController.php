@@ -44,15 +44,48 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $this->billingRepo->ensureSchema();
 
         $accounts = $this->accounts->all();
-        $selectedAccountId = (int)Tools::getValue('id_allegropro_account', 0);
-        if (!$selectedAccountId && !empty($accounts)) {
-            $selectedAccountId = (int)($accounts[0]['id_allegropro_account'] ?? 0);
+
+        // Multi-select kont: id_allegropro_account może być tablicą (id_allegropro_account[]) albo pojedynczą wartością.
+        $rawAcc = Tools::getValue('id_allegropro_account', []);
+        if (!is_array($rawAcc)) {
+            $rawAcc = [$rawAcc];
         }
-        $selectedAccount = null;
+        $selectedAccountIds = [];
+        foreach ($rawAcc as $v) {
+            $id = (int)$v;
+            if ($id > 0) {
+                $selectedAccountIds[$id] = $id;
+            }
+        }
+        $selectedAccountIds = array_values($selectedAccountIds);
+        if (empty($selectedAccountIds) && !empty($accounts)) {
+            $selectedAccountIds = [(int)($accounts[0]['id_allegropro_account'] ?? 0)];
+        }
+
+        // Etykiety wybranych kont (do nagłówka)
+        $selectedAccountLabels = [];
         foreach ($accounts as $a) {
-            if ((int)$a['id_allegropro_account'] === $selectedAccountId) {
-                $selectedAccount = $a;
-                break;
+            $aid = (int)($a['id_allegropro_account'] ?? 0);
+            if ($aid && in_array($aid, $selectedAccountIds, true)) {
+                $selectedAccountLabels[] = (string)($a['label'] ?? $a['allegro_login'] ?? ('#' . $aid));
+            }
+        }
+        $selectedAccountLabel = '';
+        if (count($selectedAccountLabels) === 1) {
+            $selectedAccountLabel = $selectedAccountLabels[0];
+        } elseif (count($selectedAccountLabels) > 1) {
+            $selectedAccountLabel = $selectedAccountLabels[0] . ' + ' . (count($selectedAccountLabels) - 1);
+        }
+
+        // Dla synchronizacji dopuszczamy tylko jedno konto.
+        $selectedAccount = null;
+        $selectedAccountIdForSync = (int)($selectedAccountIds[0] ?? 0);
+        if (count($selectedAccountIds) === 1) {
+            foreach ($accounts as $a) {
+                if ((int)$a['id_allegropro_account'] === $selectedAccountIdForSync) {
+                    $selectedAccount = $a;
+                    break;
+                }
             }
         }
 
@@ -79,48 +112,54 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
 
         $syncResult = null;
         $syncDebug = [];
-        if (Tools::isSubmit('submitAllegroProBillingSync') && $selectedAccount) {
-            $http = new HttpClient();
-            $api = new AllegroApiClient($http, $this->accounts);
-            $sync = new BillingSyncService($api, $this->billingRepo);
-
-            $syncResult = $sync->syncRange(
-                $selectedAccount,
-                $this->toIsoStart($dateFrom),
-                $this->toIsoEnd($dateTo),
-                $syncDebug
-            );
-
-            if (!empty($syncResult['ok'])) {
-                $this->confirmations[] = sprintf(
-                    'Synchronizacja zakończona — pobrano %d operacji (nowe: %d, zaktualizowane: %d).',
-                    (int)($syncResult['total'] ?? 0),
-                    (int)($syncResult['inserted'] ?? 0),
-                    (int)($syncResult['updated'] ?? 0)
-                );
+        if (Tools::isSubmit('submitAllegroProBillingSync')) {
+            if (count($selectedAccountIds) !== 1 || !$selectedAccount) {
+                $this->errors[] = 'Synchronizacja opłat jest dostępna dla jednego konta naraz. Wybierz jedno konto i spróbuj ponownie.';
             } else {
-                $this->errors[] = 'Nie udało się zsynchronizować opłat (billing-entries). Sprawdź autoryzację konta i logi.';
+                $http = new HttpClient();
+                $api = new AllegroApiClient($http, $this->accounts);
+                $sync = new BillingSyncService($api, $this->billingRepo);
+
+                $syncResult = $sync->syncRange(
+                    $selectedAccount,
+                    $this->toIsoStart($dateFrom),
+                    $this->toIsoEnd($dateTo),
+                    $syncDebug
+                );
+
+                if (!empty($syncResult['ok'])) {
+                    $this->confirmations[] = sprintf(
+                        'Synchronizacja zakończona — pobrano %d operacji (nowe: %d, zaktualizowane: %d).',
+                        (int)($syncResult['total'] ?? 0),
+                        (int)($syncResult['inserted'] ?? 0),
+                        (int)($syncResult['updated'] ?? 0)
+                    );
+                } else {
+                    $this->errors[] = 'Nie udało się zsynchronizować opłat (billing-entries). Sprawdź autoryzację konta i logi.';
+                }
             }
         }
 
         $report = new SettlementsReportService($this->billingRepo);
-        $summary = $selectedAccount ? $report->getPeriodSummary($selectedAccountId, $dateFrom, $dateTo) : [];
+        $summary = !empty($selectedAccountIds) ? $report->getPeriodSummary($selectedAccountIds, $dateFrom, $dateTo) : [];
 
-        $ordersTotal = $selectedAccount ? $report->countOrders($selectedAccountId, $dateFrom, $dateTo, $q) : 0;
+
+        $ordersTotal = !empty($selectedAccountIds) ? $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q) : 0;
         $pages = (int)max(1, (int)ceil(($ordersTotal ?: 0) / max(1, $perPage)));
         if ($page > $pages) {
             $page = $pages;
         }
         $offset = max(0, ($page - 1) * $perPage);
 
-        $ordersRows = $selectedAccount
-            ? $report->getOrdersWithFees($selectedAccountId, $dateFrom, $dateTo, $q, $perPage, $offset)
+        $ordersRows = !empty($selectedAccountIds)
+            ? $report->getOrdersWithFees($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset)
             : [];
 
-        $billingCount = $selectedAccount ? $this->billingRepo->countInRange($selectedAccountId, $dateFrom, $dateTo) : 0;
+        $billingCount = !empty($selectedAccountIds) ? $this->billingRepo->countInRangeMulti($selectedAccountIds, $dateFrom, $dateTo) : 0;
 
-        // Percent shares for nicer "structure" bars
-        $feeShares = [];
+
+        // Dane do wykresu kołowego (struktura opłat) na górze.
+        $structureChartJson = '';
         if (!empty($summary)) {
             $feesOther = (float)($summary['fees_total'] ?? 0)
                 - (float)($summary['fees_commission'] ?? 0)
@@ -129,25 +168,71 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
                 - (float)($summary['fees_promotion'] ?? 0)
                 - (float)($summary['fees_refunds'] ?? 0);
 
-            $absTotal = abs((float)($summary['fees_total'] ?? 0));
-            if ($absTotal < 0.01) {
-                $absTotal = 0.01;
-            }
-            $feeShares = [
-                'commission' => (int)round(abs((float)($summary['fees_commission'] ?? 0)) / $absTotal * 100),
-                'delivery' => (int)round(abs((float)($summary['fees_delivery'] ?? 0)) / $absTotal * 100),
-                'smart' => (int)round(abs((float)($summary['fees_smart'] ?? 0)) / $absTotal * 100),
-                'promotion' => (int)round(abs((float)($summary['fees_promotion'] ?? 0)) / $absTotal * 100),
-                'refunds' => (int)round(abs((float)($summary['fees_refunds'] ?? 0)) / $absTotal * 100),
-                'other' => (int)round(abs((float)$feesOther) / $absTotal * 100),
-                'fees_other_amount' => (float)$feesOther,
+            $salesTotal = (float)($summary['sales_total'] ?? 0);
+            $feesTotal = (float)($summary['fees_total'] ?? 0);
+
+            // Koszty do wykresu: tylko ujemne pozycje (koszty). Rabaty/zwroty pokażemy obok jako korekty.
+            $labels = [
+                'commission' => 'Prowizje',
+                'delivery' => 'Dostawa',
+                'smart' => 'Smart',
+                'promotion' => 'Promocja',
+                'other' => 'Pozostałe',
             ];
+            $amounts = [
+                'commission' => (float)($summary['fees_commission'] ?? 0),
+                'delivery' => (float)($summary['fees_delivery'] ?? 0),
+                'smart' => (float)($summary['fees_smart'] ?? 0),
+                'promotion' => (float)($summary['fees_promotion'] ?? 0),
+                'other' => (float)$feesOther,
+            ];
+
+            $slices = [];
+            $absTotalCosts = 0.0;
+            foreach ($amounts as $k => $amt) {
+                if ($amt < 0) {
+                    $absTotalCosts += abs($amt);
+                }
+            }
+            if ($absTotalCosts < 0.0001) {
+                $absTotalCosts = 0.0;
+            }
+
+            foreach ($amounts as $k => $amt) {
+                if ($amt >= 0) {
+                    continue;
+                }
+                $v = abs($amt);
+                $share = $absTotalCosts > 0 ? round($v / $absTotalCosts * 100, 2) : 0.0;
+                $pctSales = $salesTotal > 0 ? round($v / $salesTotal * 100, 2) : 0.0;
+                $slices[] = [
+                    'key' => $k,
+                    'label' => $labels[$k] ?? $k,
+                    'value' => $v,
+                    'amount' => $amt,
+                    'share' => $share,
+                    'pct_sales' => $pctSales,
+                ];
+            }
+
+            $feesRatePct = $salesTotal > 0 ? round(abs($feesTotal) / $salesTotal * 100, 2) : 0.0;
+
+            $structureChartJson = json_encode([
+                'sales_total' => $salesTotal,
+                'fees_total' => $feesTotal,
+                'fees_rate_pct' => $feesRatePct,
+                'refunds' => (float)($summary['fees_refunds'] ?? 0),
+                'other' => (float)$feesOther,
+                'slices' => $slices,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         // Pagination links
         $base = $this->context->link->getAdminLink('AdminAllegroProSettlements');
-        $base .= '&id_allegropro_account=' . (int)$selectedAccountId
-            . '&date_from=' . urlencode($dateFrom)
+        foreach ($selectedAccountIds as $aid) {
+            $base .= '&id_allegropro_account[]=' . (int)$aid;
+        }
+        $base .= '&date_from=' . urlencode($dateFrom)
             . '&date_to=' . urlencode($dateTo)
             . '&q=' . urlencode($q)
             . '&per_page=' . (int)$perPage;
@@ -161,15 +246,17 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
 
         $this->context->smarty->assign([
             'accounts' => $accounts,
-            'selected_account_id' => $selectedAccountId,
-            'selected_account_label' => $selectedAccount['label'] ?? '',
+            'selected_account_id' => (int)($selectedAccountIds[0] ?? 0),
+            'selected_account_ids' => $selectedAccountIds,
+            'selected_account_labels' => $selectedAccountLabels,
+            'selected_account_label' => $selectedAccountLabel,
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'q' => $q,
             'sync_result' => $syncResult,
             'sync_debug' => $syncDebug,
             'summary' => $summary,
-            'fee_shares' => $feeShares,
+            'structure_chart_json' => $structureChartJson,
             'orders_rows' => $ordersRows,
             'orders_total' => (int)$ordersTotal,
             'orders_from' => (int)$ordersFrom,

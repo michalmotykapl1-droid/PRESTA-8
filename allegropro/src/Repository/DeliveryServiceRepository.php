@@ -130,4 +130,35 @@ class DeliveryServiceRepository
         );
         return ['total' => $total, 'with_credentials' => $withCred];
     }
+
+    /**
+     * Zwraca unikalną listę carrier_id skonfigurowanych dla konta.
+     * Przydatne do fallbacków (np. tracking po waybill, gdy carrier z zamówienia jest błędny).
+     *
+     * @return string[]
+     */
+    public function listCarrierIdsForAccount(int $accountId): array
+    {
+        if ($accountId <= 0) {
+            return [];
+        }
+
+        $rows = Db::getInstance()->executeS(
+            'SELECT DISTINCT carrier_id FROM `' . $this->table . '` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND carrier_id IS NOT NULL AND carrier_id != ''"
+            . ' ORDER BY carrier_id ASC'
+        ) ?: [];
+
+        $out = [];
+        foreach ($rows as $r) {
+            $cid = strtoupper(trim((string)($r['carrier_id'] ?? '')));
+            if ($cid === '') {
+                continue;
+            }
+            $out[$cid] = true;
+        }
+
+        return array_keys($out);
+    }
 }

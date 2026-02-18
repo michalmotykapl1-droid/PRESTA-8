@@ -703,8 +703,11 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Konto Allegro jest nieaktywne.']));
         }
 
+        $deliveryRepo = new \AllegroPro\Repository\DeliveryServiceRepository();
+        $fallbackCarrierIds = $deliveryRepo->listCarrierIdsForAccount($accountId);
+
         $svc = new AllegroCarrierTrackingService($api);
-        $res = $svc->fetch($account, $carrierId, $waybill);
+        $res = $svc->fetch($account, $carrierId, $waybill, $fallbackCarrierIds);
 
         if (empty($res['ok'])) {
             $this->ajaxDie(json_encode([

@@ -365,6 +365,164 @@ class BillingEntryRepository
         return (int)Db::getInstance()->getValue($sql);
     }
 
+
+
+    /**
+     * Buduje bezpieczny warunek IN() dla wielu kont.
+     * @param int[] $accountIds
+     */
+    private function buildAccountInWhere(array $accountIds): string
+    {
+        $ids = [];
+        foreach ($accountIds as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        if (empty($ids)) {
+            return 'id_allegropro_account=0';
+        }
+        return 'id_allegropro_account IN (' . implode(',', $ids) . ')';
+    }
+
+    /**
+     * Multi-account wariant getCategorySums().
+     * @param int[] $accountIds
+     */
+    public function getCategorySumsMulti(array $accountIds, string $dateFrom, string $dateTo): array
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $sql = "SELECT
+"
+            . "    SUM(value_amount) AS total,
+"
+            . "    SUM(CASE WHEN (type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN value_amount ELSE 0 END) AS commission,
+"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN value_amount ELSE 0 END) AS smart,
+"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN value_amount ELSE 0 END) AS delivery,
+"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN value_amount ELSE 0 END) AS promotion,
+"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN value_amount ELSE 0 END) AS refunds
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+            . "WHERE {$accWhere}
+"
+            . "  AND occurred_at BETWEEN '{$from}' AND '{$to}'
+"
+            . "  AND {$feeWhere}";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+        return [
+            'total' => (float)($row['total'] ?? 0),
+            'commission' => (float)($row['commission'] ?? 0),
+            'smart' => (float)($row['smart'] ?? 0),
+            'delivery' => (float)($row['delivery'] ?? 0),
+            'promotion' => (float)($row['promotion'] ?? 0),
+            'refunds' => (float)($row['refunds'] ?? 0),
+        ];
+    }
+
+    /**
+     * Multi-account wariant sumByOrder() - zwraca mapę: [accountId][orderId] = suma.
+     * @param int[] $accountIds
+     * @return array<int, array<string, float>>
+     */
+    public function sumByOrderMulti(array $accountIds, string $dateFrom, string $dateTo): array
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $sql = "SELECT id_allegropro_account, order_id, SUM(value_amount) AS sum_amount
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+            . "WHERE {$accWhere}
+"
+            . "  AND order_id IS NOT NULL AND order_id <> ''
+"
+            . "  AND occurred_at BETWEEN '{$from}' AND '{$to}'
+"
+            . "  AND {$feeWhere}
+"
+            . "GROUP BY id_allegropro_account, order_id";
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $map = [];
+        foreach ($rows as $r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            if (!isset($map[$aid])) {
+                $map[$aid] = [];
+            }
+            $map[$aid][(string)$r['order_id']] = (float)$r['sum_amount'];
+        }
+        return $map;
+    }
+
+    /**
+     * Multi-account wariant countUnassigned().
+     * @param int[] $accountIds
+     */
+    public function countUnassignedMulti(array $accountIds, string $dateFrom, string $dateTo): int
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $sql = "SELECT COUNT(*)
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+            . "WHERE {$accWhere}
+"
+            . "  AND (order_id IS NULL OR order_id='')
+"
+            . "  AND occurred_at BETWEEN '{$from}' AND '{$to}'
+"
+            . "  AND {$feeWhere}";
+
+        return (int)Db::getInstance()->getValue($sql);
+    }
+
+    /**
+     * Multi-account wariant countInRange().
+     * @param int[] $accountIds
+     */
+    public function countInRangeMulti(array $accountIds, string $dateFrom, string $dateTo): int
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $accWhere = $this->buildAccountInWhere($accountIds);
+        $sql = "SELECT COUNT(*)
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+            . "WHERE {$accWhere}
+"
+            . "  AND occurred_at BETWEEN '{$from}' AND '{$to}'";
+
+        return (int)Db::getInstance()->getValue($sql);
+    }
     private function toMysqlDatetime(string $iso): ?string
     {
         if ($iso === '') {

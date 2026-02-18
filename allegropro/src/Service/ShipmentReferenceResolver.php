@@ -4,7 +4,6 @@ namespace AllegroPro\Service;
 class ShipmentReferenceResolver
 {
     private AllegroApiClient $api;
-    private bool $shipmentsSearchSupported = true;
 
     public function __construct(AllegroApiClient $api)
     {
@@ -98,6 +97,21 @@ class ShipmentReferenceResolver
         $candidateId = trim($candidateId);
         if ($candidateId === '') {
             return null;
+        }
+
+        // SPECJALNY PRZYPADEK: część identyfikatorów przesyłek zwracanych przez Allegro wygląda jak base64,
+        // a po dekodowaniu ma postać "CARRIER:WAYBILL" (np. "DPD:AD0...", "INPOST:620...").
+        // Takie wartości działają jako {shipmentId} w /shipment-management/shipments/{id}.
+        // Nie wolno ich zamieniać na sam waybill, bo stracimy możliwość pobrania szczegółów (np. packages[]).
+        $origCandidate = $candidateId;
+        if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $origCandidate) && (strlen($origCandidate) % 4 === 0)) {
+            $tmp = base64_decode($origCandidate, true);
+            if (is_string($tmp) && $tmp !== '') {
+                $tmp = trim($tmp);
+                if (preg_match('/^[A-Z0-9_]{2,20}:[A-Za-z0-9]{8,64}$/', $tmp)) {
+                    return $origCandidate;
+                }
+            }
         }
 
         // Dekoduj referencje typu base64("ALLEGRO:WAYBILL") / "ALLEGRO:WAYBILL"
@@ -260,12 +274,6 @@ class ShipmentReferenceResolver
             if (!empty($debugLines)) {
                 $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
             }
-            $code = (int)($resp['code'] ?? 0);
-            if ($code === 406 || $code === 404) {
-                // Na wielu kontach /shipment-management/shipments działa jako wyszukiwarka tylko wewnętrznie (public API zwraca 406/404).
-                $this->shipmentsSearchSupported = false;
-                continue;
-            }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 continue;
             }
@@ -323,12 +331,6 @@ class ShipmentReferenceResolver
             $resp = $this->api->get($account, '/shipment-management/shipments', $query);
             $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
 
-            $code = (int)($resp['code'] ?? 0);
-            if ($code === 406 || $code === 404) {
-                // Na wielu kontach /shipment-management/shipments działa jako wyszukiwarka tylko wewnętrznie (public API zwraca 406/404).
-                $this->shipmentsSearchSupported = false;
-                continue;
-            }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 continue;
             }
@@ -405,9 +407,6 @@ public function resolveShipmentIdByWaybill(array $account, string $waybill, arra
         if ($waybill === '') {
             return null;
         }
-        if (!$this->shipmentsSearchSupported) {
-            return null;
-        }
 
         $queries = [
             ['waybill' => $waybill],
@@ -422,12 +421,6 @@ public function resolveShipmentIdByWaybill(array $account, string $waybill, arra
                 $debugLines[] = '[API] GET /shipment-management/shipments ' . json_encode($query, JSON_UNESCAPED_UNICODE) . ': HTTP ' . (int)($resp['code'] ?? 0) . ', ok=' . (!empty($resp['ok']) ? '1' : '0');
             }
 
-            $code = (int)($resp['code'] ?? 0);
-            if ($code === 406 || $code === 404) {
-                // Na wielu kontach /shipment-management/shipments działa jako wyszukiwarka tylko wewnętrznie (public API zwraca 406/404).
-                $this->shipmentsSearchSupported = false;
-                continue;
-            }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 continue;
             }
@@ -533,9 +526,9 @@ public function resolveShipmentIdByWaybill(array $account, string $waybill, arra
             return null;
         }
 
-        // Jawny prefiks (np. ALLEGRO:..., DPD:..., INPOST:...)
-        if (preg_match('/^[A-Z0-9_]{2,20}:/', $value)) {
-            return trim(preg_replace('/^[A-Z0-9_]{2,20}:/', '', $value));
+        // Jawny prefiks
+        if (stripos($value, 'ALLEGRO:') === 0) {
+            return trim(substr($value, 8));
         }
 
         // base64("ALLEGRO:WAYBILL") albo base64(UUID/commandId)
@@ -543,8 +536,8 @@ public function resolveShipmentIdByWaybill(array $account, string $waybill, arra
             $decoded = base64_decode($value, true);
             if (is_string($decoded) && $decoded !== '') {
                 $decoded = trim($decoded);
-                if (preg_match('/^[A-Z0-9_]{2,20}:/', $decoded)) {
-                    return trim(preg_replace('/^[A-Z0-9_]{2,20}:/', '', $decoded));
+                if (stripos($decoded, 'ALLEGRO:') === 0) {
+                    return trim(substr($decoded, 8));
                 }
                 return $decoded;
             }

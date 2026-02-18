@@ -13,11 +13,47 @@ class SettlementsReportService
         $this->billing = $billing;
     }
 
-    public function getPeriodSummary(int $accountId, string $dateFrom, string $dateTo): array
+
+
+    /**
+     * @param int|int[] $accountIds
+     * @return int[]
+     */
+    private function normalizeAccountIds($accountIds): array
     {
-        $sales = $this->sumOrdersTotal($accountId, $dateFrom, $dateTo);
-        $cats = $this->billing->getCategorySums($accountId, $dateFrom, $dateTo);
-        $unassigned = $this->billing->countUnassigned($accountId, $dateFrom, $dateTo);
+        if (is_array($accountIds)) {
+            $ids = $accountIds;
+        } else {
+            $ids = [$accountIds];
+        }
+        $out = [];
+        foreach ($ids as $id) {
+            $id = (int)$id;
+            if ($id > 0) {
+                $out[$id] = $id;
+            }
+        }
+        return array_values($out);
+    }
+
+    /**
+     * Buduje bezpieczny fragment "IN (...)".
+     * @param int[] $ids
+     */
+    private function buildIn(array $ids): string
+    {
+        $ids = $this->normalizeAccountIds($ids);
+        if (empty($ids)) {
+            return '(0)';
+        }
+        return '(' . implode(',', array_map('intval', $ids)) . ')';
+    }
+    public function getPeriodSummary($accountIds, string $dateFrom, string $dateTo): array
+    {
+        $ids = $this->normalizeAccountIds($accountIds);
+        $sales = $this->sumOrdersTotalMulti($ids, $dateFrom, $dateTo);
+        $cats = $this->billing->getCategorySumsMulti($ids, $dateFrom, $dateTo);
+        $unassigned = $this->billing->countUnassignedMulti($ids, $dateFrom, $dateTo);
 
         // saldo po opłatach Allegro (nie uwzględnia kosztu towaru)
         $netAfterFees = (float)$sales + (float)($cats['total'] ?? 0);
@@ -38,34 +74,44 @@ class SettlementsReportService
     /**
      * @param string $q Opcjonalny query (checkoutFormId / login kupującego) - oczekiwany już po sanityzacji.
      */
-    public function getOrdersWithFees(int $accountId, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
+    public function getOrdersWithFees($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
     {
-        $orders = $this->listOrders($accountId, $dateFrom, $dateTo, $q, $limit, $offset);
+        $ids = $this->normalizeAccountIds($accountIds);
+        $orders = $this->listOrdersMulti($ids, $dateFrom, $dateTo, $q, $limit, $offset);
 
         // Mapuj opłaty do zamówień po order_id, ale toleruj różne formaty ID
         // (np. z / bez myślników) przez dodatkową mapę znormalizowaną.
-        $feeMapRaw = $this->billing->sumByOrder($accountId, $dateFrom, $dateTo);
+        $feeMapRaw = $this->billing->sumByOrderMulti($ids, $dateFrom, $dateTo);
         $feeMapNorm = [];
-        foreach ($feeMapRaw as $oid => $sum) {
-            $k = $this->normalizeId((string)$oid);
-            if ($k === '') {
+        foreach ($feeMapRaw as $aid => $ordersMap) {
+            if (!is_array($ordersMap)) {
                 continue;
             }
-            if (!isset($feeMapNorm[$k])) {
-                $feeMapNorm[$k] = 0.0;
+            foreach ($ordersMap as $oid => $sum) {
+                $k = $this->normalizeId((string)$oid);
+                if ($k === '') {
+                    continue;
+                }
+                if (!isset($feeMapNorm[$aid])) {
+                    $feeMapNorm[$aid] = [];
+                }
+                if (!isset($feeMapNorm[$aid][$k])) {
+                    $feeMapNorm[$aid][$k] = 0.0;
+                }
+                $feeMapNorm[$aid][$k] += (float)$sum;
             }
-            $feeMapNorm[$k] += (float)$sum;
         }
 
         foreach ($orders as &$o) {
             $cf = (string)$o['checkout_form_id'];
+            $aid = (int)($o['id_allegropro_account'] ?? 0);
             $fees = 0.0;
-            if (isset($feeMapRaw[$cf])) {
-                $fees = (float)$feeMapRaw[$cf];
+            if ($aid > 0 && isset($feeMapRaw[$aid]) && is_array($feeMapRaw[$aid]) && isset($feeMapRaw[$aid][$cf])) {
+                $fees = (float)$feeMapRaw[$aid][$cf];
             } else {
                 $k = $this->normalizeId($cf);
-                if ($k !== '' && isset($feeMapNorm[$k])) {
-                    $fees = (float)$feeMapNorm[$k];
+                if ($aid > 0 && $k !== '' && isset($feeMapNorm[$aid]) && isset($feeMapNorm[$aid][$k])) {
+                    $fees = (float)$feeMapNorm[$aid][$k];
                 }
             }
             $o['fees_total'] = $fees;
@@ -76,7 +122,7 @@ class SettlementsReportService
         return $orders;
     }
 
-    public function countOrders(int $accountId, string $dateFrom, string $dateTo, string $q = ''): int
+    public function countOrders($accountIds, string $dateFrom, string $dateTo, string $q = ''): int
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
@@ -87,8 +133,11 @@ class SettlementsReportService
             $whereQ = " AND (o.checkout_form_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
+        $ids = $this->normalizeAccountIds($accountIds);
+        $in = $this->buildIn($ids);
+
         $sql = "SELECT COUNT(*) FROM `" . _DB_PREFIX_ . "allegropro_order` o
-                WHERE o.id_allegropro_account=" . (int)$accountId . "
+                WHERE o.id_allegropro_account IN " . $in . "
                   AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'" . $whereQ;
         return (int)Db::getInstance()->getValue($sql);
     }
@@ -188,20 +237,27 @@ class SettlementsReportService
         return 'other';
     }
 
-    private function sumOrdersTotal(int $accountId, string $dateFrom, string $dateTo): float
+    private function sumOrdersTotalMulti(array $accountIds, string $dateFrom, string $dateTo): float
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
+
+        $ids = $this->normalizeAccountIds($accountIds);
+        $in = $this->buildIn($ids);
+
         $sql = "SELECT SUM(total_amount) FROM `" . _DB_PREFIX_ . "allegropro_order`
-                WHERE id_allegropro_account=" . (int)$accountId . "
+                WHERE id_allegropro_account IN " . $in . "
                   AND created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'";
         return (float)Db::getInstance()->getValue($sql);
     }
 
-    private function listOrders(int $accountId, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
+    private function listOrdersMulti(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
+
+        $ids = $this->normalizeAccountIds($accountIds);
+        $in = $this->buildIn($ids);
 
         $limit = max(1, min(500, (int)$limit));
         $offset = max(0, (int)$offset);
@@ -210,14 +266,14 @@ class SettlementsReportService
         if ($q !== '') {
             // allow searching by checkoutFormId or buyer login
             $qEsc = pSQL('%' . $q . '%');
-            $whereQ = " AND (checkout_form_id LIKE '" . $qEsc . "' OR buyer_login LIKE '" . $qEsc . "')";
+            $whereQ = " AND (o.checkout_form_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
-        $sql = "SELECT o.checkout_form_id, o.buyer_login, o.total_amount, o.currency, o.created_at_allegro,
+        $sql = "SELECT o.id_allegropro_account, o.checkout_form_id, o.buyer_login, o.total_amount, o.currency, o.created_at_allegro,
                        a.label AS account_label
                 FROM `" . _DB_PREFIX_ . "allegropro_order` o
                 LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a ON (a.id_allegropro_account = o.id_allegropro_account)
-                WHERE o.id_allegropro_account=" . (int)$accountId . "
+                WHERE o.id_allegropro_account IN " . $in . "
                   AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'" . $whereQ . "
                 ORDER BY o.created_at_allegro DESC
                 LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
@@ -225,6 +281,7 @@ class SettlementsReportService
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
             $r['total_amount'] = (float)$r['total_amount'];
+            $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
         }
         unset($r);
         return $rows;
@@ -237,15 +294,15 @@ class SettlementsReportService
             return null;
         }
 
-        // Db::getRow() w PrestaShop czasem dokleja LIMIT 1 i potrafi wywołać 1064.
-        // Zamiast tego: executeS + LIMIT 1.
+        // Nie używamy Db::getRow(), bo potrafi doklejać LIMIT 1.
+        // Dla bezpieczeństwa pobieramy listę i bierzemy pierwszy rekord.
         $sql = 'SELECT checkout_form_id, buyer_login, total_amount, currency, created_at_allegro '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` '
             . 'WHERE id_allegropro_account=' . (int)$accountId . ' '
             . "AND checkout_form_id='" . pSQL($cf) . "' "
             . 'ORDER BY created_at_allegro DESC';
 
-        $rows = Db::getInstance()->executeS($sql . ' LIMIT 1') ?: [];
+        $rows = Db::getInstance()->executeS($sql) ?: [];
         $row = !empty($rows[0]) ? $rows[0] : null;
         if (!$row) {
             return null;
