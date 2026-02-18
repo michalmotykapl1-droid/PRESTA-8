@@ -138,7 +138,9 @@ class OrderRepository
         }
 
         if (!empty($filters['global_query'])) {
-            $search = pSQL((string)$filters['global_query']);
+            $raw = (string)$filters['global_query'];
+            $search = pSQL($raw);
+            $digits = preg_replace('/\D+/', '', $raw);
             $globalConditions = [
                 "o.checkout_form_id LIKE '%" . $search . "%'",
                 "o.status LIKE '%" . $search . "%'",
@@ -162,6 +164,18 @@ class OrderRepository
                     . "inv.company_name LIKE '%" . $search . "%' OR inv.tax_id LIKE '%" . $search . "%' OR inv.street LIKE '%" . $search . "%' OR inv.city LIKE '%" . $search . "%' OR inv.zip_code LIKE '%" . $search . "%'"
                 . "))",
             ];
+            // Phone normalization: allow searching phone without spaces/+48 etc.
+            if ($digits !== '' && strlen($digits) >= 5) {
+                $digitsSql = pSQL($digits);
+                $digits9 = (strlen($digits) > 9) ? substr($digits, -9) : $digits;
+                $phoneExpr = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(b.phone_number,' ',''),'+',''),'-',''),'(',''),')','')";
+                $globalConditions[] = $phoneExpr . " LIKE '%" . $digitsSql . "%'";
+                if ($digits9 !== $digits) {
+                    $globalConditions[] = $phoneExpr . " LIKE '%" . pSQL($digits9) . "%'";
+                }
+            }
+
+
 
             if ($this->hasOrderTableColumn('buyer_login')) {
                 $globalConditions[] = "o.buyer_login LIKE '%" . $search . "%'";

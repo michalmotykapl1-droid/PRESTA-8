@@ -83,7 +83,7 @@
 
     <div class="row" style="margin-top:14px;">
       <div class="col-md-12">
-        <label>Szukaj globalnie (wszystkie kolumny tabeli na stronie)</label>
+        <label>Szukaj globalnie (wszystkie kolumny w całej bazie modułu)</label>
         <div class="input-group">
           <input
             id="global_quick_search"
@@ -91,7 +91,7 @@
             value="{$allegropro_filters.global_query|default:''|escape:'htmlall':'UTF-8'}"
             type="text"
             class="form-control"
-            placeholder="Np. nazwisko, login, e-mail, telefon, checkout_form_id, status, dostawa..."
+            placeholder="Np. nazwisko, login, e-mail, telefon, numer przesyłki, EAN, checkout_form_id, status, dostawa..."
           />
           <span class="input-group-btn">
             <button id="btn_global_search" type="submit" class="btn btn-primary" style="min-width:140px;">

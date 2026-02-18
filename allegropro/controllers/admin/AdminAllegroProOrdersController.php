@@ -812,7 +812,15 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'delivery_methods' => $deliveryMethods,
             'statuses' => $statuses,
             'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id')),
+            // Globalne wyszukiwanie po całej bazie danych modułu (nie tylko po rekordach aktualnej strony).
+            // Implementacja w OrderRepository::applyFilters() obejmuje też powiązane tabele (buyer/shipping/items/payments/shipments/invoice).
+            'global_query' => trim((string)Tools::getValue('filter_global_query')),
         ];
+
+        // Minimalna sanityzacja: jeśli użytkownik wklei same białe znaki, traktuj jako brak filtra.
+        if (isset($filters['global_query']) && $filters['global_query'] === '') {
+            unset($filters['global_query']);
+        }
 
         if ($filters['id_allegropro_account'] <= 0) {
             $filters['id_allegropro_account'] = 0;
