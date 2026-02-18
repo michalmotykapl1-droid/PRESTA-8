@@ -102,6 +102,10 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $q = trim((string)Tools::getValue('q', ''));
         $q = $this->sanitizeSearch($q);
 
+        $mode = (string)Tools::getValue('mode', 'billing');
+        $mode = in_array($mode, ['billing', 'orders'], true) ? $mode : 'billing';
+
+
         // pagination
         $allowedPerPage = [25, 50, 100, 200];
         $perPage = (int)Tools::getValue('per_page', 50);
@@ -141,21 +145,37 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         }
 
         $report = new SettlementsReportService($this->billingRepo);
-        $summary = !empty($selectedAccountIds) ? $report->getPeriodSummary($selectedAccountIds, $dateFrom, $dateTo) : [];
+        if (!empty($selectedAccountIds)) {
+            $summary = ($mode === 'orders')
+                ? $report->getPeriodSummaryOrders($selectedAccountIds, $dateFrom, $dateTo)
+                : $report->getPeriodSummaryBilling($selectedAccountIds, $dateFrom, $dateTo);
+        } else {
+            $summary = [];
+        }
 
+        $ordersTotal = 0;
+        if (!empty($selectedAccountIds)) {
+            $ordersTotal = ($mode === 'billing')
+                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, $q)
+                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q);
+        }
 
-        $ordersTotal = !empty($selectedAccountIds) ? $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q) : 0;
         $pages = (int)max(1, (int)ceil(($ordersTotal ?: 0) / max(1, $perPage)));
         if ($page > $pages) {
             $page = $pages;
         }
         $offset = max(0, ($page - 1) * $perPage);
 
-        $ordersRows = !empty($selectedAccountIds)
-            ? $report->getOrdersWithFees($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset)
-            : [];
+        $ordersRows = [];
+        if (!empty($selectedAccountIds)) {
+            $ordersRows = ($mode === 'billing')
+                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset)
+                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset);
+        }
 
-        $billingCount = !empty($selectedAccountIds) ? $this->billingRepo->countInRangeMulti($selectedAccountIds, $dateFrom, $dateTo) : 0;
+        $billingCount = (!empty($selectedAccountIds) && $mode === 'billing')
+            ? $this->billingRepo->countInRangeMulti($selectedAccountIds, $dateFrom, $dateTo)
+            : 0;
 
 
         // Dane do wykresu kołowego (struktura opłat) na górze.
@@ -232,7 +252,8 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         foreach ($selectedAccountIds as $aid) {
             $base .= '&id_allegropro_account[]=' . (int)$aid;
         }
-        $base .= '&date_from=' . urlencode($dateFrom)
+        $base .= '&mode=' . urlencode($mode)
+            . '&date_from=' . urlencode($dateFrom)
             . '&date_to=' . urlencode($dateTo)
             . '&q=' . urlencode($q)
             . '&per_page=' . (int)$perPage;
@@ -253,6 +274,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'q' => $q,
+            'mode' => $mode,
             'sync_result' => $syncResult,
             'sync_debug' => $syncDebug,
             'summary' => $summary,
@@ -296,7 +318,11 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $this->billingRepo->ensureSchema();
 
         $report = new SettlementsReportService($this->billingRepo);
-        $details = $report->getOrderDetails($accountId, $checkout, $dateFrom, $dateTo);
+        $mode = (string)Tools::getValue('mode', 'billing');
+        $mode = in_array($mode, ['billing', 'orders'], true) ? $mode : 'billing';
+        $ignoreBillingDate = ($mode === 'orders');
+
+        $details = $report->getOrderDetails($accountId, $checkout, $dateFrom, $dateTo, $ignoreBillingDate);
 
         $order = is_array($details['order'] ?? null) ? $details['order'] : [];
         $cats = is_array($details['cats'] ?? null) ? $details['cats'] : [];

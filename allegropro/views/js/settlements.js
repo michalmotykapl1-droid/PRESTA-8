@@ -42,7 +42,8 @@
     var cfg = {
       ajaxUrl: cfgEl.getAttribute('data-ajax-url') || '',
       dateFrom: cfgEl.getAttribute('data-date-from') || '',
-      dateTo: cfgEl.getAttribute('data-date-to') || ''
+      dateTo: cfgEl.getAttribute('data-date-to') || '',
+      mode: cfgEl.getAttribute('data-mode') || 'billing'
     };
 
     if (!cfg.ajaxUrl) return;
@@ -432,7 +433,10 @@
         '</tr>';
       }
       if (!itemRows) {
-        itemRows = '<tr><td colspan="5" style="color:#6c757d;">Brak wpisów opłat dla tego zamówienia w wybranym okresie.</td></tr>';
+        var msg = (cfg.mode === 'orders')
+          ? 'Brak wpisów opłat dla tego zamówienia.'
+          : 'Brak wpisów opłat dla tego zamówienia w wybranym okresie księgowania.';
+        itemRows = '<tr><td colspan="5" style="color:#6c757d;">' + escHtml(msg) + '</td></tr>';
       }
 
       var itemsHtml = '' +
@@ -470,7 +474,8 @@
         id_allegropro_account: accountId,
         checkoutFormId: checkoutFormId,
         date_from: cfg.dateFrom,
-        date_to: cfg.dateTo
+        date_to: cfg.dateTo,
+        mode: cfg.mode
       };
 
       // use jQuery if available (Presta BO), else fallback

@@ -684,11 +684,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $carrierId = strtoupper(trim($carrierId));
         $waybill = trim($waybill);
 
-        // carrier_id jest opcjonalny (front może go nie znać). Wtedy próbujemy po listach fallbacków.
-        if ($accountId <= 0 || $waybill === '') {
+        if ($accountId <= 0 || $carrierId === '' || $waybill === '') {
             $this->ajaxDie(json_encode([
                 'success' => false,
-                'message' => 'Brak danych: konto/numer przesyłki.',
+                'message' => 'Brak danych: konto/carrier/numer przesyłki.',
             ]));
         }
 
@@ -710,145 +709,24 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $svc = new AllegroCarrierTrackingService($api);
         $res = $svc->fetch($account, $carrierId, $waybill, $fallbackCarrierIds);
 
-        $url = 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill);
-
         if (empty($res['ok'])) {
             $this->ajaxDie(json_encode([
                 'success' => false,
                 'message' => (string)($res['message'] ?? 'Nie udało się pobrać trackingu.'),
-                'carrier_id' => (string)($res['carrierId'] ?? $carrierId),
+                'carrier_id' => $carrierId,
                 'number' => $waybill,
-                'url' => $url,
+                'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
             ]));
-        }
-
-        // Front (modal) oczekuje {current, events}. Zmapuj odpowiedź z API (statuses) do tego formatu.
-        $statuses = $res['statuses'] ?? [];
-        if (!is_array($statuses)) {
-            $statuses = [];
-        }
-
-        // Najnowsze jako pierwsze (frontend zakłada idx=0 jako "current")
-        usort($statuses, function ($a, $b) {
-            $ta = is_array($a) ? (string)($a['occurredAt'] ?? '') : '';
-            $tb = is_array($b) ? (string)($b['occurredAt'] ?? '') : '';
-            // desc
-            return strcmp($tb, $ta);
-        });
-
-        $events = [];
-        foreach ($statuses as $st) {
-            if (!is_array($st)) {
-                continue;
-            }
-            $code = strtoupper(trim((string)($st['code'] ?? '')));
-            $desc = (string)($st['description'] ?? '');
-            $occurredAt = (string)($st['occurredAt'] ?? '');
-
-            $map = $this->mapTrackingCodeToUi($code, $desc);
-
-            $events[] = [
-                'status' => $code,
-                'label_pl' => $map['label_pl'],
-                'short_pl' => $map['short_pl'],
-                'severity' => $map['severity'],
-                'occurred_at_formatted' => $this->formatTrackingDatePl($occurredAt),
-            ];
-        }
-
-        $current = null;
-        if (!empty($events)) {
-            $current = $events[0];
         }
 
         $this->ajaxDie(json_encode([
             'success' => true,
             'carrier_id' => (string)($res['carrierId'] ?? $carrierId),
             'number' => (string)($res['waybill'] ?? $waybill),
-            'current' => $current,
-            'events' => $events,
+            'statuses' => $res['statuses'] ?? [],
             'message' => (string)($res['message'] ?? ''),
-            'url' => $url,
+            'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
         ]));
-    }
-
-    /**
-     * Mapuje kody trackingu (Allegro Carrier API) na UI (PL label + severity).
-     * @return array{severity:string, short_pl:string, label_pl:string}
-     */
-    private function mapTrackingCodeToUi(string $code, string $description = ''): array
-    {
-        $code = strtoupper(trim($code));
-        $description = trim($description);
-
-        // Słownik najczęstszych statusów (reszta leci fallbackiem)
-        $dict = [
-            'CREATED' => ['secondary', 'UTWORZONA', 'Przesyłka utworzona'],
-            'PENDING' => ['secondary', 'UTWORZONA', 'Przesyłka utworzona'],
-            'REGISTERED' => ['secondary', 'ZAREJ.', 'Przesyłka zarejestrowana'],
-            'IN_PROGRESS' => ['info', 'W DRODZE', 'Przesyłka w drodze'],
-            'IN_TRANSIT' => ['primary', 'W DRODZE', 'Przesyłka w drodze'],
-            'OUT_FOR_DELIVERY' => ['info', 'DORĘCZENIE', 'Przesyłka w doręczeniu'],
-            'RELEASED_FOR_DELIVERY' => ['info', 'DORĘCZENIE', 'Przesyłka w doręczeniu'],
-            'READY_FOR_PICKUP' => ['warning', 'DO ODBIORU', 'Przesyłka do odbioru'],
-            'AVAILABLE_FOR_PICKUP' => ['warning', 'DO ODBIORU', 'Przesyłka do odbioru'],
-            'DELIVERED' => ['success', 'DOSTARCZ.', 'Przesyłka dostarczona'],
-            'PICKED_UP' => ['success', 'DOSTARCZ.', 'Przesyłka odebrana'],
-            'RETURNED_TO_SENDER' => ['secondary', 'ZWRÓCONA', 'Przesyłka zwrócona'],
-            'RETURNED' => ['secondary', 'ZWRÓCONA', 'Przesyłka zwrócona'],
-            'LOST' => ['danger', 'ZAGUB.', 'Przesyłka zagubiona'],
-            'DELIVERY_FAILED' => ['danger', 'PROBLEM', 'Problem z dostawą'],
-            'UNDELIVERED' => ['danger', 'PROBLEM', 'Problem z dostawą'],
-            'CANCELLED' => ['secondary', 'ANULOW.', 'Przesyłka anulowana'],
-        ];
-
-        if (isset($dict[$code])) {
-            [$sev, $short, $label] = $dict[$code];
-            return [
-                'severity' => $sev,
-                'short_pl' => $short,
-                'label_pl' => $description !== '' ? $description : $label,
-            ];
-        }
-
-        // Heurystyki po nazwie (gdy przewoźnik ma niestandardowe kody)
-        $sev = 'secondary';
-        $short = $code !== '' ? $code : 'STATUS';
-        $label = $description !== '' ? $description : ($code !== '' ? $code : 'Status przesyłki');
-
-        $c = $code;
-        if (strpos($c, 'DELIVER') !== false || strpos($c, 'PICKED_UP') !== false) {
-            $sev = 'success';
-        } elseif (strpos($c, 'PICKUP') !== false || strpos($c, 'READY') !== false || strpos($c, 'AVAILABLE') !== false) {
-            $sev = 'warning';
-        } elseif (strpos($c, 'TRANSIT') !== false || strpos($c, 'WAY') !== false || strpos($c, 'SENT') !== false) {
-            $sev = 'primary';
-        } elseif (strpos($c, 'FAIL') !== false || strpos($c, 'LOST') !== false || strpos($c, 'UNDELIVER') !== false || strpos($c, 'RETURN') !== false) {
-            $sev = 'danger';
-        }
-
-        return [
-            'severity' => $sev,
-            'short_pl' => mb_substr($short, 0, 18, 'UTF-8'),
-            'label_pl' => $label,
-        ];
-    }
-
-    /**
-     * Formatuje datę trackingu na format PL używany w BO.
-     */
-    private function formatTrackingDatePl(string $occurredAt): string
-    {
-        $occurredAt = trim($occurredAt);
-        if ($occurredAt === '') {
-            return '';
-        }
-        $occurredAt2 = preg_replace('/(\d{2}:\d{2}:\d{2})\.\d+/', '$1', $occurredAt);
-        $ts = strtotime($occurredAt2);
-        if ($ts === false) {
-            return $occurredAt;
-        }
-        return date('d.m.Y (H:i)', $ts);
     }
 
     public function initContent()

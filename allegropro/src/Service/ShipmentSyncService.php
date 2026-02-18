@@ -9,6 +9,7 @@ class ShipmentSyncService
     private ShipmentRepository $shipments;
     private ShipmentReferenceResolver $resolver;
     private array $discoveredShipmentContext = [];
+    private array $discoveredWaybillToShipmentId = [];
     private ?int $currentOrderIsSmart = null;
     private ?int $currentOrderSmartPackageLimit = null;
 
@@ -23,6 +24,7 @@ class ShipmentSyncService
     {
         $debugLines = [];
         $this->discoveredShipmentContext = [];
+        $this->discoveredWaybillToShipmentId = [];
         $this->currentOrderIsSmart = null;
         $this->currentOrderSmartPackageLimit = null;
         $startedAt = microtime(true);
@@ -44,9 +46,21 @@ class ShipmentSyncService
         }
 
         $shipmentIds = [];
-        foreach ($this->shipments->getOrderShipmentIds($accountId, $checkoutFormId) as $id) {
-            $shipmentIds[$id] = true;
-        }
+
+foreach ($this->shipments->getOrderShipmentIds($accountId, $checkoutFormId) as $id) {
+    $id = trim((string)$id);
+    if ($id === '') {
+        continue;
+    }
+    // Jeśli ktoś w przeszłości wpisał do shipment_id sam numer nadania (bez UUID/base64),
+    // to nie traktujemy tego jako shipmentId do pobierania szczegółów — to jest TRACKING.
+    // (Zostanie i tak pokazane w historii po polu tracking_number).
+    if ((bool)preg_match('/^[A-Z0-9]{8,64}$/', $id) && strpos($id, '-') === false && strpos($id, '+') === false && strpos($id, '/') === false && strpos($id, '=') === false && strpos($id, ':') === false) {
+        continue;
+    }
+    $shipmentIds[$id] = true;
+}
+
         if ($debug) {
             $debugLines[] = '[SYNC] lokalne shipment_id: ' . implode(', ', array_keys($shipmentIds));
         }
@@ -82,6 +96,15 @@ class ShipmentSyncService
         foreach ($this->discoverShipmentIdsFromApi($account, $checkoutFormId, $debugLines) as $sid) {
             $shipmentIds[$sid] = true;
         }
+
+// Normalizacja: jeśli wcześniej błędnie zapisaliśmy shipment_id jako tracking_number (np. "AD0..."),
+// to podczas syncu próbujemy to naprawić korzystając z mapy waybill -> shipmentIdCandidate z /order/.../shipments.
+if (!empty($this->discoveredWaybillToShipmentId) && method_exists($this->shipments, 'relinkWrongShipmentIdsForOrder')) {
+    $fixed = $this->shipments->relinkWrongShipmentIdsForOrder($accountId, $checkoutFormId, $this->discoveredWaybillToShipmentId);
+    if ($debug) {
+        $debugLines[] = '[SYNC] relink shipment_id (tracking->shipmentIdCandidate): updated=' . (int)$fixed;
+    }
+}
 
         $carrierCandidates = $this->getCarrierCandidatesForOrder($account, $checkoutFormJson, $checkoutFormId, $debugLines, $debug);
 
@@ -161,7 +184,7 @@ class ShipmentSyncService
                     $this->shipments->upsertFromAllegro(
                         $accountId,
                         $checkoutFormId,
-                        $wb,
+                        $resolvedShipmentId,
                         $status,
                         $wb,
                         $isSmart,
@@ -172,7 +195,7 @@ class ShipmentSyncService
                     );
                     $synced++;
                     if ($debug) {
-                        $debugLines[] = '[SYNC] dopisano brakujący waybill do DB: ' . $wb . ' (z shipmentId=' . $resolvedShipmentId . ')';
+                        $debugLines[] = '[SYNC] dopisano brakujący waybill do DB: tracking=' . $wb . ' (shipment_id=' . $resolvedShipmentId . ')';
                     }
                 }
             }
@@ -292,6 +315,13 @@ class ShipmentSyncService
                 $waybill = $this->resolver->extractWaybillFromRow($row);
                 $waybillsAll = $this->extractAllWaybillsFromArray($row);
 
+if (!empty($debugLines)) {
+    $dbgSid = $sid !== null ? (string)$sid : '-';
+    $dbgWbs = !empty($waybillsAll) ? implode('|', $waybillsAll) : '-';
+    $debugLines[] = '[SYNC] parsed: shipmentIdCandidate=' . $dbgSid . ', waybillsAll=' . $dbgWbs;
+}
+
+
                 if ($sid !== null) {
                     if ($this->resolver->looksLikeCreateCommandId($sid)) {
                         $resolvedFromCommand = $this->resolver->resolveShipmentIdCandidate($account, $sid, $debugLines);
@@ -312,21 +342,21 @@ class ShipmentSyncService
                     }
                 }
 
-                // Jeśli Allegro zwraca wiele paczek (packages[]), dopisz je jako osobne referencje (waybille)
-                // — dzięki temu moduł może odtworzyć pełną listę numerów nadania.
-                foreach ($waybillsAll as $wb) {
-                    $wb = trim((string)$wb);
-                    if ($wb === '') {
-                        continue;
-                    }
-                    $found[$wb] = true;
-                    // Kontekst dla upsertFromDiscoveredContext
-                    $this->captureDiscoveredRowContext($wb, $row);
-                    if (isset($this->discoveredShipmentContext[$wb])) {
-                        $this->discoveredShipmentContext[$wb]['tracking'] = $wb;
-                    }
-                }
-            }
+                
+// Waybille z wiersza (mogą być 1..n) — NIE dodajemy ich jako shipment_id do listy sync.
+// Służą tylko do:
+// 1) poprawnego uzupełnienia tracking_number,
+// 2) normalizacji starych błędnych rekordów gdzie shipment_id == tracking_number,
+// 3) ewentualnego backfillu dodatkowych paczek.
+if ($sid !== null && !empty($waybillsAll)) {
+    foreach ($waybillsAll as $wb) {
+        $wb = trim((string)$wb);
+        if ($wb === '') {
+            continue;
+        }
+        $this->discoveredWaybillToShipmentId[$wb] = $sid;
+    }
+}
         } elseif (!empty($debugLines)) {
             $debugLines[] = '[SYNC] /order/.../shipments brak JSON. raw=' . $this->shortRaw($checkoutShipmentsResp['raw'] ?? '');
         }
@@ -393,6 +423,8 @@ class ShipmentSyncService
 
         $tracking = $this->resolver->extractWaybillFromRow($row);
 
+        $waybillsAll = $this->extractAllWaybillsFromArray($row);
+
         $isSmart = null;
         if (isset($row['smart'])) {
             $isSmart = !empty($row['smart']) ? 1 : 0;
@@ -402,6 +434,9 @@ class ShipmentSyncService
             'status' => $status,
             'tracking' => $tracking,
             'is_smart' => $isSmart,
+            'carrier_mode' => isset($row['carrierMode']) ? (string)$row['carrierMode'] : (isset($row['carrier_mode']) ? (string)$row['carrier_mode'] : null),
+            'size_details' => isset($row['sizeDetails']) ? (string)$row['sizeDetails'] : (isset($row['size_details']) ? (string)$row['size_details'] : null),
+            'waybills_all' => $waybillsAll,
             'created_at' => $this->normalizeDateTime($row['createdAt'] ?? null),
             'status_changed_at' => $this->normalizeDateTime($row['statusChangedAt'] ?? ($row['updatedAt'] ?? null)),
         ];
@@ -426,19 +461,50 @@ class ShipmentSyncService
         $createdAt = $this->normalizeDateTime($context['created_at'] ?? null);
         $statusChangedAt = $this->normalizeDateTime($context['status_changed_at'] ?? ($context['updated_at'] ?? null)) ?: $createdAt;
 
+        
+$carrierMode = isset($context['carrier_mode']) && is_string($context['carrier_mode']) ? trim($context['carrier_mode']) : null;
+$sizeDetails = isset($context['size_details']) && is_string($context['size_details']) ? trim($context['size_details']) : null;
+
+$waybillsAll = [];
+if (isset($context['waybills_all']) && is_array($context['waybills_all'])) {
+    foreach ($context['waybills_all'] as $wb) {
+        $wb = trim((string)$wb);
+        if ($wb !== '') {
+            $waybillsAll[] = $wb;
+        }
+    }
+}
+
+if (!empty($waybillsAll)) {
+    foreach ($waybillsAll as $wb) {
         $this->shipments->upsertFromAllegro(
             $accountId,
             $checkoutFormId,
             $shipmentId,
             $status,
-            $tracking,
+            $wb,
             $isSmart,
-            null,
-            null,
+            $carrierMode,
+            $sizeDetails,
             $createdAt,
             $statusChangedAt
         );
+    }
+    return true;
+}
 
+$this->shipments->upsertFromAllegro(
+    $accountId,
+    $checkoutFormId,
+    $shipmentId,
+    $status,
+    $tracking,
+    $isSmart,
+    $carrierMode,
+    $sizeDetails,
+    $createdAt,
+    $statusChangedAt
+);
         return true;
     }
 

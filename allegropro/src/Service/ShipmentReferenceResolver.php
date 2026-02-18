@@ -496,6 +496,27 @@ public function resolveShipmentIdByWaybill(array $account, string $waybill, arra
             }
         }
 
+
+// OSTATECZNY FALLBACK: Allegro potrafi zwracać w /order/.../shipments identyfikator w formie base64,
+// który po dekodowaniu ma postać "CARRIER:WAYBILL" (np. "ALLEGRO:AD0...", "DPD:AD0...", "INPOST:620...").
+// Taki identyfikator NIE jest UUID ani commandId, ale działa jako {id} w /shipment-management/shipments/{id}
+// i powinien trafiać do kolumny shipment_id (a nie sam waybill).
+foreach ($refs as $candidate) {
+    $orig = trim((string)$candidate);
+    if ($orig === '') {
+        continue;
+    }
+    if ((bool)preg_match('/^[A-Za-z0-9+\/]+=*$/', $orig) && (strlen($orig) % 4 === 0)) {
+        $tmp = base64_decode($orig, true);
+        if (is_string($tmp) && $tmp !== '') {
+            $tmp = trim($tmp);
+            if (preg_match('/^[A-Z0-9_]{2,20}:[A-Za-z0-9]{8,64}$/', $tmp)) {
+                return $orig;
+            }
+        }
+    }
+}
+
         return null;
     }
 

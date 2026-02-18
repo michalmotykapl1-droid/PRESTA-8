@@ -269,6 +269,37 @@ class BillingEntryRepository
         return Db::getInstance()->executeS($sql) ?: [];
     }
 
+    /**
+     * Pobiera wpisy billingowe dla zamówienia (wiele kandydatów order_id) BEZ filtra daty.
+     * Używane w trybie: "Zamówienia z okresu" — opłaty mogą zostać zaksięgowane po wybranym okresie.
+     */
+    public function listForOrderCandidatesNoDate(int $accountId, array $orderIds): array
+    {
+        $vals = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') {
+                continue;
+            }
+            $vals[] = "'" . pSQL($id) . "'";
+        }
+        if (empty($vals)) {
+            return [];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        $sql = "SELECT *\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+            . "WHERE id_allegropro_account=" . (int)$accountId . "\n"
+            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+            . "  AND {$feeWhere}\n"
+            . "ORDER BY occurred_at DESC";
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
     public function getCategorySums(int $accountId, string $dateFrom, string $dateTo): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
@@ -473,6 +504,151 @@ class BillingEntryRepository
             $map[$aid][(string)$r['order_id']] = (float)$r['sum_amount'];
         }
         return $map;
+    }
+
+
+    /**
+     * Sumuje opłaty (feeWhere) per order_id dla wskazanych orderId (bez filtra daty).
+     *
+     * Używane w trybie: "Zamówienia z okresu" — zakres dat dotyczy daty złożenia zamówienia,
+     * natomiast opłaty mogą zostać zaksięgowane później (mimo to są kosztem tego zamówienia).
+     *
+     * @param int[] $accountIds
+     * @param string[] $orderIds Lista identyfikatorów order_id (np. checkoutFormId) — może zawierać warianty (bez myślników).
+     * @return array<int, array<string, float>> mapa: [accountId][orderId] = suma value_amount
+     */
+    public function sumByOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $orderIds)))));
+        if (empty($orderIds)) {
+            return [];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $map = [];
+        $chunkSize = 500;
+
+        for ($i = 0; $i < count($orderIds); $i += $chunkSize) {
+            $chunk = array_slice($orderIds, $i, $chunkSize);
+            $vals = [];
+            foreach ($chunk as $id) {
+                if ($id === '') {
+                    continue;
+                }
+                $vals[] = "'" . pSQL($id) . "'";
+            }
+            if (empty($vals)) {
+                continue;
+            }
+
+            $sql = "SELECT id_allegropro_account, order_id, SUM(value_amount) AS sum_amount
+"
+                . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+                . "WHERE {$accWhere}
+"
+                . "  AND order_id IS NOT NULL AND order_id <> ''
+"
+                . "  AND order_id IN (" . implode(',', $vals) . ")
+"
+                . "  AND {$feeWhere}
+"
+                . "GROUP BY id_allegropro_account, order_id";
+
+            $rows = Db::getInstance()->executeS($sql) ?: [];
+            foreach ($rows as $r) {
+                $aid = (int)($r['id_allegropro_account'] ?? 0);
+                if ($aid <= 0) {
+                    continue;
+                }
+                if (!isset($map[$aid])) {
+                    $map[$aid] = [];
+                }
+                $oid = (string)($r['order_id'] ?? '');
+                if ($oid === '') {
+                    continue;
+                }
+                if (!isset($map[$aid][$oid])) {
+                    $map[$aid][$oid] = 0.0;
+                }
+                $map[$aid][$oid] += (float)($r['sum_amount'] ?? 0);
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Suma kategorii opłat dla wskazanych orderId (bez filtra daty).
+     *
+     * @param int[] $accountIds
+     * @param string[] $orderIds
+     * @return array{total:float,commission:float,smart:float,delivery:float,promotion:float,refunds:float}
+     */
+    public function getCategorySumsForOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $orderIds)))));
+        if (empty($orderIds)) {
+            return ['total' => 0.0, 'commission' => 0.0, 'smart' => 0.0, 'delivery' => 0.0, 'promotion' => 0.0, 'refunds' => 0.0];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $out = ['total' => 0.0, 'commission' => 0.0, 'smart' => 0.0, 'delivery' => 0.0, 'promotion' => 0.0, 'refunds' => 0.0];
+
+        $chunkSize = 500;
+        for ($i = 0; $i < count($orderIds); $i += $chunkSize) {
+            $chunk = array_slice($orderIds, $i, $chunkSize);
+            $vals = [];
+            foreach ($chunk as $id) {
+                if ($id === '') {
+                    continue;
+                }
+                $vals[] = "'" . pSQL($id) . "'";
+            }
+            if (empty($vals)) {
+                continue;
+            }
+
+            $sql = "SELECT
+"
+                . "    SUM(value_amount) AS total,
+"
+                . "    SUM(CASE WHEN (type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN value_amount ELSE 0 END) AS commission,
+"
+                . "    SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN value_amount ELSE 0 END) AS smart,
+"
+                . "    SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN value_amount ELSE 0 END) AS delivery,
+"
+                . "    SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN value_amount ELSE 0 END) AS promotion,
+"
+                . "    SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN value_amount ELSE 0 END) AS refunds
+"
+                . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+"
+                . "WHERE {$accWhere}
+"
+                . "  AND order_id IS NOT NULL AND order_id <> ''
+"
+                . "  AND order_id IN (" . implode(',', $vals) . ")
+"
+                . "  AND {$feeWhere}";
+
+            $row = Db::getInstance()->getRow($sql) ?: [];
+            $out['total'] += (float)($row['total'] ?? 0);
+            $out['commission'] += (float)($row['commission'] ?? 0);
+            $out['smart'] += (float)($row['smart'] ?? 0);
+            $out['delivery'] += (float)($row['delivery'] ?? 0);
+            $out['promotion'] += (float)($row['promotion'] ?? 0);
+            $out['refunds'] += (float)($row['refunds'] ?? 0);
+        }
+
+        return $out;
     }
 
     /**

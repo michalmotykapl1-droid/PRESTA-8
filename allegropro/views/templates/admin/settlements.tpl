@@ -16,6 +16,10 @@
             </span>
           {/if}
 
+          <span class="alpro-badge" title="{if $mode=='billing'}Daty dotyczą księgowania opłat (Sales Center).{else}Daty dotyczą złożenia zamówień; koszty liczone są dla tych zamówień.{/if}">
+            Tryb: <strong>{if $mode=='billing'}Księgowanie opłat{else}Zamówienia z okresu{/if}</strong>
+          </span>
+
           {if isset($summary.unassigned_count) && $summary.unassigned_count > 0}
             <span class="badge badge-warning">Nieprzypisane: {$summary.unassigned_count|intval}</span>
           {/if}
@@ -34,7 +38,10 @@
 
       <div class="alpro-filters">
         <div class="filters-left">
-          <form method="get" action="{$settlements_link|escape:'htmlall':'UTF-8'}" class="m-0">
+          {* Uwaga: action musi zawierać poprawny token, inaczej Presta przekieruje do Pulpitu.*}
+          <form method="get" action="index.php" class="m-0">
+            <input type="hidden" name="controller" value="AdminAllegroProSettlements" />
+            <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="page" value="1" />
 
             <div class="alpro-filter-row">
@@ -98,6 +105,17 @@
                 <a href="#" class="alpro-select-all" id="alproSelectAll">Zaznacz wszystkie</a>
               </div>
 
+              <div class="form-group" style="min-width:270px;">
+                <label class="form-control-label">Zakres dotyczy</label>
+                <select name="mode" class="form-control">
+                  <option value="billing" {if $mode=='billing'}selected{/if}>Księgowanie opłat (Sales Center)</option>
+                  <option value="orders" {if $mode=='orders'}selected{/if}>Zamówienia z okresu (koszt zamówień)</option>
+                </select>
+                <div class="help-block alpro-muted" style="margin-top:4px;">
+                  {if $mode=='billing'}Daty odnoszą się do <strong>daty księgowania opłat</strong>.{else}Daty odnoszą się do <strong>daty złożenia zamówienia</strong>.{/if}
+                </div>
+              </div>
+
               <div class="form-group" style="min-width:160px;">
                 <label class="form-control-label">Od</label>
                 <input type="date" class="form-control" name="date_from" value="{$date_from|escape:'htmlall':'UTF-8'}" />
@@ -134,20 +152,23 @@
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$settlements_link|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
 
-          <form method="post" action="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}" class="m-0">
+          <form method="post" action="index.php" class="m-0">
+            <input type="hidden" name="controller" value="AdminAllegroProSettlements" />
+            <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="id_allegropro_account" value="{$selected_account_id|intval}" />
+            <input type="hidden" name="mode" value="{$mode|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="date_from" value="{$date_from|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="date_to" value="{$date_to|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="q" value="{$q|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 
-            <button type="submit" name="submitAllegroProBillingSync" value="1" class="btn btn-primary" {if $selected_account_ids|@count > 1}disabled title="Synchronizacja działa dla jednego konta naraz — wybierz jedno konto."{/if}>
+            <button type="submit" name="submitAllegroProBillingSync" value="1" class="btn btn-primary" {if $selected_account_ids|@count > 1 || $mode!='billing'}disabled title="Synchronizacja działa dla jednego konta naraz i dotyczy księgowania opłat — wybierz jedno konto oraz tryb 'Księgowanie opłat'."{/if}>
               <i class="material-icons" style="font-size:18px; vertical-align:middle;">cloud_download</i>
               <span style="vertical-align:middle;">Synchronizuj opłaty</span>
             </button>
@@ -184,7 +205,7 @@
               <div>
                 <div class="label">Sprzedaż brutto</div>
                 <div class="value">{$summary.sales_total|number_format:2:',':' '} zł</div>
-                <div class="sub">Suma zamówień w okresie</div>
+                <div class="sub">{if $mode=='billing'}Zamówienia z opłatami zaksięgowanymi w okresie{else}Zamówienia złożone w okresie{/if}</div>
               </div>
               <div class="icon" title="Sprzedaż">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -198,11 +219,11 @@
           <div class="alpro-kpi alpro-kpi--fees">
             <div class="top">
               <div>
-                <div class="label">Opłaty Allegro</div>
+                <div class="label">{if $mode=='billing'}Opłaty Allegro{else}Koszty zamówień{/if}</div>
                 <div class="value {if $summary.fees_total < 0}text-danger{elseif $summary.fees_total > 0}text-success{/if}">
                   {$summary.fees_total|number_format:2:',':' '} zł
                 </div>
-                <div class="sub">Opłaty + korekty (bez przepływów środków)</div>
+                <div class="sub">{if $mode=='billing'}Opłaty + korekty (bez przepływów środków){else}Opłaty przypisane do zamówień z okresu (mogą być zaksięgowane później){/if}</div>
               </div>
               <div class="icon" title="Opłaty">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -337,7 +358,7 @@
       <table class="table table-striped table-hover table-sm mb-0 alpro-table">
         <thead>
           <tr>
-            <th>Data</th>
+            <th>{if $mode=='billing'}Data operacji{else}Data zamówienia{/if}</th>
             <th>Konto</th>
             <th>Zamówienie</th>
             <th>Kupujący</th>
@@ -352,7 +373,7 @@
             {assign var=saldo value=$o.net_after_fees}
             {assign var=idShort value=$o.checkout_form_id|truncate:18:"…":true}
             <tr>
-              <td>{$o.created_at_allegro|escape:'htmlall':'UTF-8'}</td>
+              <td>{$o.date_display|default:$o.created_at_allegro|escape:'htmlall':'UTF-8'}</td>
               <td><span class="alpro-badge" title="Konto Allegro">{$o.account_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
               <td><span class="alpro-id" title="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}">{$idShort|escape:'htmlall':'UTF-8'}</span></td>
               <td>{$o.buyer_login|escape:'htmlall':'UTF-8'}</td>
@@ -408,6 +429,7 @@
      data-ajax-url="{$ajax_url|escape:'htmlall':'UTF-8'}"
           data-date-from="{$date_from|escape:'htmlall':'UTF-8'}"
      data-date-to="{$date_to|escape:'htmlall':'UTF-8'}"
+     data-mode="{$mode|escape:'htmlall':'UTF-8'}"
 ></div>
 
 {* Modal: szczegóły zamówienia *}
