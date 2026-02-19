@@ -44,15 +44,14 @@
                     <div class="col-4 text-muted">E-mail:</div>
                     <div class="col-8"><a href="mailto:{$allegro_data.buyer.email}">{$allegro_data.buyer.email}</a></div>
                 </div>
-                {if $allegro_data.invoice}
-                    <div class="mt-2 alert alert-info p-2">
-                        <strong>FAKTURA:</strong><br>
-                        {$allegro_data.invoice.company_name}<br>
-                        NIP: {$allegro_data.invoice.tax_id}
-                    </div>
-                {/if}
             </div>
 
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-12">
+                {include file='./partials/documents_panel.tpl' allegro_data=$allegro_data}
+            </div>
         </div>
 
         <div class="row mt-3">
@@ -359,6 +358,7 @@ document.addEventListener("DOMContentLoaded", function() {
             var isSmart = document.getElementById('is_smart_shipment').checked;
             var dbgToggle = document.getElementById('sync_shipments_debug');
             var debugEnabled = dbgToggle ? dbgToggle.checked : false;
+
             var thisBtn = this;
             thisBtn.disabled = true;
             thisBtn.innerText = 'Tworzenie...';
@@ -723,6 +723,104 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     });
+
+
+    // --- 4c. Dokumenty sprzedażowe z Allegro ---
+    var btnFetchDocs = document.getElementById('btnFetchOrderDocuments');
+    if (btnFetchDocs) {
+        btnFetchDocs.addEventListener('click', function(e){
+            e.preventDefault();
+            var thisBtn = this;
+            var msgBox = document.getElementById('order_documents_msg');
+            var listBox = document.getElementById('order_documents_list');
+            var debugToggle = document.getElementById('order_documents_debug');
+            var debugBox = document.getElementById('order_documents_debug_box');
+            var debugEnabled = !!(debugToggle && debugToggle.checked);
+
+            if (msgBox) {
+                msgBox.className = 'text-muted';
+                msgBox.innerText = 'Pobieranie listy dokumentów z Allegro...';
+            }
+            if (listBox) {
+                listBox.innerHTML = '';
+            }
+            if (debugBox) {
+                debugBox.style.display = 'none';
+                debugBox.innerText = '';
+            }
+
+            thisBtn.disabled = true;
+
+            var fd = new FormData();
+            fd.append('checkout_form_id', cfId);
+            fd.append('id_allegropro_account', accId);
+            fd.append('debug', debugEnabled ? 1 : 0);
+
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=getOrderDocuments&ajax=1', {
+                method: 'POST',
+                body: fd
+            })
+            .then(function(res){ return res.json(); })
+            .then(function(data){
+                if (debugEnabled && debugBox && Array.isArray(data.debug_lines) && data.debug_lines.length) {
+                    debugBox.style.display = 'block';
+                    debugBox.innerText = data.debug_lines.join("\n");
+                }
+
+                if (!data.success || !Array.isArray(data.documents)) {
+                    if (msgBox) {
+                        msgBox.className = 'text-danger';
+                        msgBox.innerText = data.message || 'Nie udało się pobrać dokumentów.';
+                    }
+                    return;
+                }
+
+                if (msgBox) {
+                    msgBox.className = 'text-success';
+                    msgBox.innerText = data.message || ('Pobrano dokumenty: ' + data.documents.length);
+                }
+
+                if (!listBox) {
+                    return;
+                }
+
+                if (!data.documents.length) {
+                    listBox.innerHTML = '<div class="text-muted" style="font-size:12px;">Brak dokumentów do pobrania.</div>';
+                    return;
+                }
+
+                var rows = ['<div class="table-responsive"><table class="table table-sm table-striped" style="font-size:12px; margin-bottom:0;">',
+                    '<thead><tr><th>Typ</th><th>Numer</th><th>Status</th><th>Data</th><th class="text-right">Akcja</th></tr></thead><tbody>'];
+
+                data.documents.forEach(function(doc){
+                    var type = doc.type || 'Dokument';
+                    var number = doc.number || '—';
+                    var status = doc.status || '—';
+                    var issued = doc.issued_at || '—';
+                    var url = doc.download_url || '#';
+                    rows.push('<tr>'
+                        + '<td>' + String(type).replace(/</g, '&lt;') + '</td>'
+                        + '<td>' + String(number).replace(/</g, '&lt;') + '</td>'
+                        + '<td>' + String(status).replace(/</g, '&lt;') + '</td>'
+                        + '<td>' + String(issued).replace(/</g, '&lt;') + '</td>'
+                        + '<td class="text-right"><a class="btn btn-xs btn-default" href="' + String(url).replace(/"/g, '&quot;') + '" target="_blank">Pobierz</a></td>'
+                        + '</tr>');
+                });
+
+                rows.push('</tbody></table></div>');
+                listBox.innerHTML = rows.join('');
+            })
+            .catch(function(){
+                if (msgBox) {
+                    msgBox.className = 'text-danger';
+                    msgBox.innerText = 'Błąd połączenia podczas pobierania dokumentów.';
+                }
+            })
+            .finally(function(){
+                thisBtn.disabled = false;
+            });
+        });
+    }
 
     // --- 5. TRACKING (modal z historią) ---
     function apShowTrackingModal() {

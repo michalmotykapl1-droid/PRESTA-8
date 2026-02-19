@@ -91,6 +91,53 @@ class OrderRepository
         return (int)Db::getInstance()->getValue($q);
     }
 
+
+    /**
+     * Backward compatibility for controller filters (AdminAllegroProOrdersController::initContent).
+     */
+    public function getOrderStatusGroupsForFilters(): array
+    {
+        return [
+            'BOUGHT' => ['label' => 'Kupione'],
+            'FILLED_IN' => ['label' => 'Wypełnione'],
+            'READY_FOR_PROCESSING' => ['label' => 'Do realizacji'],
+            'PROCESSING' => ['label' => 'W realizacji'],
+            'SENT' => ['label' => 'Wysłane'],
+            'CANCELLED' => ['label' => 'Anulowane'],
+        ];
+    }
+
+    public function searchWithFiltersPaged(array $filters, int $limit, int $offset): array
+    {
+        $mapped = $this->mapLegacyControllerFilters($filters);
+        return $this->getPaginatedFiltered($mapped, $limit, $offset);
+    }
+
+    public function countWithFilters(array $filters): int
+    {
+        $mapped = $this->mapLegacyControllerFilters($filters);
+        return $this->countFiltered($mapped);
+    }
+
+    private function mapLegacyControllerFilters(array $filters): array
+    {
+        $mapped = [
+            'id_allegropro_account' => isset($filters['id_allegropro_account']) ? (int)$filters['id_allegropro_account'] : null,
+            'date_from' => (string)($filters['date_from'] ?? ''),
+            'date_to' => (string)($filters['date_to'] ?? ''),
+            'checkout_form_id' => (string)($filters['checkout_id'] ?? ''),
+            'global_query' => (string)($filters['q'] ?? ''),
+            'statuses' => is_array($filters['status_codes'] ?? null) ? $filters['status_codes'] : [],
+            'delivery_methods' => [],
+        ];
+
+        if (!empty($filters['delivery_method'])) {
+            $mapped['delivery_methods'] = [(string)$filters['delivery_method']];
+        }
+
+        return $mapped;
+    }
+
     private function applyFilters(DbQuery $q, array $filters): void
     {
         if (!empty($filters['id_allegropro_account'])) {

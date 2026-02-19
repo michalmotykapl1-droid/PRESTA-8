@@ -701,6 +701,81 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $this->downloadLabelFile();
     }
 
+    public function displayAjaxGetOrderDocuments() {
+        $cfId = trim((string)Tools::getValue('checkout_form_id'));
+        $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
+
+        if ($cfId === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id.']));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
+        }
+
+        $api = new AllegroApiClient(new HttpClient(), new AccountRepository());
+        $encodedCfId = rawurlencode($cfId);
+
+        $endpoints = [
+            '/order/checkout-forms/' . $encodedCfId . '/invoices',
+            '/order/checkout-forms/' . $encodedCfId . '/documents',
+        ];
+
+        $debugLines = [];
+        $documents = [];
+
+        foreach ($endpoints as $ep) {
+            $res = $api->getWithAcceptFallbacks($account, $ep, [], [
+                'application/vnd.allegro.public.v1+json',
+                'application/json',
+            ]);
+
+            $debugLines[] = sprintf('[DOCS] GET %s => HTTP %d ok=%d', $ep, (int)($res['code'] ?? 0), !empty($res['ok']) ? 1 : 0);
+
+            if (empty($res['ok']) || !is_array($res['json'])) {
+                continue;
+            }
+
+            $parsed = $this->extractOrderDocumentsFromPayload($res['json']);
+            if (!empty($parsed)) {
+                foreach ($parsed as $row) {
+                    $row['endpoint'] = $ep;
+                    $documents[] = $row;
+                }
+            }
+        }
+
+        $documents = $this->normalizeOrderDocuments($documents, $cfId, (int)$account['id_allegropro_account']);
+
+        if (empty($documents)) {
+            $payload = [
+                'success' => false,
+                'message' => 'Brak dokumentów sprzedażowych dostępnych w Allegro dla tego zamówienia.',
+            ];
+            if ($debug) {
+                $payload['debug_lines'] = $debugLines;
+            }
+            $this->ajaxDie(json_encode($payload));
+        }
+
+        $payload = [
+            'success' => true,
+            'message' => 'Pobrano listę dokumentów: ' . count($documents),
+            'documents' => $documents,
+        ];
+
+        if ($debug) {
+            $payload['debug_lines'] = $debugLines;
+        }
+
+        $this->ajaxDie(json_encode($payload));
+    }
+
+    public function displayAjaxDownloadOrderDocumentFile() {
+        $this->downloadOrderDocumentFile();
+    }
+
     public function displayAjaxGetTracking() {
         $trackingNo = trim((string)Tools::getValue('tracking_number'));
         $cfId = trim((string)Tools::getValue('checkout_form_id'));
@@ -912,6 +987,198 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
+    }
+
+    private function extractOrderDocumentsFromPayload(array $json): array
+    {
+        $containers = [];
+
+        if (isset($json['invoices']) && is_array($json['invoices'])) {
+            $containers[] = $json['invoices'];
+        }
+        if (isset($json['documents']) && is_array($json['documents'])) {
+            $containers[] = $json['documents'];
+        }
+        if (isset($json['salesDocuments']) && is_array($json['salesDocuments'])) {
+            $containers[] = $json['salesDocuments'];
+        }
+        if (isset($json['items']) && is_array($json['items'])) {
+            $containers[] = $json['items'];
+        }
+
+        if (empty($containers) && array_keys($json) === range(0, count($json) - 1)) {
+            $containers[] = $json;
+        }
+
+        $out = [];
+        foreach ($containers as $list) {
+            foreach ((array)$list as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $id = (string)($item['id'] ?? $item['documentId'] ?? $item['uuid'] ?? '');
+                $type = (string)($item['type'] ?? $item['kind'] ?? $item['documentType'] ?? 'DOKUMENT');
+                $number = (string)($item['number'] ?? $item['name'] ?? $item['documentNumber'] ?? '');
+                $status = (string)($item['status'] ?? '');
+                $issuedAt = (string)($item['issuedAt'] ?? $item['createdAt'] ?? $item['created_at'] ?? '');
+                $downloadUrl = (string)($item['downloadUrl'] ?? $item['url'] ?? (($item['file']['url'] ?? '')));
+
+                $out[] = [
+                    'id' => $id,
+                    'type' => $type,
+                    'number' => $number,
+                    'status' => $status,
+                    'issued_at' => $issuedAt,
+                    'direct_url' => $downloadUrl,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    private function normalizeOrderDocuments(array $docs, string $checkoutFormId, int $accountId): array
+    {
+        $out = [];
+        $seen = [];
+
+        foreach ($docs as $idx => $doc) {
+            $id = trim((string)($doc['id'] ?? ''));
+            $type = trim((string)($doc['type'] ?? 'Dokument'));
+            $number = trim((string)($doc['number'] ?? ''));
+            $status = trim((string)($doc['status'] ?? ''));
+            $issuedAt = trim((string)($doc['issued_at'] ?? ''));
+            $directUrl = trim((string)($doc['direct_url'] ?? ''));
+
+            $key = strtolower(($id !== '' ? $id : ('row_' . $idx)) . '|' . $type . '|' . $number . '|' . $issuedAt);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $downloadUrl = $this->context->link->getAdminLink('AdminAllegroProOrders')
+                . '&ajax=1&action=downloadOrderDocumentFile'
+                . '&checkout_form_id=' . rawurlencode($checkoutFormId)
+                . '&id_allegropro_account=' . (int)$accountId
+                . '&document_id=' . rawurlencode($id)
+                . '&document_type=' . rawurlencode($type)
+                . '&direct_url=' . rawurlencode($directUrl);
+
+            $out[] = [
+                'id' => $id,
+                'type' => $type,
+                'number' => $number,
+                'status' => $status,
+                'issued_at' => $issuedAt,
+                'download_url' => $downloadUrl,
+            ];
+        }
+
+        return array_values($out);
+    }
+
+    private function downloadOrderDocumentFile(): void
+    {
+        $cfId = trim((string)Tools::getValue('checkout_form_id'));
+        $docId = trim((string)Tools::getValue('document_id'));
+        $docType = trim((string)Tools::getValue('document_type', 'dokument'));
+        $directUrl = trim((string)Tools::getValue('direct_url'));
+        $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
+
+        if ($cfId === '') {
+            header('HTTP/1.1 400 Bad Request');
+            echo 'Brak checkout_form_id.';
+            exit;
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            header('HTTP/1.1 403 Forbidden');
+            echo 'Nieprawidłowe konto Allegro.';
+            exit;
+        }
+
+        $api = new AllegroApiClient(new HttpClient(), new AccountRepository());
+        $debugLines = [];
+        $binary = '';
+        $ok = false;
+        $httpCode = 0;
+
+        if ($directUrl !== '' && preg_match('#^https?://#i', $directUrl)) {
+            $resp = $api->fetchPublicUrl($directUrl);
+            $debugLines[] = sprintf('[DOC-DL] direct url %s => HTTP %d ok=%d', $directUrl, (int)($resp['code'] ?? 0), !empty($resp['ok']) ? 1 : 0);
+            if (!empty($resp['ok']) && (string)($resp['body'] ?? '') !== '') {
+                $ok = true;
+                $binary = (string)$resp['body'];
+                $httpCode = (int)$resp['code'];
+            }
+        }
+
+        if (!$ok && $docId !== '') {
+            $encodedCfId = rawurlencode($cfId);
+            $encodedDocId = rawurlencode($docId);
+            $candidates = [
+                '/order/checkout-forms/' . $encodedCfId . '/invoices/' . $encodedDocId . '/file',
+                '/order/checkout-forms/' . $encodedCfId . '/documents/' . $encodedDocId . '/file',
+            ];
+
+            foreach ($candidates as $ep) {
+                $resp = $api->get($account, $ep, [], 'application/pdf');
+                $debugLines[] = sprintf('[DOC-DL] GET %s => HTTP %d ok=%d', $ep, (int)($resp['code'] ?? 0), !empty($resp['ok']) ? 1 : 0);
+                $httpCode = (int)($resp['code'] ?? 0);
+                if (!empty($resp['ok']) && (string)($resp['raw'] ?? '') !== '') {
+                    $binary = (string)$resp['raw'];
+                    $ok = true;
+                    break;
+                }
+            }
+        }
+
+        if (!$ok) {
+            if ($debug) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Nie udało się pobrać dokumentu z Allegro.',
+                    'http_code' => $httpCode,
+                    'debug_lines' => $debugLines,
+                ]);
+                exit;
+            }
+
+            header('HTTP/1.1 502 Bad Gateway');
+            echo 'Nie udało się pobrać dokumentu z Allegro.';
+            exit;
+        }
+
+        $safeCf = preg_replace('/[^a-zA-Z0-9_-]/', '_', $cfId);
+        $safeId = preg_replace('/[^a-zA-Z0-9_-]/', '_', $docId !== '' ? $docId : 'doc');
+        $safeType = preg_replace('/[^a-zA-Z0-9_-]/', '_', $docType !== '' ? $docType : 'dokument');
+        $fileName = 'allegro_document_' . $safeCf . '_' . $safeType . '_' . $safeId . '.pdf';
+
+        if ($debug) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Dokument pobrany (tryb debug).',
+                'file_name' => $fileName,
+                'size' => strlen($binary),
+                'debug_lines' => $debugLines,
+            ]);
+            exit;
+        }
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . (string)strlen($binary));
+        header('Content-Disposition: inline; filename="' . $fileName . '"');
+        header('X-Content-Type-Options: nosniff');
+        echo $binary;
+        exit;
     }
 
     private function downloadLabelFile(): void
