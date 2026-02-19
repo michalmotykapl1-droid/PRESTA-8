@@ -375,19 +375,49 @@
       var buyer = escHtml(data.buyer_login || '');
       var acc = escHtml(data.account_label || '');
       var id = escHtml(data.checkout_form_id || '');
+      var statusRaw = String(data.order_status || '');
 
-      modalMeta.innerHTML = (acc ? ('Konto: <strong>' + acc + '</strong> • ') : '') + 'ID: <span class="alpro-id">' + id + '</span>';
+      function statusBadge(st) {
+        st = String(st || '').toUpperCase();
+        if (!st) return '';
+        var cls = 'badge badge-secondary';
+        var label = st;
+        if (st === 'CANCELLED') { cls = 'badge badge-danger'; label = 'Anulowane'; }
+        else if (st === 'FILLED_IN') { cls = 'badge badge-warning'; label = 'Nieopłacone'; }
+        else if (st === 'READY_FOR_PROCESSING' || st === 'BOUGHT') { cls = 'badge badge-success'; label = 'Opłacone'; }
+        return '<span class="' + cls + '" style="margin-left:6px;">' + escHtml(label) + '</span>';
+      }
 
-      var orderTotal = Number(data.order_total || 0);
-      var feesTotal = Number(data.fees_total || 0);
-      var netAfter = Number(data.net_after_fees || (orderTotal + feesTotal));
+      modalMeta.innerHTML = (acc ? ('Konto: <strong>' + acc + '</strong> • ') : '')
+        + 'ID: <span class="alpro-id">' + id + '</span>'
+        + (statusRaw ? (' • Status: ' + statusBadge(statusRaw)) : '');
+
+      var orderTotal = Number(data.order_total || 0);          // suma z dostawą
+      var sales = Number(data.sales_amount || 0);             // sprzedaż bez dostawy
+      var shipping = Number(data.shipping_amount || 0);
+
+      if (!sales && orderTotal) {
+        // fallback: jeśli backend nie podał, załóż że sprzedaż = suma
+        sales = orderTotal;
+      }
+
+      var feesTotal = Number(data.fees_total || 0);           // netto (ujemne = koszt)
+      var feesCharged = Number(data.fees_charged || 0);       // dodatnie (abs ujemnych)
+      var feesRefunded = Number(data.fees_refunded || 0);     // dodatnie
+      var feesPending = Number(data.fees_pending || 0);       // dodatnie
+
+      var netAfter = Number(data.net_after_fees || (sales + feesTotal));
 
       var kpiHtml = '' +
         '<div class="alpro-modal-kpis">' +
           '<div class="kpi"><div class="label">Kupujący</div><div class="value">' + (buyer || '<span style="color:#6c757d;">brak</span>') + '</div><div class="sub">Login Allegro</div></div>' +
-          '<div class="kpi"><div class="label">Suma zamówienia</div><div class="value">' + fmtMoney(orderTotal) + '</div><div class="sub">Brutto</div></div>' +
-          '<div class="kpi"><div class="label">Opłaty łącznie</div><div class="value" style="color:' + (feesTotal < 0 ? '#dc3545' : '#28a745') + ';">' + fmtMoney(feesTotal) + '</div><div class="sub">Koszt Allegro</div></div>' +
-          '<div class="kpi"><div class="label">Koszt opłat</div><div class="value">' + fmtPct(data.fees_rate_pct || 0) + '</div><div class="sub">% wartości zamówienia</div></div>' +
+          '<div class="kpi"><div class="label">Sprzedaż (bez dostawy)</div><div class="value">' + fmtMoney(sales) + '</div><div class="sub">Suma z dostawą: <strong>' + fmtMoney(orderTotal) + '</strong></div></div>' +
+          '<div class="kpi"><div class="label">Dostawa</div><div class="value">' + fmtMoney(shipping) + '</div><div class="sub">Koszt dostawy z zamówienia</div></div>' +
+          '<div class="kpi"><div class="label">Opłaty pobrane</div><div class="value" style="color:#dc3545;">' + fmtMoney(-feesCharged) + '</div><div class="sub">Suma ujemnych opłat (wszystkie daty)</div></div>' +
+          '<div class="kpi"><div class="label">Zwroty opłat</div><div class="value" style="color:#28a745;">' + fmtMoney(feesRefunded) + '</div><div class="sub">Suma dodatnich korekt (wszystkie daty)</div></div>' +
+          '<div class="kpi"><div class="label">Do zwrotu (anul./nieopł.)</div><div class="value" style="color:' + (feesPending > 0.01 ? '#fd7e14' : '#6c757d') + ';">' + fmtMoney(feesPending) + '</div><div class="sub">Tylko dla anulowanych/nieopłaconych: jeśli &gt; 0, Allegro powinno zwrócić</div></div>' +
+          '<div class="kpi"><div class="label">Opłaty netto (okres)</div><div class="value" style="color:' + (feesTotal < 0 ? '#dc3545' : '#28a745') + ';">' + fmtMoney(feesTotal) + '</div><div class="sub">Koszt / korekty w wybranym trybie</div></div>' +
+          '<div class="kpi"><div class="label">Saldo po opłatach</div><div class="value" style="color:' + (netAfter < 0 ? '#dc3545' : '#28a745') + ';">' + fmtMoney(netAfter) + '</div><div class="sub">Sprzedaż + opłaty netto</div></div>' +
         '</div>';
 
       // breakdown table

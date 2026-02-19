@@ -184,6 +184,7 @@ class OrderDetailsProvider
 
         $shipmentSizeOptions = $this->buildShipmentSizeOptions(is_array($account) ? $account : [], is_array($shipping) ? $shipping : []);
         $weightDefaults = $this->buildShipmentWeightDefaults($cfId, $psOrderId);
+        $dimensionDefaults = $this->buildShipmentDimensionDefaults();
 
         return [
             'order' => $order,
@@ -202,6 +203,25 @@ class OrderDetailsProvider
             'shipments_sync' => $syncMeta,
             'shipment_size_options' => $shipmentSizeOptions,
             'shipment_weight_defaults' => $weightDefaults,
+            'shipment_dimension_defaults' => $dimensionDefaults,
+        ];
+    }
+
+    private function buildShipmentDimensionDefaults(): array
+    {
+        $pkgDefaults = Config::pkgDefaults();
+
+        $length = (int)($pkgDefaults['length'] ?? 10);
+        $width = (int)($pkgDefaults['width'] ?? 10);
+        $height = (int)($pkgDefaults['height'] ?? 10);
+
+        return [
+            'manual_default_length' => $length > 0 ? $length : 10,
+            'manual_default_width' => $width > 0 ? $width : 10,
+            'manual_default_height' => $height > 0 ? $height : 10,
+            'config_length' => $length > 0 ? $length : 10,
+            'config_width' => $width > 0 ? $width : 10,
+            'config_height' => $height > 0 ? $height : 10,
         ];
     }
 

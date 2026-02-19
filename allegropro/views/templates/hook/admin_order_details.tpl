@@ -152,8 +152,24 @@
                                         <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
                                     </div>
                                 </div>
+                                <input type="hidden" id="shipment_dimension_source" value="CONFIG">
+                                <div class="mb-2" id="shipment_dimensions_panel" style="border:1px solid #cfd7df; border-radius:10px; background:#fff; padding:8px;{if $allegro_data.carrier_mode == 'COURIER'} display:block;{else} display:none;{/if}">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
+                                        <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WYMIARY PACZKI (CM)</span>
+                                        <div style="display:flex; gap:6px;">
+                                            <button type="button" id="dimension_mode_config" class="btn btn-sm btn-primary" data-dimension-mode="CONFIG" style="border-radius:7px;">Konfiguracja</button>
+                                            <button type="button" id="dimension_mode_manual" class="btn btn-sm btn-default" data-dimension-mode="MANUAL" style="border-radius:7px;">Ręcznie</button>
+                                        </div>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:8px;">
+                                        <input type="number" min="1" step="1" id="shipment_length_input" class="form-control" placeholder="Długość" value="{$allegro_data.shipment_dimension_defaults.manual_default_length|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_length|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_length|default:10|intval}">
+                                        <input type="number" min="1" step="1" id="shipment_width_input" class="form-control" placeholder="Szerokość" value="{$allegro_data.shipment_dimension_defaults.manual_default_width|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_width|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_width|default:10|intval}">
+                                        <input type="number" min="1" step="1" id="shipment_height_input" class="form-control" placeholder="Wysokość" value="{$allegro_data.shipment_dimension_defaults.manual_default_height|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_height|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_height|default:10|intval}">
+                                    </div>
+                                </div>
                                 <small class="form-text text-muted mb-2">{$allegro_data.shipment_size_options.help_text|default:'Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.'|escape:'htmlall':'UTF-8'}</small>
                                 <small class="form-text text-muted mb-2">W tym panelu ustawiasz wagę paczki: wybierz źródło (Konfiguracja / Z produktów), a wartość w polu obok zaktualizuje się automatycznie. W każdej chwili możesz ją ręcznie nadpisać.</small>
+                                <small class="form-text text-muted mb-2">Dla metod kurierskich od razu pokazujemy pola długość / szerokość / wysokość. Możesz użyć wartości z konfiguracji i w razie potrzeby ręcznie je zmienić.</small>
                                 <small class="form-text text-muted mb-2" style="font-size:11px;">
                                     Źródło gabarytów: <strong>{$allegro_data.shipment_size_options.source|default:'fallback'|escape:'htmlall':'UTF-8'}</strong>
                                     | Profil: <strong>{$allegro_data.shipment_size_options.profile|default:'-'|escape:'htmlall':'UTF-8'}</strong>
@@ -165,7 +181,6 @@
                                 </div>
                             </div>
                         </div>
-
                         {* HISTORIA *}
                         <h5 style="font-size:13px;">Historia Przesyłek:</h5>
                         <div class="table-responsive">
@@ -281,96 +296,98 @@
 	                        {/literal}
 	                        </style>
 
-                        <div class="modal fade" id="apTrackingModal" tabindex="-1" role="dialog" aria-labelledby="apTrackingModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-lg" role="document">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h4 class="modal-title" id="apTrackingModalLabel"><i class="material-icons" style="vertical-align:middle;">local_shipping</i> Śledzenie przesyłki</h4>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div id="apTrackingAlert" class="alert" style="display:none;"></div>
-                                        <div id="apTrackingContent">
-                                            <div class="text-muted">Pobieranie danych…</div>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <a href="#" target="_blank" class="btn btn-info" id="apTrackingOpenLink" rel="noopener">Otwórz śledzenie w Allegro</a>
-                                        <button type="button" class="btn btn-default" data-dismiss="modal">Zamknij</button>
-                                    </div>
-                                </div>
+                        <div class="modal fade" id="apTrackingModal" tabindex="-1" role="dialog" aria-hidden="true">
+                          <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                              <div class="modal-header">
+                                <h5 class="modal-title">Historia śledzenia przesyłki</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij"><span aria-hidden="true">&times;</span></button>
+                              </div>
+                              <div class="modal-body">
+                                <div id="apTrackingAlert" class="alert" style="display:none;"></div>
+                                <div id="apTrackingContent"></div>
+                              </div>
+                              <div class="modal-footer">
+                                <a href="#" id="apTrackingOpenLink" target="_blank" class="btn btn-default">Otwórz stronę przewoźnika</a>
+                                <button type="button" class="btn btn-primary" data-dismiss="modal">Zamknij</button>
+                              </div>
                             </div>
+                          </div>
                         </div>
+                        {* PRODUKTY *}
+                        <hr>
+                        <h5 style="font-size:13px;">Produkty z zamówienia:</h5>
+                        <table class="table table-sm table-bordered" style="font-size:11px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:50px;">ID</th>
+                                    <th>Nazwa</th>
+                                    <th style="width:80px;">EAN</th>
+                                    <th style="width:80px;">Ilość</th>
+                                    <th style="width:90px;">Waga [kg]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {foreach from=$allegro_data.items item=item}
+                                <tr>
+                                    <td>{$item.id_product|intval}</td>
+                                    <td>{$item.product_name|default:$item.name|default:'-'|escape:'htmlall':'UTF-8'}</td>
+                                    <td>
+                                        {if isset($item.ean) && $item.ean}
+                                            <span class="badge badge-info" style="font-size:12px;">{$item.ean|escape:'htmlall':'UTF-8'}</span>
+                                        {else}
+                                            <span class="text-muted">brak</span>
+                                        {/if}
+                                    </td>
+                                    <td>{$item.quantity|default:0|intval}</td>
+                                    <td>
+                                        {if isset($item.weight) && $item.weight && $item.weight > 0}
+                                            {$item.weight|floatval}
+                                        {else}
+                                            <span class="text-muted">0</span>
+                                        {/if}
+                                    </td>
+                                </tr>
+                            {foreachelse}
+                                <tr><td colspan="5" class="text-center text-muted">Brak pozycji.</td></tr>
+                            {/foreach}
+                            </tbody>
+                        </table>
 
                     </div>
                 </div>
             </div>
         </div>
 
-        <hr>
-
-        <h4 class="text-muted mb-3">Lista ofert (Allegro)</h4>
-        <div class="table-responsive">
-            <table class="table table-bordered">
-                <thead>
-                    <tr class="bg-light">
-                        <th>ID Oferty</th>
-                        <th>Nazwa na aukcji</th>
-                        <th>SKU / Sygnatura</th>
-                        <th>EAN</th> 
-                        <th class="text-center">Ilość</th>
-                        <th class="text-right">Cena brutto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {foreach from=$allegro_data.items item=item}
-                    <tr>
-                        <td>
-                            <a href="https://allegro.pl/oferta/{$item.offer_id}" target="_blank">{$item.offer_id}</a>
-                        </td>
-                        <td>{$item.name}</td>
-                        <td>{$item.reference_number|default:'-'}</td>
-                        <td>
-                            {if $item.ean}
-                                <span class="badge badge-info" style="font-size:12px;">{$item.ean}</span>
-                            {else}
-                                <span class="text-muted">-</span>
-                            {/if}
-                        </td>
-                        <td class="text-center"><strong>{$item.quantity}</strong></td>
-                        <td class="text-right">{$item.price} zł</td>
-                    </tr>
-                    {/foreach}
-                </tbody>
-            </table>
-        </div>
     </div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-    var cfId = '{$allegro_data.order.checkout_form_id}';
-    var accId = '{$allegro_data.order.id_allegropro_account}';
+    var cfId = '{$allegro_data.order.checkout_form_id|escape:'javascript':'UTF-8'}';
+    var accId = '{$allegro_data.order.id_allegropro_account|intval}';
 
-    // --- 1. Zmiana Statusu ---
+    // --- 1. Statusy ---
     var btnStatus = document.getElementById('btnUpdateAllegroStatus');
     if(btnStatus){
-        btnStatus.addEventListener('click', function(e) {
+        btnStatus.addEventListener('click', function(e){
             e.preventDefault();
             var select = document.getElementById('allegropro_status_select');
             var msg = document.getElementById('allegropro_status_msg');
-            var status = select.value;
-            
-            if (!status) { alert('Wybierz status z listy.'); return; }
+            var newStatus = select.value;
+            if(!newStatus){
+                msg.className = 'form-text text-danger';
+                msg.innerText = 'Wybierz status.';
+                return;
+            }
 
             btnStatus.disabled = true;
-            btnStatus.innerText = 'Wysyłanie...';
-            msg.innerText = '';
-            
+            btnStatus.innerText = 'Aktualizacja...';
+
             var formData = new FormData();
             formData.append('checkout_form_id', cfId);
             formData.append('id_allegropro_account', accId);
-            formData.append('new_status', status);
+            formData.append('new_status', newStatus);
 
             fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=update_status&ajax=1', {
                 method: 'POST',
@@ -378,14 +395,8 @@ document.addEventListener("DOMContentLoaded", function() {
             })
             .then(res => res.json())
             .then(data => {
-                if(data.success){
-                    msg.className = 'form-text text-success';
-                    msg.innerText = data.message || 'Status zaktualizowany!';
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    msg.className = 'form-text text-danger';
-                    msg.innerText = data.message || 'Błąd.';
-                }
+                msg.className = data.success ? 'form-text text-success' : 'form-text text-danger';
+                msg.innerText = data.message || (data.success ? 'OK' : 'Błąd');
             })
             .catch(() => {
                 msg.className = 'form-text text-danger';
@@ -409,6 +420,10 @@ document.addEventListener("DOMContentLoaded", function() {
             var weightSourceSelect = document.getElementById('shipment_weight_source');
             var weightSource = weightSourceSelect ? weightSourceSelect.value : 'MANUAL';
             var sizeCode = sizeSelect ? sizeSelect.value : 'CUSTOM';
+            var lengthInput = document.getElementById('shipment_length_input');
+            var widthInput = document.getElementById('shipment_width_input');
+            var heightInput = document.getElementById('shipment_height_input');
+            var dimensionSourceInput = document.getElementById('shipment_dimension_source');
             var isSmart = document.getElementById('is_smart_shipment').checked;
             var dbgToggle = document.getElementById('sync_shipments_debug');
             var debugEnabled = dbgToggle ? dbgToggle.checked : false;
@@ -422,6 +437,10 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append('weight', weight);
             formData.append('weight_source', weightSource);
             formData.append('size_code', sizeCode);
+            formData.append('length', lengthInput ? lengthInput.value : '');
+            formData.append('width', widthInput ? widthInput.value : '');
+            formData.append('height', heightInput ? heightInput.value : '');
+            formData.append('dimension_source', dimensionSourceInput ? dimensionSourceInput.value : 'MANUAL');
             formData.append('is_smart', isSmart ? 1 : 0);
             formData.append('debug', debugEnabled ? 1 : 0);
 
@@ -485,7 +504,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
             return normalized;
         };
-
         var setActiveModeButton = function(mode) {
             var isConfig = mode === 'CONFIG';
             configBtn.className = 'btn btn-sm ' + (isConfig ? 'btn-primary' : 'btn-default');
@@ -522,6 +540,74 @@ document.addEventListener("DOMContentLoaded", function() {
         switchWeightMode('CONFIG');
     }
 
+    var dimensionsPanel = document.getElementById('shipment_dimensions_panel');
+    var dimensionSourceInput = document.getElementById('shipment_dimension_source');
+    var dimensionConfigBtn = document.getElementById('dimension_mode_config');
+    var dimensionManualBtn = document.getElementById('dimension_mode_manual');
+    var lengthInput = document.getElementById('shipment_length_input');
+    var widthInput = document.getElementById('shipment_width_input');
+    var heightInput = document.getElementById('shipment_height_input');
+
+    var normalizeDimensionValue = function(value, fallback) {
+        var parsed = parseInt(String(value || '').trim(), 10);
+        if (isNaN(parsed) || parsed <= 0) {
+            return String(fallback);
+        }
+        return String(parsed);
+    };
+
+    var applyDimensionMode = function(mode) {
+        if (!dimensionSourceInput || !lengthInput || !widthInput || !heightInput || !dimensionConfigBtn || !dimensionManualBtn) {
+            return;
+        }
+
+        var useConfig = mode === 'CONFIG';
+        dimensionSourceInput.value = useConfig ? 'CONFIG' : 'MANUAL';
+
+        [
+            { input: lengthInput, key: 'length' },
+            { input: widthInput, key: 'width' },
+            { input: heightInput, key: 'height' }
+        ].forEach(function(field) {
+            var fallback = field.input.getAttribute('data-manual-default') || '10';
+            var cfg = field.input.getAttribute('data-config-value') || fallback;
+            var nextValue = useConfig ? cfg : field.input.value;
+            field.input.value = normalizeDimensionValue(nextValue, fallback);
+            field.input.disabled = useConfig;
+            field.input.classList.toggle('bg-light', useConfig);
+        });
+
+        dimensionConfigBtn.className = 'btn btn-sm ' + (useConfig ? 'btn-primary' : 'btn-default');
+        dimensionManualBtn.className = 'btn btn-sm ' + (useConfig ? 'btn-default' : 'btn-primary');
+    };
+
+    var refreshDimensionsPanelVisibility = function() {
+        if (!dimensionsPanel || !sizeSelect) {
+            return;
+        }
+
+        var initialCarrierMode = '{$allegro_data.carrier_mode|default:''|escape:'javascript':'UTF-8'}';
+        var shouldShow = (initialCarrierMode === 'COURIER') || (sizeSelect.value === 'CUSTOM');
+        dimensionsPanel.style.display = shouldShow ? 'block' : 'none';
+    };
+
+    if (dimensionConfigBtn && dimensionManualBtn) {
+        dimensionConfigBtn.addEventListener('click', function() {
+            applyDimensionMode('CONFIG');
+        });
+
+        dimensionManualBtn.addEventListener('click', function() {
+            applyDimensionMode('MANUAL');
+        });
+    }
+
+    if (sizeSelect) {
+        sizeSelect.addEventListener('change', refreshDimensionsPanelVisibility);
+    }
+
+    refreshDimensionsPanelVisibility();
+    applyDimensionMode('CONFIG');
+
     // --- 3. Anulowanie Przesyłki ---
     document.querySelectorAll('.btn-cancel-shipment').forEach(function(btn){
         btn.addEventListener('click', function(e){
@@ -551,146 +637,146 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 
-    // --- 3b. Ręczne odświeżenie przesyłek z Allegro ---
+    // --- 4. Synchronizacja przesyłek ---
     var btnSync = document.getElementById('btnSyncShipmentsNow');
-    if (btnSync) {
-        btnSync.addEventListener('click', function(e) {
+    if(btnSync){
+        btnSync.addEventListener('click', function(e){
             e.preventDefault();
-
+            var thisBtn = this;
             var msg = document.getElementById('ship_sync_msg');
-            var debugCheck = document.getElementById('sync_shipments_debug');
-            var debugBox = document.getElementById('ship_sync_debug');
-            var debugEnabled = !!(debugCheck && debugCheck.checked);
-
-            btnSync.disabled = true;
-            if (msg) {
-                msg.className = 'text-info';
-                msg.innerText = 'Trwa synchronizacja przesyłek z Allegro...';
-            }
-            if (debugBox) {
-                debugBox.style.display = 'none';
-                debugBox.innerText = '';
+            var dbgToggle = document.getElementById('sync_shipments_debug');
+            var debugEnabled = dbgToggle ? dbgToggle.checked : false;
+            var dbgBox = document.getElementById('ship_sync_debug');
+            if(dbgBox){
+                dbgBox.style.display = 'none';
+                dbgBox.innerText = '';
             }
 
-            var fd = new FormData();
-            fd.append('checkout_form_id', cfId);
-            fd.append('id_allegropro_account', accId);
-            fd.append('debug', debugEnabled ? '1' : '0');
+            thisBtn.disabled = true;
+            if(msg){
+                msg.className = 'text-muted';
+                msg.innerText = 'Synchronizacja przesyłek trwa...';
+            }
 
-            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=sync_shipments&ajax=1', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                btnSync.disabled = false;
+            var formData = new FormData();
+            formData.append('checkout_form_id', cfId);
+            formData.append('id_allegropro_account', accId);
+            formData.append('debug', debugEnabled ? 1 : 0);
 
-                if (debugEnabled && debugBox) {
-                    var lines = Array.isArray(d.debug_lines) ? d.debug_lines : [];
-                    if (!lines.length) {
-                        lines = ['Brak dodatkowych danych debug.'];
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=sync_shipments&ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(msg){
+                    if(data.success){
+                        if(data.skipped){
+                            msg.innerText = 'Synchronizacja przesyłek: odświeżone niedawno (TTL).';
+                        } else {
+                            msg.innerText = 'Synchronizacja przesyłek: zaktualizowano ' + (data.synced || 0) + ' rekordów.';
+                        }
+                        msg.className = 'text-success';
+                    } else {
+                        msg.innerText = 'Synchronizacja przesyłek: ' + (data.message || 'błąd');
+                        msg.className = 'text-danger';
                     }
-                    debugBox.style.display = 'block';
-                    debugBox.innerText = lines.join('\n');
                 }
 
-                if (d.success) {
-                    if (msg) {
-                        msg.className = 'text-success';
-                        if (debugEnabled) {
-                            msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + '. Tryb debug aktywny — widok NIE zostanie automatycznie odświeżony.';
-                        } else {
-                            msg.innerText = 'Synchronizacja zakończona, zaktualizowano: ' + (d.synced || 0) + '. Odświeżam widok...';
-                        }
-                    }
-                    if (!debugEnabled) {
-                        setTimeout(function(){ location.reload(); }, 800);
-                    }
-                } else {
-                    if (msg) {
-                        msg.className = 'text-danger';
-                        msg.innerText = 'Błąd synchronizacji: ' + (d.message || 'Nieznany błąd');
-                    }
+                if(debugEnabled && dbgBox && Array.isArray(data.debug_lines) && data.debug_lines.length){
+                    dbgBox.style.display = 'block';
+                    dbgBox.innerText = data.debug_lines.join("\n");
+                }
+
+                if(data.success){
+                    setTimeout(() => location.reload(), 1200);
                 }
             })
-            .catch(function() {
-                btnSync.disabled = false;
-                if (msg) {
-                    msg.className = 'text-danger';
+            .catch(() => {
+                if(msg){
                     msg.innerText = 'Błąd połączenia podczas synchronizacji.';
+                    msg.className = 'text-danger';
                 }
-                if (debugEnabled && debugBox) {
-                    debugBox.style.display = 'block';
-                    debugBox.innerText = 'Błąd połączenia - brak danych debug z serwera.';
-                }
+            })
+            .finally(() => {
+                thisBtn.disabled = false;
             });
         });
     }
 
-    // --- 4. DRUKOWANIE (Pobieranie PDF) ---
-    document.querySelectorAll('.btn-get-label').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
+    // --- Pobieranie etykiety ---
+    document.querySelectorAll('.btn-get-label').forEach(function(btn){
+        btn.addEventListener('click', function(e){
             e.preventDefault();
             var shipId = this.getAttribute('data-id');
-            var debugCheck = document.getElementById('label_download_debug');
-            var debugEnabled = !!(debugCheck && debugCheck.checked);
+            var debugToggle = document.getElementById('label_download_debug');
+            var debugEnabled = debugToggle ? debugToggle.checked : false;
             var debugBox = document.getElementById('label_download_debug_box');
 
-            if (debugBox) {
+            if(debugBox){
                 debugBox.style.display = 'none';
                 debugBox.innerText = '';
             }
+            var formData = new FormData();
+            formData.append('shipment_id', shipId);
+            formData.append('checkout_form_id', cfId);
+            formData.append('id_allegropro_account', accId);
+            formData.append('debug', debugEnabled ? 1 : 0);
 
-            var fd = new FormData();
-            fd.append('shipment_id', shipId);
-            fd.append('checkout_form_id', cfId);
-            fd.append('id_allegropro_account', accId);
-
-            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=get_label&ajax=1', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                if (!d.success || !d.url) {
-                    alert('Błąd: ' + (d.message || 'Brak URL etykiety.'));
+            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=getLabel&ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(!data.success || !data.url){
+                    alert(data.message || 'Nie udało się przygotować pobierania etykiety.');
                     return;
                 }
 
-                if (!debugEnabled) {
-                    window.open(d.url, '_blank');
+                if(!debugEnabled){
+                    window.open(data.url, '_blank');
                     return;
                 }
 
-                var debugUrl = d.url + '&debug=1&ajax=1';
-                fetch(debugUrl)
-                .then(function(r) { return r.json(); })
+                fetch(data.url + '&debug=1')
+                .then(function(resp) {
+                    return resp.json();
+                })
                 .then(function(debugData) {
-                    if (!debugBox) {
-                        alert(JSON.stringify(debugData, null, 2));
+                    if(!debugBox){
                         return;
                     }
 
                     var lines = [];
-                    lines.push('success=' + (debugData.success ? 'true' : 'false'));
-                    lines.push('message=' + (debugData.message || ''));
-                    if (debugData.http_code) {
-                        lines.push('http_code=' + debugData.http_code);
-                    }
+                    lines.push('message=' + (debugData.message || 'brak'));
                     if (Array.isArray(debugData.debug_lines) && debugData.debug_lines.length) {
-                        lines.push('');
-                        lines.push('--- debug_lines ---');
                         lines = lines.concat(debugData.debug_lines);
                     }
                     if (debugData.file_name) {
-                        lines.push('');
                         lines.push('file_name=' + debugData.file_name);
+                    }
+                    if (debugData.file_path) {
+                        lines.push('file_path=' + debugData.file_path);
                     }
                     if (debugData.file_size) {
                         lines.push('file_size=' + debugData.file_size);
                     }
+                    if (debugData.mime) {
+                        lines.push('mime=' + debugData.mime);
+                    }
+
+                    if (!lines.length) {
+                        lines.push('Brak danych debug.');
+                    }
 
                     debugBox.style.display = 'block';
-                    debugBox.innerText = lines.join('\n');
+                    debugBox.innerText = lines.join("\n");
                 })
                 .catch(function() {
-                    if (debugBox) {
+                    if(debugBox){
                         debugBox.style.display = 'block';
-                        debugBox.innerText = 'Błąd połączenia podczas pobierania danych debug etykiety.';
+                        debugBox.innerText = 'Błąd podczas pobierania danych debug etykiety.';
                     } else {
                         alert('Błąd połączenia podczas pobierania danych debug etykiety.');
                     }

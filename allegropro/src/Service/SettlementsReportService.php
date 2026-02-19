@@ -51,6 +51,14 @@ class SettlementsReportService
     }
 
     /**
+     * Normalizacja UUID/ID: usuń "-" i "_" oraz ignoruj wielkość liter.
+     */
+    private function normalizeKeySql(string $expr): string
+    {
+        return "LOWER(REPLACE(REPLACE(IFNULL({$expr},''),'-',''),'_',''))";
+    }
+
+    /**
      * Filtr "opłat" zgodny z BillingEntryRepository::buildFeeWhereSql().
      */
     private function feeWhere(string $valueExpr, string $typeNameExpr): string
@@ -61,16 +69,81 @@ class SettlementsReportService
     }
 
     /**
+     * Filtr po stanie zamówienia (na podstawie o.status z checkout-forms).
+     *
+     * Mapowanie jak w AdminAllegroProOrdersController::mapModuleStatusLabel():
+     * - paid: READY_FOR_PROCESSING, BOUGHT
+     * - unpaid: FILLED_IN
+     * - cancelled: CANCELLED
+     */
+    private function orderStateWhere(string $statusExpr, string $orderState): string
+    {
+        $s = strtolower(trim((string)$orderState));
+        if ($s === 'paid') {
+            return " AND UPPER(IFNULL({$statusExpr},'')) IN ('READY_FOR_PROCESSING','BOUGHT')";
+        }
+        if ($s === 'unpaid') {
+            return " AND UPPER(IFNULL({$statusExpr},'')) IN ('FILLED_IN')";
+        }
+        if ($s === 'cancelled') {
+            return " AND UPPER(IFNULL({$statusExpr},'')) IN ('CANCELLED')";
+        }
+        return '';
+    }
+
+    /**
+     * Agregacja pozycji (sprzedaż bez dostawy): SUM(quantity*price) per checkout_form_id.
+     */
+    private function itemsAggSql(): string
+    {
+        return "SELECT checkout_form_id, SUM(quantity * price) AS items_total FROM `" . _DB_PREFIX_ . "allegropro_order_item` GROUP BY checkout_form_id";
+    }
+
+    /**
+     * Agregacja dostawy: MAX(cost_amount) per checkout_form_id.
+     */
+    private function shippingAggSql(): string
+    {
+        return "SELECT checkout_form_id, MAX(cost_amount) AS shipping_amount FROM `" . _DB_PREFIX_ . "allegropro_order_shipping` GROUP BY checkout_form_id";
+    }
+
+    /**
+     * Agregacja billing (bez filtra daty) per order_key (znormalizowany order_id).
+     * Zwraca neg_sum (<0) i pos_sum (>0) dla opłat/zwrotów.
+     */
+    private function feesAggNoDateSql(array $accountIds): string
+    {
+        $in = $this->buildIn($accountIds);
+        $tn = "LOWER(IFNULL(b2.type_name,''))";
+        $feeWhere = $this->feeWhere('b2.value_amount', $tn);
+
+        return "SELECT b2.id_allegropro_account, " . $this->normalizeKeySql('b2.order_id') . " AS order_key,\n"
+            . "       SUM(CASE WHEN b2.value_amount < 0 THEN b2.value_amount ELSE 0 END) AS neg_sum,\n"
+            . "       SUM(CASE WHEN b2.value_amount > 0 THEN b2.value_amount ELSE 0 END) AS pos_sum\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b2\n"
+            . "WHERE b2.id_allegropro_account IN {$in}\n"
+            . "  AND b2.order_id IS NOT NULL AND b2.order_id <> ''\n"
+            . "  AND {$feeWhere}\n"
+            . "GROUP BY b2.id_allegropro_account, order_key";
+    }
+
+    /**
      * TRYB A: Księgowanie opłat (billing entries w okresie).
      */
-    public function getPeriodSummaryBilling($accountIds, string $dateFrom, string $dateTo): array
+    public function getPeriodSummaryBilling($accountIds, string $dateFrom, string $dateTo, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
-        $cats = $this->billing->getCategorySumsMulti($ids, $dateFrom, $dateTo);
+
+        // Kategorie opłat w okresie. Jeśli filtrujemy po statusie zamówień / "bez zwrotu",
+        // musimy związać billing-entries z zamówieniami i ograniczyć wynik.
+        $cats = ($orderState !== 'all' || $cancelledNoRefund)
+            ? $this->getCategorySumsBillingFilteredMulti($ids, $dateFrom, $dateTo, $orderState, $cancelledNoRefund)
+            : $this->billing->getCategorySumsMulti($ids, $dateFrom, $dateTo);
+
         $unassigned = $this->billing->countUnassignedMulti($ids, $dateFrom, $dateTo);
 
-        // Sprzedaż brutto: suma zamówień, które mają naliczone opłaty w wybranym okresie księgowania.
-        $sales = $this->sumOrdersTotalForBillingMulti($ids, $dateFrom, $dateTo);
+        // Sprzedaż (bez dostawy): suma zamówień, które mają naliczone opłaty w wybranym okresie księgowania.
+        $sales = $this->sumOrdersSalesForBillingMulti($ids, $dateFrom, $dateTo, $orderState, $cancelledNoRefund);
 
         $netAfterFees = (float)$sales + (float)($cats['total'] ?? 0);
 
@@ -90,15 +163,15 @@ class SettlementsReportService
     /**
      * TRYB B: Koszt zamówień złożonych w okresie (opłaty liczone dla tych zamówień).
      */
-    public function getPeriodSummaryOrders($accountIds, string $dateFrom, string $dateTo): array
+    public function getPeriodSummaryOrders($accountIds, string $dateFrom, string $dateTo, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
 
-        // Sprzedaż brutto: zamówienia złożone w okresie.
-        $sales = $this->sumOrdersTotalMulti($ids, $dateFrom, $dateTo);
+        // Sprzedaż (bez dostawy): zamówienia złożone w okresie.
+        $sales = $this->sumOrdersSalesMulti($ids, $dateFrom, $dateTo, $orderState, $cancelledNoRefund);
 
         // Opłaty: wszystkie billing-entries przypięte do tych zamówień (bez filtra daty).
-        $orderIds = $this->listOrderIdsInRangeMulti($ids, $dateFrom, $dateTo);
+        $orderIds = $this->listOrderIdsInRangeMulti($ids, $dateFrom, $dateTo, $orderState, $cancelledNoRefund);
         $candidates = $this->buildOrderIdCandidates($orderIds);
 
         $cats = $this->billing->getCategorySumsForOrderIdsMultiNoDate($ids, $candidates);
@@ -129,7 +202,7 @@ class SettlementsReportService
     /**
      * TRYB A: liczba zamówień (unikalne order_id) mających opłaty zaksięgowane w okresie.
      */
-    public function countOrdersBilling($accountIds, string $dateFrom, string $dateTo, string $q = ''): int
+    public function countOrdersBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', string $orderState = 'all', bool $cancelledNoRefund = false): int
     {
         $ids = $this->normalizeAccountIds($accountIds);
         $in = $this->buildIn($ids);
@@ -146,30 +219,43 @@ class SettlementsReportService
             $whereQ = " AND (b.order_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
-        // Uwaga: Allegro potrafi zwracać order_id w billing-entries w różnych wariantach (z/bez myślników, różna wielkość liter).
-        // Łączymy po znormalizowanym UUID (lower + bez myślników), aby nie gubić dopasowań do tabeli allegropro_order.
-        $sql = "SELECT COUNT(*) FROM (
-                    SELECT b.id_allegropro_account, b.order_id
-                    FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
-                    LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                      ON (
-                        o.id_allegropro_account=b.id_allegropro_account
-                        AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_',''),'_',''),'_','')) = LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''),'_',''),'_',''))
-                      )
-                    WHERE b.id_allegropro_account IN " . $in . "
-                      AND b.order_id IS NOT NULL AND b.order_id <> ''
-                      AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
-                      AND {$feeWhere}
-                      {$whereQ}
-                    GROUP BY b.id_allegropro_account, b.order_id
-                ) t";
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $normO = $this->normalizeKeySql('o.checkout_form_id');
+        $normB = $this->normalizeKeySql('b.order_id');
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=b.id_allegropro_account AND bf.order_key={$normB})";
+            // pending > 0.01 AND charged exists
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT COUNT(*) FROM (\n"
+            . "  SELECT b.id_allegropro_account, b.order_id\n"
+            . "  FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b\n"
+            . "  LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "    ON (o.id_allegropro_account=b.id_allegropro_account AND {$normO} = {$normB})\n"
+            . $bfJoin . "\n"
+            . "  WHERE b.id_allegropro_account IN {$in}\n"
+            . "    AND b.order_id IS NOT NULL AND b.order_id <> ''\n"
+            . "    AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "    AND {$feeWhere}\n"
+            . "    {$whereQ}\n"
+            . "    {$statusWhere}\n"
+            . "    {$bfWhere}\n"
+            . "  GROUP BY b.id_allegropro_account, b.order_id\n"
+            . ") t";
+
         return (int)Db::getInstance()->getValue($sql);
     }
 
     /**
      * TRYB B: liczba zamówień złożonych w okresie (filtr po created_at_allegro).
      */
-    public function countOrders($accountIds, string $dateFrom, string $dateTo, string $q = ''): int
+    public function countOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', string $orderState = 'all', bool $cancelledNoRefund = false): int
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
@@ -183,16 +269,33 @@ class SettlementsReportService
         $ids = $this->normalizeAccountIds($accountIds);
         $in = $this->buildIn($ids);
 
-        $sql = "SELECT COUNT(*) FROM `" . _DB_PREFIX_ . "allegropro_order` o
-                WHERE o.id_allegropro_account IN " . $in . "
-                  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'" . $whereQ;
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $normO = $this->normalizeKeySql('o.checkout_form_id');
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT COUNT(*)\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . $bfJoin . "\n"
+            . "WHERE o.id_allegropro_account IN {$in}\n"
+            . "  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}\n"
+            . "  {$whereQ}";
+
         return (int)Db::getInstance()->getValue($sql);
     }
 
     /**
      * TRYB A: lista zamówień (order_id) które mają opłaty zaksięgowane w okresie.
      */
-    public function getOrdersWithFeesBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
+    public function getOrdersWithFeesBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
         $in = $this->buildIn($ids);
@@ -212,45 +315,98 @@ class SettlementsReportService
             $whereQ = " AND (b.order_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
-        // Jak wyżej: dopasowanie po znormalizowanym UUID.
-        $sql = "SELECT 
-                    b.id_allegropro_account,
-                    b.order_id AS checkout_form_id,
-                    MAX(b.occurred_at) AS occurred_at_max,
-                    SUM(b.value_amount) AS fees_total,
-                    o.buyer_login,
-                    o.total_amount,
-                    o.currency,
-                    o.created_at_allegro,
-                    a.label AS account_label
-                FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
-                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                  ON (
-                    o.id_allegropro_account=b.id_allegropro_account
-                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_',''),'_',''),'_','')) = LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''),'_',''),'_',''))
-                  )
-                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a
-                  ON (a.id_allegropro_account=b.id_allegropro_account)
-                WHERE b.id_allegropro_account IN " . $in . "
-                  AND b.order_id IS NOT NULL AND b.order_id <> ''
-                  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
-                  AND {$feeWhere}
-                  {$whereQ}
-                GROUP BY b.id_allegropro_account, b.order_id
-                ORDER BY occurred_at_max DESC
-                LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $normO = $this->normalizeKeySql('o.checkout_form_id');
+        $normB = $this->normalizeKeySql('b.order_id');
+
+        // agregacje do sprzedaży bez dostawy
+        $itemsAgg = $this->itemsAggSql();
+        $shipAgg = $this->shippingAggSql();
+
+        // agregacja opłat (bez filtra daty) do wykrycia "do zwrotu"
+        $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids) . ") bf\n"
+            . "   ON (bf.id_allegropro_account=b.id_allegropro_account AND bf.order_key={$normB})";
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT\n"
+            . "    b.id_allegropro_account,\n"
+            . "    b.order_id AS checkout_form_id,\n"
+            . "    MAX(b.occurred_at) AS occurred_at_max,\n"
+            . "    SUM(b.value_amount) AS fees_total,\n"
+            . "    SUM(CASE WHEN b.value_amount < 0 THEN b.value_amount ELSE 0 END) AS fees_neg_period,\n"
+            . "    SUM(CASE WHEN b.value_amount > 0 THEN b.value_amount ELSE 0 END) AS fees_pos_period,\n"
+            . "    o.status AS order_status,\n"
+            . "    o.buyer_login,\n"
+            . "    o.total_amount AS order_total_amount,\n"
+            . "    o.currency,\n"
+            . "    o.created_at_allegro,\n"
+            . "    a.label AS account_label,\n"
+            . "    CASE\n"
+            . "      WHEN o.checkout_form_id IS NULL THEN NULL\n"
+            . "      WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total\n"
+            . "      ELSE GREATEST(IFNULL(o.total_amount,0) - IFNULL(os.shipping_amount,0), 0)\n"
+            . "    END AS sales_amount,\n"
+            . "    IFNULL(os.shipping_amount,0) AS shipping_amount,\n"
+            . "    IFNULL(bf.neg_sum,0) AS fees_neg_all,\n"
+            . "    IFNULL(bf.pos_sum,0) AS fees_pos_all\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b\n"
+            . "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "  ON (o.id_allegropro_account=b.id_allegropro_account AND {$normO} = {$normB})\n"
+            . "LEFT JOIN (" . $itemsAgg . ") oi ON (oi.checkout_form_id = o.checkout_form_id)\n"
+            . "LEFT JOIN (" . $shipAgg . ") os ON (os.checkout_form_id = o.checkout_form_id)\n"
+            . "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a\n"
+            . "  ON (a.id_allegropro_account=b.id_allegropro_account)\n"
+            . $bfJoin . "\n"
+            . "WHERE b.id_allegropro_account IN {$in}\n"
+            . "  AND b.order_id IS NOT NULL AND b.order_id <> ''\n"
+            . "  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  AND {$feeWhere}\n"
+            . "  {$whereQ}\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}\n"
+            . "GROUP BY b.id_allegropro_account, b.order_id\n"
+            . "ORDER BY occurred_at_max DESC\n"
+            . "LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
-            // Jeśli brak danych o zamówieniu (brak dopasowania do allegropro_order) — nie pokazuj sztucznego 0.00.
-            $ta = isset($r['total_amount']) ? (float)$r['total_amount'] : 0.0;
-            $r['total_amount'] = ($ta > 0.0) ? $ta : null;
+
+            $sales = isset($r['sales_amount']) ? (float)$r['sales_amount'] : 0.0;
+            $r['sales_amount'] = ($sales > 0.0) ? $sales : null;
+
+            // zgodność z istniejącym TPL: total_amount = sprzedaż (bez dostawy)
+            $r['total_amount'] = $r['sales_amount'];
+
+            $ship = isset($r['shipping_amount']) ? (float)$r['shipping_amount'] : 0.0;
+            $r['shipping_amount'] = $ship;
+
             $r['fees_total'] = (float)($r['fees_total'] ?? 0);
+
+            $negAll = (float)($r['fees_neg_all'] ?? 0);
+            $posAll = (float)($r['fees_pos_all'] ?? 0);
+            $feesCharged = ($negAll < 0) ? abs($negAll) : 0.0;
+            $feesRefunded = ($posAll > 0) ? $posAll : 0.0;
+            $feesBalance = max(0.0, $feesCharged - $feesRefunded);
+
+            // "Do zwrotu" ma sens tylko dla anulowanych/nieopłaconych.
+            $status = strtoupper((string)($r['order_status'] ?? ''));
+            $refundExpected = in_array($status, ['CANCELLED', 'FILLED_IN'], true);
+            $feesPending = $refundExpected ? $feesBalance : 0.0;
+
+            $r['fees_charged'] = $feesCharged;
+            $r['fees_refunded'] = $feesRefunded;
+            $r['fees_balance'] = $feesBalance;
+            $r['refund_expected'] = $refundExpected ? 1 : 0;
+            $r['fees_pending'] = $feesPending;
 
             // date_display = data operacji billing
             $r['date_display'] = (string)($r['occurred_at_max'] ?? $r['created_at_allegro'] ?? '');
-            $r['net_after_fees'] = ($r['total_amount'] !== null) ? ((float)$r['total_amount'] + (float)$r['fees_total']) : null;
+            $r['net_after_fees'] = ($r['sales_amount'] !== null) ? ((float)$r['sales_amount'] + (float)$r['fees_total']) : null;
         }
         unset($r);
 
@@ -260,10 +416,10 @@ class SettlementsReportService
     /**
      * TRYB B: lista zamówień złożonych w okresie + opłaty policzone dla tych zamówień (bez filtra daty opłat).
      */
-    public function getOrdersWithFeesOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
+    public function getOrdersWithFeesOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
-        $orders = $this->listOrdersMulti($ids, $dateFrom, $dateTo, $q, $limit, $offset);
+        $orders = $this->listOrdersMulti($ids, $dateFrom, $dateTo, $q, $limit, $offset, $orderState, $cancelledNoRefund);
 
         // Zbuduj listę kandydatów order_id dla widocznych zamówień (dokładny + bez myślników + lower/upper).
         $candidates = [];
@@ -285,9 +441,11 @@ class SettlementsReportService
         $candidates = array_values(array_unique($candidates));
 
         $feeMapRaw = $this->billing->sumByOrderIdsMultiNoDate($ids, $candidates);
+        $breakdownRaw = $this->sumChargesRefundsByOrderIdsMultiNoDate($ids, $candidates);
 
         // Normalizacja pomocnicza (dla wariantów id bez myślników)
         $feeMapNorm = [];
+        $breakdownNorm = [];
         foreach ($feeMapRaw as $aid => $ordersMap) {
             if (!is_array($ordersMap)) continue;
             foreach ($ordersMap as $oid => $sum) {
@@ -298,11 +456,26 @@ class SettlementsReportService
                 $feeMapNorm[$aid][$k] += (float)$sum;
             }
         }
+        foreach ($breakdownRaw as $aid => $ordersMap) {
+            if (!is_array($ordersMap)) continue;
+            foreach ($ordersMap as $oid => $bd) {
+                $k = $this->normalizeId((string)$oid);
+                if ($k === '') continue;
+                if (!isset($breakdownNorm[$aid])) $breakdownNorm[$aid] = [];
+                if (!isset($breakdownNorm[$aid][$k])) {
+                    $breakdownNorm[$aid][$k] = ['neg_sum' => 0.0, 'pos_sum' => 0.0];
+                }
+                $breakdownNorm[$aid][$k]['neg_sum'] += (float)($bd['neg_sum'] ?? 0);
+                $breakdownNorm[$aid][$k]['pos_sum'] += (float)($bd['pos_sum'] ?? 0);
+            }
+        }
 
         foreach ($orders as &$o) {
             $cf = (string)$o['checkout_form_id'];
             $aid = (int)($o['id_allegropro_account'] ?? 0);
             $fees = 0.0;
+            $negAll = 0.0;
+            $posAll = 0.0;
 
             if ($aid > 0 && isset($feeMapRaw[$aid]) && is_array($feeMapRaw[$aid]) && isset($feeMapRaw[$aid][$cf])) {
                 $fees = (float)$feeMapRaw[$aid][$cf];
@@ -313,8 +486,37 @@ class SettlementsReportService
                 }
             }
 
+            if ($aid > 0 && isset($breakdownRaw[$aid]) && is_array($breakdownRaw[$aid]) && isset($breakdownRaw[$aid][$cf])) {
+                $negAll = (float)($breakdownRaw[$aid][$cf]['neg_sum'] ?? 0);
+                $posAll = (float)($breakdownRaw[$aid][$cf]['pos_sum'] ?? 0);
+            } else {
+                $k = $this->normalizeId($cf);
+                if ($aid > 0 && $k !== '' && isset($breakdownNorm[$aid]) && isset($breakdownNorm[$aid][$k])) {
+                    $negAll = (float)($breakdownNorm[$aid][$k]['neg_sum'] ?? 0);
+                    $posAll = (float)($breakdownNorm[$aid][$k]['pos_sum'] ?? 0);
+                }
+            }
+
+            $feesCharged = ($negAll < 0) ? abs($negAll) : 0.0;
+            $feesRefunded = ($posAll > 0) ? $posAll : 0.0;
+            $feesBalance = max(0.0, $feesCharged - $feesRefunded);
+
+            // "Do zwrotu" ma sens tylko dla anulowanych/nieopłaconych.
+            $status = strtoupper((string)($o['order_status'] ?? ''));
+            $refundExpected = in_array($status, ['CANCELLED', 'FILLED_IN'], true);
+            $feesPending = $refundExpected ? $feesBalance : 0.0;
+
             $o['fees_total'] = $fees;
-            $o['net_after_fees'] = (float)$o['total_amount'] + $fees;
+            $o['fees_charged'] = $feesCharged;
+            $o['fees_refunded'] = $feesRefunded;
+            $o['fees_balance'] = $feesBalance;
+            $o['refund_expected'] = $refundExpected ? 1 : 0;
+            $o['fees_pending'] = $feesPending;
+
+            $sales = isset($o['sales_amount']) ? (float)$o['sales_amount'] : 0.0;
+            $o['sales_amount'] = ($sales > 0.0) ? $sales : null;
+
+            $o['net_after_fees'] = ($o['sales_amount'] !== null) ? ((float)$o['sales_amount'] + $fees) : null;
             $o['date_display'] = (string)($o['created_at_allegro'] ?? '');
         }
         unset($o);
@@ -329,6 +531,22 @@ class SettlementsReportService
     public function getOrderDetails(int $accountId, string $checkoutFormId, string $dateFrom, string $dateTo, bool $ignoreBillingDate = false): array
     {
         $order = $this->getOrderRow($accountId, $checkoutFormId);
+
+        // Dopnij sprzedaż (bez dostawy) + koszt dostawy na podstawie tabel order_item / order_shipping.
+        if ($order && !empty($order['checkout_form_id'])) {
+            $salesInfo = $this->getSalesAndShippingForCheckoutFormId((string)$order['checkout_form_id']);
+            $orderTotalFull = (float)($order['total_amount'] ?? 0);
+            $itemsTotal = (float)($salesInfo['items_total'] ?? 0);
+            $shippingAmount = (float)($salesInfo['shipping_amount'] ?? 0);
+
+            $salesAmount = ($itemsTotal > 0)
+                ? $itemsTotal
+                : max(0.0, $orderTotalFull - $shippingAmount);
+
+            $order['order_total_amount'] = $orderTotalFull;
+            $order['sales_amount'] = $salesAmount;
+            $order['shipping_amount'] = $shippingAmount;
+        }
 
         $cf = $this->sanitizeCheckoutFormId($checkoutFormId);
         $candidates = [];
@@ -346,11 +564,30 @@ class SettlementsReportService
             if ($upper !== $cf) $candidates[] = $upper;
         }
 
+        // Lista pozycji billing (zależnie od trybu: billing=zakres dat, orders=bez dat).
         if ($ignoreBillingDate) {
             $items = $this->billing->listForOrderCandidatesNoDate($accountId, $candidates ?: [$checkoutFormId]);
         } else {
             $items = $this->billing->listForOrderCandidates($accountId, $candidates ?: [$checkoutFormId], $dateFrom, $dateTo);
         }
+
+        // Dodatkowe: globalne (bez filtra daty) pobrane/zwroty opłat — do weryfikacji prowizji dla anulowanych.
+        $itemsAll = $this->billing->listForOrderCandidatesNoDate($accountId, $candidates ?: [$checkoutFormId]);
+        $feesNegAll = 0.0;
+        $feesPosAll = 0.0;
+        foreach ($itemsAll as $itAll) {
+            $amt = (float)($itAll['value_amount'] ?? 0);
+            if ($amt < 0) $feesNegAll += $amt;
+            if ($amt > 0) $feesPosAll += $amt;
+        }
+        $feesCharged = ($feesNegAll < 0) ? abs($feesNegAll) : 0.0;
+        $feesRefunded = ($feesPosAll > 0) ? $feesPosAll : 0.0;
+        $feesBalance = max(0.0, $feesCharged - $feesRefunded);
+
+        // "Do zwrotu" ma sens tylko dla anulowanych/nieopłaconych.
+        $status = strtoupper((string)($order['status'] ?? ''));
+        $refundExpected = in_array($status, ['CANCELLED', 'FILLED_IN'], true);
+        $feesPending = $refundExpected ? $feesBalance : 0.0;
 
         $cats = [
             'commission' => 0.0,
@@ -375,13 +612,23 @@ class SettlementsReportService
         }
         unset($it);
 
-        $netAfterFees = $order ? ((float)$order['total_amount'] + (float)$cats['total']) : (float)$cats['total'];
+        $salesBase = 0.0;
+        if ($order) {
+            // preferuj sales_amount (bez dostawy); fallback do total_amount
+            $salesBase = (float)($order['sales_amount'] ?? $order['total_amount'] ?? 0);
+        }
+        $netAfterFees = $order ? ((float)$salesBase + (float)$cats['total']) : (float)$cats['total'];
 
         return [
             'order' => $order,
             'items' => $items,
             'cats' => $cats,
             'net_after_fees' => (float)$netAfterFees,
+            'fees_charged' => (float)$feesCharged,
+            'fees_refunded' => (float)$feesRefunded,
+            'fees_balance' => (float)$feesBalance,
+            'refund_expected' => $refundExpected ? 1 : 0,
+            'fees_pending' => (float)$feesPending,
         ];
     }
 
@@ -403,18 +650,44 @@ class SettlementsReportService
     }
 
     /**
-     * SUMA zamówień złożonych w okresie (created_at_allegro).
+     * SUMA sprzedaży (bez dostawy) zamówień złożonych w okresie (created_at_allegro).
      */
-    private function sumOrdersTotalMulti(array $accountIds, string $dateFrom, string $dateTo): float
+    private function sumOrdersSalesMulti(array $accountIds, string $dateFrom, string $dateTo, string $orderState = 'all', bool $cancelledNoRefund = false): float
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
         $in = $this->buildIn($accountIds);
 
-        $sql = "SELECT SUM(total_amount) FROM `" . _DB_PREFIX_ . "allegropro_order`
-                WHERE id_allegropro_account IN " . $in . "
-                  AND created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'";
+        $itemsAgg = $this->itemsAggSql();
+        $shipAgg = $this->shippingAggSql();
+
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $normO = $this->normalizeKeySql('o.checkout_form_id');
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($accountIds) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT SUM(\n"
+            . "  CASE\n"
+            . "    WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total\n"
+            . "    ELSE GREATEST(IFNULL(o.total_amount,0) - IFNULL(os.shipping_amount,0), 0)\n"
+            . "  END\n"
+            . ") AS sales_total\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "LEFT JOIN (" . $itemsAgg . ") oi ON (oi.checkout_form_id = o.checkout_form_id)\n"
+            . "LEFT JOIN (" . $shipAgg . ") os ON (os.checkout_form_id = o.checkout_form_id)\n"
+            . $bfJoin . "\n"
+            . "WHERE o.id_allegropro_account IN {$in}\n"
+            . "  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}";
+
         return (float)Db::getInstance()->getValue($sql);
     }
 
@@ -423,17 +696,31 @@ class SettlementsReportService
      *
      * @return string[]
      */
-    private function listOrderIdsInRangeMulti(array $accountIds, string $dateFrom, string $dateTo): array
+    private function listOrderIdsInRangeMulti(array $accountIds, string $dateFrom, string $dateTo, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
         $in = $this->buildIn($accountIds);
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
 
-        $sql = "SELECT checkout_form_id
-                FROM `" . _DB_PREFIX_ . "allegropro_order`
-                WHERE id_allegropro_account IN " . $in . "
-                  AND created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'";
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $normO = $this->normalizeKeySql('o.checkout_form_id');
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($accountIds) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT o.checkout_form_id\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . $bfJoin . "\n"
+            . "WHERE o.id_allegropro_account IN {$in}\n"
+            . "  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}";
+
         $rows = Db::getInstance()->executeS($sql) ?: [];
         $out = [];
         foreach ($rows as $r) {
@@ -470,9 +757,9 @@ class SettlementsReportService
     }
 
     /**
-     * Suma zamówień które mają opłaty zaksięgowane w okresie (billing).
+     * Sprzedaż (bez dostawy) dla zamówień, do których naliczono opłaty w okresie (billing).
      */
-    private function sumOrdersTotalForBillingMulti(array $accountIds, string $dateFrom, string $dateTo): float
+    private function sumOrdersSalesForBillingMulti(array $accountIds, string $dateFrom, string $dateTo, string $orderState = 'all', bool $cancelledNoRefund = false): float
     {
         $in = $this->buildIn($accountIds);
         $from = pSQL($dateFrom . ' 00:00:00');
@@ -481,27 +768,50 @@ class SettlementsReportService
         $tn = "LOWER(IFNULL(b.type_name,''))";
         $feeWhere = $this->feeWhere('b.value_amount', $tn);
 
+        $itemsAgg = $this->itemsAggSql();
+        $shipAgg = $this->shippingAggSql();
+
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $normO = $this->normalizeKeySql('o.checkout_form_id');
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($accountIds) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
         // Suma sprzedaży dla zamówień, do których naliczono opłaty w okresie (billing) — dopasowanie po znormalizowanym UUID.
-        $sql = "SELECT SUM(o.total_amount) AS sales_total
-                FROM `" . _DB_PREFIX_ . "allegropro_order` o
-                INNER JOIN (
-                    SELECT DISTINCT b.id_allegropro_account, LOWER(REPLACE(REPLACE(b.order_id,'-',''),'_','')) AS order_key
-                    FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
-                    WHERE b.id_allegropro_account IN " . $in . "
-                      AND b.order_id IS NOT NULL AND b.order_id <> ''
-                      AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
-                      AND {$feeWhere}
-                ) x ON (
-                    x.id_allegropro_account=o.id_allegropro_account
-                    AND x.order_key = LOWER(REPLACE(REPLACE(o.checkout_form_id,'-',''),'_',''))
-                )";
+        $sql = "SELECT SUM(\n"
+            . "  CASE\n"
+            . "    WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total\n"
+            . "    ELSE GREATEST(IFNULL(o.total_amount,0) - IFNULL(os.shipping_amount,0), 0)\n"
+            . "  END\n"
+            . ") AS sales_total\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "INNER JOIN (\n"
+            . "  SELECT DISTINCT b.id_allegropro_account, " . $this->normalizeKeySql('b.order_id') . " AS order_key\n"
+            . "  FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b\n"
+            . "  WHERE b.id_allegropro_account IN {$in}\n"
+            . "    AND b.order_id IS NOT NULL AND b.order_id <> ''\n"
+            . "    AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "    AND {$feeWhere}\n"
+            . ") x ON (x.id_allegropro_account=o.id_allegropro_account AND x.order_key = " . $this->normalizeKeySql('o.checkout_form_id') . ")\n"
+            . "LEFT JOIN (" . $itemsAgg . ") oi ON (oi.checkout_form_id=o.checkout_form_id)\n"
+            . "LEFT JOIN (" . $shipAgg . ") os ON (os.checkout_form_id=o.checkout_form_id)\n"
+            . $bfJoin . "\n"
+            . "WHERE 1=1\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}";
+
         return (float)Db::getInstance()->getValue($sql);
     }
 
     /**
      * Lista zamówień (orders) w okresie (created_at_allegro) — baza dla trybu orders.
      */
-    private function listOrdersMulti(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0): array
+    private function listOrdersMulti(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
@@ -517,23 +827,171 @@ class SettlementsReportService
             $whereQ = " AND (o.checkout_form_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
         }
 
-        $sql = "SELECT o.id_allegropro_account, o.checkout_form_id, o.buyer_login, o.total_amount, o.currency, o.created_at_allegro,
-                       a.label AS account_label
-                FROM `" . _DB_PREFIX_ . "allegropro_order` o
-                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a ON (a.id_allegropro_account = o.id_allegropro_account)
-                WHERE o.id_allegropro_account IN " . $in . "
-                  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'" . $whereQ . "
-                ORDER BY o.created_at_allegro DESC
-                LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $itemsAgg = $this->itemsAggSql();
+        $shipAgg = $this->shippingAggSql();
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $normO = $this->normalizeKeySql('o.checkout_form_id');
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($accountIds) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT\n"
+            . "  o.id_allegropro_account, o.checkout_form_id, o.status AS order_status, o.buyer_login, o.total_amount AS order_total_amount, o.currency, o.created_at_allegro,\n"
+            . "  a.label AS account_label,\n"
+            . "  CASE\n"
+            . "    WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total\n"
+            . "    ELSE GREATEST(IFNULL(o.total_amount,0) - IFNULL(os.shipping_amount,0), 0)\n"
+            . "  END AS sales_amount,\n"
+            . "  IFNULL(os.shipping_amount,0) AS shipping_amount\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a ON (a.id_allegropro_account = o.id_allegropro_account)\n"
+            . "LEFT JOIN (" . $itemsAgg . ") oi ON (oi.checkout_form_id = o.checkout_form_id)\n"
+            . "LEFT JOIN (" . $shipAgg . ") os ON (os.checkout_form_id = o.checkout_form_id)\n"
+            . $bfJoin . "\n"
+            . "WHERE o.id_allegropro_account IN {$in}\n"
+            . "  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}\n"
+            . "  {$whereQ}\n"
+            . "ORDER BY o.created_at_allegro DESC\n"
+            . "LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
-            $ta = (float)$r['total_amount'];
-            $r['total_amount'] = ($ta > 0.0) ? $ta : null;
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
+
+            $sales = isset($r['sales_amount']) ? (float)$r['sales_amount'] : 0.0;
+            $r['sales_amount'] = ($sales > 0.0) ? $sales : null;
+
+            $ship = isset($r['shipping_amount']) ? (float)$r['shipping_amount'] : 0.0;
+            $r['shipping_amount'] = $ship;
+
+            // zachowaj zgodność: total_amount w UI = sprzedaż (bez dostawy)
+            $r['total_amount'] = $r['sales_amount'];
         }
         unset($r);
+
         return $rows;
+    }
+
+    /**
+     * Pobiera w jednym strzale SUM(negatives) i SUM(positives) dla listy orderIds (bez filtra daty).
+     *
+     * @param int[] $accountIds
+     * @param string[] $orderIds
+     * @return array<int, array<string, array{neg_sum:float,pos_sum:float}>>
+     */
+    private function sumChargesRefundsByOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $orderIds)))));
+        if (empty($orderIds)) {
+            return [];
+        }
+
+        $accIn = $this->buildIn($accountIds);
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->feeWhere('value_amount', $tn);
+
+        $out = [];
+        $chunkSize = 500;
+        for ($i = 0; $i < count($orderIds); $i += $chunkSize) {
+            $chunk = array_slice($orderIds, $i, $chunkSize);
+            $vals = [];
+            foreach ($chunk as $id) {
+                if ($id === '') continue;
+                $vals[] = "'" . pSQL($id) . "'";
+            }
+            if (empty($vals)) continue;
+
+            $sql = "SELECT id_allegropro_account, order_id,\n"
+                . "       SUM(CASE WHEN value_amount < 0 THEN value_amount ELSE 0 END) AS neg_sum,\n"
+                . "       SUM(CASE WHEN value_amount > 0 THEN value_amount ELSE 0 END) AS pos_sum\n"
+                . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+                . "WHERE id_allegropro_account IN {$accIn}\n"
+                . "  AND order_id IS NOT NULL AND order_id <> ''\n"
+                . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+                . "  AND {$feeWhere}\n"
+                . "GROUP BY id_allegropro_account, order_id";
+
+            $rows = Db::getInstance()->executeS($sql) ?: [];
+            foreach ($rows as $r) {
+                $aid = (int)($r['id_allegropro_account'] ?? 0);
+                if ($aid <= 0) continue;
+                $oid = (string)($r['order_id'] ?? '');
+                if ($oid === '') continue;
+
+                if (!isset($out[$aid])) $out[$aid] = [];
+                $out[$aid][$oid] = [
+                    'neg_sum' => (float)($r['neg_sum'] ?? 0),
+                    'pos_sum' => (float)($r['pos_sum'] ?? 0),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Kategorie opłat (billing mode) z filtrem po statusie zamówienia / "bez zwrotu".
+     *
+     * @return array{total:float,commission:float,smart:float,delivery:float,promotion:float,refunds:float}
+     */
+    private function getCategorySumsBillingFilteredMulti(array $accountIds, string $dateFrom, string $dateTo, string $orderState, bool $cancelledNoRefund): array
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+        $in = $this->buildIn($accountIds);
+
+        $tn = "LOWER(IFNULL(b.type_name,''))";
+        $feeWhere = $this->feeWhere('b.value_amount', $tn);
+
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $normO = $this->normalizeKeySql('o.checkout_form_id');
+        $normB = $this->normalizeKeySql('b.order_id');
+
+        $bfJoin = '';
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($accountIds) . ") bf\n"
+                . "   ON (bf.id_allegropro_account=b.id_allegropro_account AND bf.order_key={$normB})";
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $sql = "SELECT\n"
+            . "  SUM(b.value_amount) AS total,\n"
+            . "  SUM(CASE WHEN (b.type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN b.value_amount ELSE 0 END) AS commission,\n"
+            . "  SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN b.value_amount ELSE 0 END) AS smart,\n"
+            . "  SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN b.value_amount ELSE 0 END) AS delivery,\n"
+            . "  SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN b.value_amount ELSE 0 END) AS promotion,\n"
+            . "  SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN b.value_amount ELSE 0 END) AS refunds\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b\n"
+            . "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o\n"
+            . "  ON (o.id_allegropro_account=b.id_allegropro_account AND {$normO} = {$normB})\n"
+            . $bfJoin . "\n"
+            . "WHERE b.id_allegropro_account IN {$in}\n"
+            . "  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
+            . "  AND b.order_id IS NOT NULL AND b.order_id <> ''\n"
+            . "  AND {$feeWhere}\n"
+            . "  {$statusWhere}\n"
+            . "  {$bfWhere}";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+        return [
+            'total' => (float)($row['total'] ?? 0),
+            'commission' => (float)($row['commission'] ?? 0),
+            'smart' => (float)($row['smart'] ?? 0),
+            'delivery' => (float)($row['delivery'] ?? 0),
+            'promotion' => (float)($row['promotion'] ?? 0),
+            'refunds' => (float)($row['refunds'] ?? 0),
+        ];
     }
 
     private function getOrderRow(int $accountId, string $checkoutFormId): ?array
@@ -545,7 +1003,7 @@ class SettlementsReportService
 
         $key = pSQL($this->normalizeId($cf));
 
-        $sql = 'SELECT checkout_form_id, buyer_login, total_amount, currency, created_at_allegro '
+        $sql = 'SELECT checkout_form_id, status, buyer_login, total_amount, currency, created_at_allegro '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` '
             . 'WHERE id_allegropro_account=' . (int)$accountId . ' '
             . "AND (checkout_form_id='" . pSQL($cf) . "' OR LOWER(REPLACE(REPLACE(checkout_form_id,'-',''),'_',''))='" . $key . "') "
@@ -558,6 +1016,30 @@ class SettlementsReportService
         }
         $row['total_amount'] = (float)$row['total_amount'];
         return $row;
+    }
+
+    /**
+     * Zwraca sumę pozycji (items_total) i koszt dostawy (shipping_amount) dla checkout_form_id.
+     *
+     * @return array{items_total:float,shipping_amount:float}
+     */
+    private function getSalesAndShippingForCheckoutFormId(string $checkoutFormId): array
+    {
+        $cf = pSQL(trim($checkoutFormId));
+        if ($cf === '') {
+            return ['items_total' => 0.0, 'shipping_amount' => 0.0];
+        }
+
+        $itemsSql = "SELECT SUM(quantity * price) FROM `" . _DB_PREFIX_ . "allegropro_order_item` WHERE checkout_form_id='" . $cf . "'";
+        $shipSql = "SELECT MAX(cost_amount) FROM `" . _DB_PREFIX_ . "allegropro_order_shipping` WHERE checkout_form_id='" . $cf . "'";
+
+        $items = (float)Db::getInstance()->getValue($itemsSql);
+        $ship = (float)Db::getInstance()->getValue($shipSql);
+
+        return [
+            'items_total' => $items,
+            'shipping_amount' => $ship,
+        ];
     }
 
     private function normalizeId(string $id): string

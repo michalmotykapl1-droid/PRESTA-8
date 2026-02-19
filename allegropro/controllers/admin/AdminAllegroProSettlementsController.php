@@ -413,12 +413,29 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $acc = $this->accounts->get($accountId);
         $accountLabel = $acc['label'] ?? '';
 
+        $orderStatus = (string)($order['status'] ?? '');
+        $currency = (string)($order['currency'] ?? 'PLN');
+        $orderTotalAmount = (float)($order['order_total_amount'] ?? $orderTotal);
+        $salesAmount = (float)($order['sales_amount'] ?? 0);
+        $shippingAmount = (float)($order['shipping_amount'] ?? 0);
+
+        $feesCharged = (float)($details['fees_charged'] ?? 0);
+        $feesRefunded = (float)($details['fees_refunded'] ?? 0);
+        $feesPending = (float)($details['fees_pending'] ?? 0);
+
         $this->ajaxDie(json_encode([
             'ok' => 1,
             'account_label' => (string)$accountLabel,
             'checkout_form_id' => (string)($order['checkout_form_id'] ?? $checkout),
             'buyer_login' => (string)($order['buyer_login'] ?? ''),
-            'order_total' => $orderTotal,
+            'order_total' => $orderTotalAmount,
+            'currency' => $currency,
+            'order_status' => $orderStatus,
+            'sales_amount' => $salesAmount,
+            'shipping_amount' => $shippingAmount,
+            'fees_charged' => $feesCharged,
+            'fees_refunded' => $feesRefunded,
+            'fees_pending' => $feesPending,
             'fees_total' => $feesTotal,
             'fees_rate_pct' => $pctTotal,
             'net_after_fees' => (float)($details['net_after_fees'] ?? ($orderTotal + $feesTotal)),

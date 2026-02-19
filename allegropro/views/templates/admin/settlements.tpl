@@ -404,17 +404,37 @@
                     <i class="material-icons" style="font-size:16px;">content_copy</i>
                   </a>
                 </div>
+                {if $o.order_status}
+                  {assign var=_st value=$o.order_status|upper}
+                  <div style="margin-top:4px;">
+                    {if $_st=='CANCELLED'}
+                      <span class="badge badge-danger">Anulowane</span>
+                    {elseif $_st=='FILLED_IN'}
+                      <span class="badge badge-warning">Nieopłacone</span>
+                    {elseif $_st=='READY_FOR_PROCESSING' || $_st=='BOUGHT'}
+                      <span class="badge badge-success">Opłacone</span>
+                    {else}
+                      <span class="badge badge-secondary">{$_st|escape:'htmlall':'UTF-8'}</span>
+                    {/if}
+                  </div>
+                {/if}
               </td>
               <td>{$o.buyer_login|escape:'htmlall':'UTF-8'}</td>
               <td class="text-right">
                 {if $o.total_amount && $o.total_amount > 0}
                   {$o.total_amount|number_format:2:',':' '} {$o.currency|escape:'htmlall':'UTF-8'}
+                  {if isset($o.shipping_amount) && $o.shipping_amount > 0}
+                    <div class="alpro-muted" style="font-size:11px;">Dostawa: {$o.shipping_amount|number_format:2:',':' '} {$o.currency|escape:'htmlall':'UTF-8'}</div>
+                  {/if}
                 {else}
                   <span class="alpro-muted">—</span>
                 {/if}
               </td>
               <td class="text-right {if $o.fees_total < 0}text-danger{elseif $o.fees_total > 0}text-success{/if}">
                 {$o.fees_total|number_format:2:',':' '} zł
+                {if isset($o.fees_pending) && $o.fees_pending > 0.01}
+                  <div style="margin-top:4px;"><span class="badge badge-warning" title="Allegro pobrało opłaty i nie oddało ich w całości">Do zwrotu: {$o.fees_pending|number_format:2:',':' '} zł</span></div>
+                {/if}
               </td>
               <td class="text-right {if $saldo < 0}text-danger{elseif $saldo < 5}text-warning{else}text-success{/if}">
                 {$saldo|number_format:2:',':' '} zł

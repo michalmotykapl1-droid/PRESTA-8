@@ -288,13 +288,13 @@ class ShipmentCreatorService
                             unset($payloadBase['credentialsId']);
                             if ($debug) {
                                 $debugLines[] = '[RETRY] Wykryto błąd InPost/ShipX. Nie mam credentialsId w DB, ale dokładam inpost#sendingMethod=' . ($hasPickupPoint ? 'any_point' : 'dispatch_order') . ' i ponawiam (jeśli nadal błąd, to brakuje tokenu ShipX w Allegro).';
-                        $hasSavedShipx = !empty($account['shipx_token']);
-                        if ($debug) {
-                            $debugLines[] = '[INFO] ShipX token zapisany w module dla tego konta: ' . ($hasSavedShipx ? 'TAK' : 'NIE');
-                            if ($hasSavedShipx) {
-                                $debugLines[] = '[INFO] Jeśli Allegro zgłasza brak poświadczeń, skopiuj ten token (Ustawienia modułu → InPost ShipX) i wklej w Allegro Sales Center → Wysyłam z Allegro → Integracja z InPost.';
-                            }
-                        }
+                                $hasSavedShipx = !empty($account['shipx_token']);
+                                if ($debug) {
+                                    $debugLines[] = '[INFO] ShipX token zapisany w module dla tego konta: ' . ($hasSavedShipx ? 'TAK' : 'NIE');
+                                    if ($hasSavedShipx) {
+                                        $debugLines[] = '[INFO] Jeśli Allegro zgłasza brak poświadczeń, skopiuj ten token (Ustawienia modułu → InPost ShipX) i wklej w Allegro Sales Center → Wysyłam z Allegro → Integracja z InPost.';
+                                    }
+                                }
 
                             }
                         }
@@ -357,7 +357,7 @@ class ShipmentCreatorService
                     $sizeDetails2 = $this->extractSizeDetails($detailJson);
 
                     if (method_exists($this->shipments, 'upsertFromAllegro')) {
-                                                $createdAt2 = $this->normalizeDateTime($detailJson['createdAt'] ?? null);
+                        $createdAt2 = $this->normalizeDateTime($detailJson['createdAt'] ?? null);
                         $statusChangedAt2 = $this->normalizeDateTime($detailJson['statusChangedAt'] ?? ($detailJson['updatedAt'] ?? null))
                             ?: $createdAt2;
 
@@ -418,584 +418,438 @@ class ShipmentCreatorService
             // Allegro w dokumentacji pokazuje klucz "services" (nie "deliveryServices").
             $services = null;
             $shape = '';
-            if (isset($resp['json']['services'])) {
+
+            if (isset($resp['json']['services']) && is_array($resp['json']['services'])) {
                 $services = $resp['json']['services'];
                 $shape = 'services';
-            } elseif (isset($resp['json']['deliveryServices'])) {
+            } elseif (isset($resp['json']['deliveryServices']) && is_array($resp['json']['deliveryServices'])) {
                 $services = $resp['json']['deliveryServices'];
                 $shape = 'deliveryServices';
-            } else {
-                // awaryjnie: jeśli API zwróciło listę bez obudowy
+            } elseif (array_values($resp['json']) === $resp['json']) {
+                // fallback: jeżeli API zwróci tablicę bez klucza
                 $services = $resp['json'];
-                $shape = 'raw';
+                $shape = 'root-array';
             }
+
             if (!is_array($services)) {
-                $resp['shape'] = $shape;
+                $resp['shape'] = 'unknown';
                 return $resp;
             }
-            foreach ($services as $s) {
-                if (is_array($s)) {
-                    $this->deliveryServices->upsert((int)($account['id_allegropro_account'] ?? 0), $s);
-                }
-            }
+
+            $this->deliveryServices->replaceAllForAccount((int)$account['id_allegropro_account'], $services);
             $resp['shape'] = $shape;
             return $resp;
         } catch (Exception $e) {
-            return ['ok' => false, 'code' => 0, 'raw' => (string)$e->getMessage(), 'json' => null];
+            return ['ok' => false, 'code' => 0, 'json' => ['message' => $e->getMessage()]];
         }
     }
 
-
-    /**
-     * Pobiera delivery-services bezpośrednio z API i wybiera najlepszy wariant dla podanego deliveryMethodId.
-     * To jest krytyczne dla InPost/Paczkomatów, gdzie Allegro często wymaga jawnego credentialsId.
-     *
-     * Zwraca "db-like" tablicę zgodną z findByDeliveryMethod(): credentials_id, additional_properties_json, carrier_id, owner, name...
-     */
-    private function resolveDeliveryServiceFromApi(array $account, string $deliveryMethodId, string $methodName, bool $hasPickupPoint, bool $debug, array &$debugLines): ?array
-    {
-        $accountId = (int)($account['id_allegropro_account'] ?? 0);
-
-        $lc = function (string $s): string {
-            return function_exists('mb_strtolower') ? (string)mb_strtolower($s) : strtolower($s);
-        };
-
+    private function resolveDeliveryServiceFromApi(
+        array $account,
+        string $deliveryMethodId,
+        string $methodName,
+        bool $hasPickupPoint,
+        bool $debug,
+        array &$debugLines
+    ): ?array {
         try {
             $resp = $this->api->get($account, '/shipment-management/delivery-services', ['limit' => 500]);
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 if ($debug) {
-                    $debugLines[] = '[CREATE] delivery-services (live): nie udało się pobrać z API (HTTP ' . (int)($resp['code'] ?? 0) . ').';
+                    $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi: API error code=' . (int)($resp['code'] ?? 0);
                 }
                 return null;
             }
 
-            $services = null;
-            $shape = '';
-            if (isset($resp['json']['services'])) {
+            $services = [];
+            if (isset($resp['json']['services']) && is_array($resp['json']['services'])) {
                 $services = $resp['json']['services'];
-                $shape = 'services';
-            } elseif (isset($resp['json']['deliveryServices'])) {
+            } elseif (isset($resp['json']['deliveryServices']) && is_array($resp['json']['deliveryServices'])) {
                 $services = $resp['json']['deliveryServices'];
-                $shape = 'deliveryServices';
-            } else {
+            } elseif (array_values($resp['json']) === $resp['json']) {
                 $services = $resp['json'];
-                $shape = 'raw';
             }
 
-            if (!is_array($services)) {
-                if ($debug) {
-                    $debugLines[] = '[CREATE] delivery-services (live): nieoczekiwany kształt odpowiedzi (' . $shape . ').';
-                }
-                return null;
+            if ($debug) {
+                $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi: services count=' . count($services);
             }
 
-            $wantName = trim($lc((string)$methodName));
-            $wantInpost = ($wantName !== '' && strpos($wantName, 'inpost') !== false);
-            $wantPacz = ($wantName !== '' && (strpos($wantName, 'paczkom') !== false || strpos($wantName, 'paczko') !== false));
-
-            $matchesById = [];
-            $matchesByName = [];
-            $inpostCandidates = [];
-
+            // 1) próba strict po deliveryMethodId
+            $strict = [];
             foreach ($services as $s) {
                 if (!is_array($s)) {
                     continue;
                 }
-
-                $idObj = $s['id'] ?? null;
-
                 $dmId = '';
                 if (isset($s['deliveryMethodId'])) {
                     $dmId = (string)$s['deliveryMethodId'];
-                } elseif (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
-                    $dmId = (string)$idObj['deliveryMethodId'];
+                } elseif (is_array($s['id'] ?? null) && isset($s['id']['deliveryMethodId'])) {
+                    $dmId = (string)$s['id']['deliveryMethodId'];
                 } elseif (is_array($s['deliveryMethod'] ?? null) && isset($s['deliveryMethod']['id'])) {
                     $dmId = (string)$s['deliveryMethod']['id'];
-                } elseif (is_array($idObj) && is_array($idObj['deliveryMethod'] ?? null) && isset($idObj['deliveryMethod']['id'])) {
-                    $dmId = (string)$idObj['deliveryMethod']['id'];
                 }
 
-                // credentials
-                $credentialsId = null;
-                if (isset($s['credentialsId'])) {
-                    $credentialsId = (string)$s['credentialsId'];
-                } elseif (is_array($idObj) && isset($idObj['credentialsId'])) {
-                    $credentialsId = (string)$idObj['credentialsId'];
-                } elseif (is_array($s['credentials'] ?? null) && isset($s['credentials']['id'])) {
-                    $credentialsId = (string)$s['credentials']['id'];
-                }
-                $credentialsId = ($credentialsId && strtolower($credentialsId) !== 'null') ? $credentialsId : null;
-
-                // additionalProperties
-                $add = null;
-                if (isset($s['additionalProperties']) && is_array($s['additionalProperties'])) {
-                    $add = $s['additionalProperties'];
-                } elseif (isset($s['additional_properties']) && is_array($s['additional_properties'])) {
-                    $add = $s['additional_properties'];
-                }
-
-                $sending = null;
-                if (is_array($add) && array_key_exists('inpost#sendingMethod', $add)) {
-                    $sm = $add['inpost#sendingMethod'];
-                    if (is_string($sm) && $sm !== '') {
-                        $sending = $sm;
-                    } elseif (is_array($sm) && !empty($sm)) {
-                        $sending = (string)reset($sm);
-                    }
-                }
-
-                $name = isset($s['name']) ? (string)$s['name'] : '';
-                $nameLc = trim($lc($name));
-                $hasInpostProp = is_array($add) && array_key_exists('inpost#sendingMethod', $add);
-                $isInpostName = ($nameLc !== '' && strpos($nameLc, 'inpost') !== false);
-                $isPaczName = ($nameLc !== '' && (strpos($nameLc, 'paczkom') !== false || strpos($nameLc, 'paczko') !== false));
-
-                $entry = [
-                    'raw' => $s,
-                    'dmId' => $dmId,
-                    'credentialsId' => $credentialsId,
-                    'additional' => $add,
-                    'sending' => $sending,
-                    'carrierId' => isset($s['carrierId']) ? (string)$s['carrierId'] : null,
-                    'owner' => isset($s['owner']) ? (string)$s['owner'] : null,
-                    'name' => $name,
-                    'reason' => 'unknown',
-                ];
-
-                if ($dmId !== '' && $dmId === $deliveryMethodId) {
-                    $entry['reason'] = 'by-id';
-                    $matchesById[] = $entry;
-                    continue;
-                }
-
-                // Dopasowanie po nazwie (gdy deliveryMethodId z checkout-form nie występuje w delivery-services)
-                if ($wantInpost && $isInpostName) {
-                    $nameOk = true;
-                    if ($wantPacz) {
-                        $nameOk = $isPaczName;
-                    } elseif ($hasPickupPoint) {
-                        $nameOk = ($isPaczName || strpos($nameLc, 'punkt') !== false);
-                    }
-                    if ($nameOk) {
-                        $entry['reason'] = (strpos($nameLc, $wantName) !== false || strpos($wantName, $nameLc) !== false) ? 'by-name-strong' : 'by-name';
-                        $matchesByName[] = $entry;
-                    }
-                }
-
-                // Fallback: InPost rozpoznajemy też po additionalProperties.inpost#sendingMethod
-                if ($hasInpostProp || $isInpostName) {
-                    $entry['reason'] = $hasInpostProp ? 'by-inpost-prop' : 'by-inpost-name';
-                    $inpostCandidates[] = $entry;
+                if ($dmId === $deliveryMethodId) {
+                    $strict[] = $s;
                 }
             }
 
-            if ($debug) {
-                $debugLines[] = '[CREATE] delivery-services (live): shape=' . $shape
-                    . ', matches_by_id=' . count($matchesById)
-                    . ', matches_by_name=' . count($matchesByName)
-                    . ', inpost_candidates=' . count($inpostCandidates)
-                    . ' (wanted deliveryMethodId=' . $deliveryMethodId . ', methodName=' . $methodName . ')';
+            if (!empty($strict)) {
+                if ($debug) {
+                    $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi: strict matches=' . count($strict);
+                }
+
+                // preferuj te z credentialsId
+                usort($strict, function ($a, $b) {
+                    $ac = $this->extractCredentialsIdFromService($a) ? 1 : 0;
+                    $bc = $this->extractCredentialsIdFromService($b) ? 1 : 0;
+                    if ($ac !== $bc) return $bc <=> $ac;
+
+                    $ao = strtoupper((string)($a['owner'] ?? ''));
+                    $bo = strtoupper((string)($b['owner'] ?? ''));
+                    if ($ao !== $bo) {
+                        if ($ao === 'CLIENT') return -1;
+                        if ($bo === 'CLIENT') return 1;
+                    }
+                    return 0;
+                });
+
+                $pick = $strict[0];
+                return $this->normalizeServiceForPayload($pick, $deliveryMethodId);
             }
 
-            // wybór kandydatów: najpierw dokładne ID; dla InPost preferuj kandydatów INPOST (props/nazwa) zanim dopasujesz po nazwie
+            // 2) fallback po nazwie metody / inpost i trybie pickup/courier
+            $nameNeedle = mb_strtolower(trim($methodName));
             $candidates = [];
-            if (!empty($matchesById)) {
-                $candidates = $matchesById;
-            } else {
-                // Dla Paczkomatów/InPost najpewniejsze są rekordy z carrierId=INPOST lub z additionalProperties.inpost#sendingMethod.
-                if (($wantInpost || $hasPickupPoint) && !empty($inpostCandidates)) {
-                    $candidates = $inpostCandidates;
+            foreach ($services as $s) {
+                if (!is_array($s)) continue;
 
-                    // Preferuj rekordy, gdzie carrierId=INPOST (najbardziej wiarygodne dla InPost).
-                    $onlyInpostCarrier = [];
-                    foreach ($candidates as $m) {
-                        $cid = strtoupper((string)($m['carrierId'] ?? ''));
-                        if ($cid === 'INPOST') {
-                            $onlyInpostCarrier[] = $m;
-                        }
-                    }
-                    if (!empty($onlyInpostCarrier)) {
-                        $candidates = $onlyInpostCarrier;
-                    }
+                $serviceName = mb_strtolower(trim((string)($s['name'] ?? '')));
+                $carrier = strtoupper(trim((string)($s['carrierId'] ?? ($s['carrier_id'] ?? ''))));
 
-                    // Jeśli to punkt/paczkomat, ogranicz do usług "punktowych" lub takich, które wspierają sendingMethod dla punktu.
-                    if ($hasPickupPoint) {
-                        $filtered = [];
-                        foreach ($candidates as $m) {
-                            $n = trim($lc((string)($m['name'] ?? '')));
-                            $isPointy = ($n !== '' && (strpos($n, 'paczkom') !== false || strpos($n, 'paczko') !== false || strpos($n, 'punkt') !== false));
-                            $smOk = (!empty($m['sending']) && in_array($m['sending'], ['any_point', 'parcel_locker', 'pop'], true));
-                            if ($isPointy || $smOk) {
-                                $filtered[] = $m;
-                            }
-                        }
-                        if (!empty($filtered)) {
-                            $candidates = $filtered;
-                        }
-                    }
-                } elseif (!empty($matchesByName)) {
-                    $candidates = $matchesByName;
+                $score = 0;
+                if ($serviceName !== '' && $nameNeedle !== '' && mb_strpos($serviceName, $nameNeedle) !== false) {
+                    $score += 40;
+                }
+                if (mb_strpos($nameNeedle, 'inpost') !== false && $carrier === 'INPOST') {
+                    $score += 30;
+                }
+                if ($this->extractCredentialsIdFromService($s)) {
+                    $score += 10;
+                }
+                if (strtoupper((string)($s['owner'] ?? '')) === 'CLIENT') {
+                    $score += 5;
+                }
+
+                $sending = $this->extractInpostSendingMethodFromService($s);
+                if ($hasPickupPoint) {
+                    $smOk = (!empty($sending) && in_array($sending, ['any_point', 'parcel_locker', 'pop'], true));
+                    if ($smOk) $score += 20;
+                } else {
+                    $smOk = (!empty($sending) && $sending === 'dispatch_order');
+                    if ($smOk) $score += 20;
+                }
+
+                if ($score > 0) {
+                    $s['_score'] = $score;
+                    $candidates[] = $s;
                 }
             }
 
             if (empty($candidates)) {
                 if ($debug) {
-                    $sample = [];
-                    $i = 0;
-                    foreach ($services as $s) {
-                        if (!is_array($s)) {
-                            continue;
-                        }
-                        $nm = isset($s['name']) ? (string)$s['name'] : '';
-                        if ($nm === '') {
-                            continue;
-                        }
-                        if (stripos($nm, 'inpost') !== false || stripos($nm, 'paczko') !== false || stripos($nm, 'paczkom') !== false) {
-                            $idObj = $s['id'] ?? null;
-                            $dm = '';
-                            if (isset($s['deliveryMethodId'])) {
-                                $dm = (string)$s['deliveryMethodId'];
-                            } elseif (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
-                                $dm = (string)$idObj['deliveryMethodId'];
-                            } elseif (is_array($s['deliveryMethod'] ?? null) && isset($s['deliveryMethod']['id'])) {
-                                $dm = (string)$s['deliveryMethod']['id'];
-                            }
-                            $sample[] = '{dmId=' . $dm . ', name=' . $nm . '}';
-                            $i++;
-                            if ($i >= 5) {
-                                break;
-                            }
-                        }
-                    }
-                    if (!empty($sample)) {
-                        $debugLines[] = '[CREATE] delivery-services sample (InPost-like): ' . implode(' | ', $sample);
-                    } else {
-                        $debugLines[] = '[CREATE] delivery-services sample: brak pozycji zawierających "InPost/Paczkom" – API może nie zwracać tej metody dla tego konta.';
-                    }
+                    $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi: brak kandydatów po fallback.';
                 }
                 return null;
             }
 
-            // Wybór najlepszego kandydata (score): preferuj INPOST + umowa własna (owner=CLIENT) + sendingMethod zgodny z typem + credentialsId.
-            $preferred = $hasPickupPoint ? ['any_point', 'parcel_locker', 'pop'] : ['dispatch_order'];
-
-            $scored = [];
-            foreach ($candidates as $m) {
-                // Bez deliveryMethodId nie da się utworzyć przesyłki.
-                if (empty($m['dmId'])) {
-                    continue;
-                }
-                $score = 0;
-
-                $carrierId = (string)($m['carrierId'] ?? '');
-                $owner = (string)($m['owner'] ?? '');
-                $nameLc2 = trim($lc((string)($m['name'] ?? '')));
-
-                if ($carrierId === 'INPOST') {
-                    $score += 200;
-                }
-                if (is_array($m['additional']) && array_key_exists('inpost#sendingMethod', $m['additional'])) {
-                    $score += 20;
-                }
-                if (!empty($m['sending']) && in_array($m['sending'], $preferred, true)) {
-                    $score += 10;
-                }
-
-                // Umowa własna (Separate Agreement) zwykle ma owner=CLIENT.
-                if ($owner === 'CLIENT') {
-                    $score += 80;
-                } elseif ($owner === 'ALLEGRO' && ($wantInpost || $hasPickupPoint)) {
-                    // Dla InPost/Paczkomatów owner=ALLEGRO często oznacza Allegro Standard – to niemal pewny konflikt umowy.
-                    $score -= 200;
-                }
-
-                if (!empty($m['credentialsId'])) {
-                    $score += 10;
-                }
-
-                if ($wantName !== '' && $nameLc2 !== '') {
-                    if (strpos($nameLc2, $wantName) !== false || strpos($wantName, $nameLc2) !== false) {
-                        $score += 8;
-                    }
-                    if ($wantPacz && (strpos($nameLc2, 'paczkom') !== false || strpos($nameLc2, 'paczko') !== false || strpos($nameLc2, 'punkt') !== false)) {
-                        $score += 5;
-                    }
-                }
-
-                $m['score'] = $score;
-                $scored[] = $m;
-            }
-
-            usort($scored, function ($a, $b) {
-                $sa = (int)($a['score'] ?? 0);
-                $sb = (int)($b['score'] ?? 0);
-                if ($sa === $sb) {
-                    $ta = (!empty($a['credentialsId']) ? 1 : 0)
-                        + (((string)($a['owner'] ?? '') === 'CLIENT') ? 1 : 0)
-                        + (((string)($a['carrierId'] ?? '') === 'INPOST') ? 1 : 0);
-                    $tb = (!empty($b['credentialsId']) ? 1 : 0)
-                        + (((string)($b['owner'] ?? '') === 'CLIENT') ? 1 : 0)
-                        + (((string)($b['carrierId'] ?? '') === 'INPOST') ? 1 : 0);
-                    return $tb <=> $ta;
-                }
-                return $sb <=> $sa;
+            usort($candidates, function ($a, $b) {
+                return ((int)($b['_score'] ?? 0)) <=> ((int)($a['_score'] ?? 0));
             });
 
-            $selected = $scored[0];
+            $pick = $candidates[0];
+            $resolvedDmId = $this->extractDeliveryMethodIdFromService($pick);
+            if ($resolvedDmId === '') $resolvedDmId = $deliveryMethodId;
 
             if ($debug) {
-                $dbg = [];
-                $i = 0;
-                foreach ($scored as $m) {
-                    $dbg[] = '{score=' . (int)($m['score'] ?? 0)
-                        . ', dmId=' . (string)($m['dmId'] ?? '-')
-                        . ', carrierId=' . (string)($m['carrierId'] ?? '-')
-                        . ', owner=' . (string)($m['owner'] ?? '-')
-                        . ', cred=' . (!empty($m['credentialsId']) ? (string)$m['credentialsId'] : '(brak)')
-                        . ', sending=' . (!empty($m['sending']) ? (string)$m['sending'] : '(brak)')
-                        . ', name=' . (string)($m['name'] ?? '') . '}';
-                    $i++;
-                    if ($i >= 5) {
-                        break;
-                    }
-                }
-                $debugLines[] = '[CREATE] delivery-service candidates top5: ' . implode(' | ', $dbg);
-                $debugLines[] = '[CREATE] delivery-service (live) picked score=' . (int)($selected['score'] ?? 0);
+                $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi: fallback pick score=' . (int)($pick['_score'] ?? 0)
+                    . ', dmId=' . $resolvedDmId
+                    . ', name=' . (string)($pick['name'] ?? '-')
+                    . ', carrier=' . (string)($pick['carrierId'] ?? '-');
             }
 
-// Zapisz do DB dla przyszłych wywołań (upsert jest idempotentny).
-            if ($accountId > 0 && is_array($selected['raw'])) {
-                $this->deliveryServices->upsert($accountId, $selected['raw']);
-            }
-
-            $dbRow = [
-                'id_allegropro_account' => $accountId,
-                'delivery_method_id' => (string)($selected['dmId'] ?: $deliveryMethodId),
-                'credentials_id' => $selected['credentialsId'],
-                'name' => $selected['name'],
-                'carrier_id' => $selected['carrierId'],
-                'owner' => $selected['owner'],
-                'additional_properties_json' => is_array($selected['additional']) ? json_encode($selected['additional'], JSON_UNESCAPED_UNICODE) : null,
-            ];
-
-            if ($debug) {
-                $debugLines[] = '[CREATE] delivery-service (live) selected: reason=' . (string)($selected['reason'] ?? '-')
-                    . ', dmId=' . (string)($dbRow['delivery_method_id'] ?? '-')
-                    . ', carrier_id=' . (string)($dbRow['carrier_id'] ?? '-')
-                    . ', credentialsId=' . (string)($dbRow['credentials_id'] ?? '(brak)')
-                    . ', owner=' . (string)($dbRow['owner'] ?? '-');
-            }
-
-            return $dbRow;
+            return $this->normalizeServiceForPayload($pick, $resolvedDmId);
         } catch (Exception $e) {
             if ($debug) {
-                $debugLines[] = '[CREATE] delivery-services (live) exception: ' . $e->getMessage();
+                $debugLines[] = '[CREATE] resolveDeliveryServiceFromApi exception: ' . $e->getMessage();
             }
             return null;
         }
     }
 
-    /**
-     * InPost od 2024/2025 wymaga jawnego wskazania metody nadania.
-     * Do końca lutego 2026 wspierane jest additionalProperties.inpost#sendingMethod.
-     */
+    private function normalizeServiceForPayload(array $service, string $resolvedDeliveryMethodId): array
+    {
+        $credentialsId = $this->extractCredentialsIdFromService($service);
+        $additional = $this->extractAdditionalPropertiesFromService($service);
+
+        return [
+            'delivery_method_id' => $resolvedDeliveryMethodId,
+            'credentials_id' => $credentialsId ?: null,
+            'owner' => (string)($service['owner'] ?? ''),
+            'carrier_id' => (string)($service['carrierId'] ?? ($service['carrier_id'] ?? '')),
+            'name' => (string)($service['name'] ?? ''),
+            'additional_properties_json' => !empty($additional) ? json_encode($additional, JSON_UNESCAPED_UNICODE) : null,
+        ];
+    }
+
+    private function extractDeliveryMethodIdFromService(array $service): string
+    {
+        if (isset($service['deliveryMethodId'])) return (string)$service['deliveryMethodId'];
+        if (is_array($service['id'] ?? null) && isset($service['id']['deliveryMethodId'])) return (string)$service['id']['deliveryMethodId'];
+        if (is_array($service['deliveryMethod'] ?? null) && isset($service['deliveryMethod']['id'])) return (string)$service['deliveryMethod']['id'];
+        return '';
+    }
+
+    private function extractCredentialsIdFromService(array $service): string
+    {
+        if (!empty($service['credentialsId'])) return (string)$service['credentialsId'];
+        if (is_array($service['id'] ?? null) && !empty($service['id']['credentialsId'])) return (string)$service['id']['credentialsId'];
+        return '';
+    }
+
+    private function extractAdditionalPropertiesFromService(array $service): array
+    {
+        $keys = ['additionalProperties', 'additional_properties', 'properties', 'settings'];
+        foreach ($keys as $k) {
+            if (isset($service[$k]) && is_array($service[$k])) {
+                return $service[$k];
+            }
+        }
+        return [];
+    }
+
+    private function extractInpostSendingMethodFromService(array $service): string
+    {
+        $props = $this->extractAdditionalPropertiesFromService($service);
+        if (isset($props['inpost#sendingMethod'])) return (string)$props['inpost#sendingMethod'];
+        if (isset($props['sendingMethod'])) return (string)$props['sendingMethod'];
+        if (isset($props['sending_method'])) return (string)$props['sending_method'];
+        return '';
+    }
+
     private function applyInpostSendingMethod(array $payload, array $order, ?array $additionalProps, string $methodName, bool $debug, array &$debugLines): array
     {
         $hasPickup = !empty($order['delivery']['pickupPoint']['id']);
+        $methodLower = mb_strtolower(trim($methodName));
 
-        // Jeżeli delivery-services zwróciło klucz inpost#sendingMethod (często jako lista), wybierz sensowną wartość.
-        if (is_array($additionalProps) && array_key_exists('inpost#sendingMethod', $additionalProps)) {
-            $supported = $additionalProps['inpost#sendingMethod'];
-            $chosen = null;
-
-            if (is_array($supported)) {
-                // Preferencje: paczkomat -> parcel_locker / any_point, kurier -> dispatch_order
-                $pref = $hasPickup ? ['parcel_locker', 'any_point', 'pop'] : ['dispatch_order'];
-                foreach ($pref as $p) {
-                    if (in_array($p, $supported, true)) {
-                        $chosen = $p;
-                        break;
-                    }
-                }
-                if (!$chosen && !empty($supported)) {
-                    $chosen = (string)reset($supported);
-                }
-            } elseif (is_string($supported) && $supported !== '') {
-                $chosen = $supported;
-            }
-
-            if ($chosen) {
-                $payload['additionalProperties'] = $payload['additionalProperties'] ?? [];
-                if (!is_array($payload['additionalProperties'])) {
-                    $payload['additionalProperties'] = [];
-                }
-                $payload['additionalProperties']['inpost#sendingMethod'] = $chosen;
-
-                if ($debug) {
-                    $debugLines[] = '[CREATE] InPost: ustawiono additionalProperties.inpost#sendingMethod=' . $chosen;
-                }
+        // 1) Jeśli API delivery-services zwróciło inpost#sendingMethod – użyj.
+        $sm = '';
+        if (is_array($additionalProps)) {
+            if (!empty($additionalProps['inpost#sendingMethod'])) {
+                $sm = (string)$additionalProps['inpost#sendingMethod'];
+            } elseif (!empty($additionalProps['sendingMethod'])) {
+                $sm = (string)$additionalProps['sendingMethod'];
+            } elseif (!empty($additionalProps['sending_method'])) {
+                $sm = (string)$additionalProps['sending_method'];
             }
         }
 
-        // Jeśli API nie zwróciło listy supported sendingMethod, a to jest InPost (po nazwie metody),
-        // ustaw domyślnie, bo bez tego WZA potrafi zwrócić błędy (np. ShipX).
-        $mn = function_exists('mb_strtolower') ? (string)mb_strtolower($methodName) : strtolower($methodName);
-        $isInpost = ($mn !== '' && strpos($mn, 'inpost') !== false);
+        // 2) Fallback heurystyczny.
+        if ($sm === '') {
+            $isInpost = (mb_strpos($methodLower, 'inpost') !== false);
+            if ($isInpost) {
+                $sm = $hasPickup ? 'any_point' : 'dispatch_order';
+            }
+        }
 
-        if ($isInpost) {
-            $payload['additionalProperties'] = $payload['additionalProperties'] ?? [];
-            if (!is_array($payload['additionalProperties'])) {
+        if ($sm !== '') {
+            if (!isset($payload['additionalProperties']) || !is_array($payload['additionalProperties'])) {
                 $payload['additionalProperties'] = [];
             }
-            if (!array_key_exists('inpost#sendingMethod', $payload['additionalProperties'])) {
-                $payload['additionalProperties']['inpost#sendingMethod'] = $hasPickup ? 'any_point' : 'dispatch_order';
-                if ($debug) {
-                    $debugLines[] = '[CREATE] InPost: brak listy supported – ustawiono domyślnie additionalProperties.inpost#sendingMethod=' . $payload['additionalProperties']['inpost#sendingMethod'];
-                }
+            $payload['additionalProperties']['inpost#sendingMethod'] = $sm;
+
+            if ($debug) {
+                $debugLines[] = '[CREATE] additionalProperties.inpost#sendingMethod=' . $sm
+                    . ($hasPickup ? ' (pickupPoint=yes)' : ' (pickupPoint=no)');
             }
         }
 
         return $payload;
     }
 
-    private function troubleshootHints(string $errMsg, ?array $service): array
+    /**
+     * Smart data (package_count) from checkout-form JSON.
+     */
+    private function extractSmartDataFromCheckoutForm(array $cfJson): array
     {
-        $hints = [];
-        $msgLower = mb_strtolower($errMsg);
-
-        // Najczęstszy problem: brak credentialsId dla metod z umową własną (często InPost).
-        if (strpos($msgLower, 'no inpost credentials') !== false || strpos($msgLower, 'credentials') !== false) {
-            $hints[] = '';
-            $hints[] = '[HINT] Ten błąd zwykle oznacza brak poprawnie dodanej integracji/poświadczeń do Wysyłam z Allegro dla InPost.';
-            $hints[] = '[HINT] 1) Allegro Sales Center → Wysyłam z Allegro → Integracja z InPost → dodaj token ShipX (InPost) i zapisz.';
-            $hints[] = '[HINT] 2) W module AllegroPro: wejdź w „Przesyłki” i kliknij „Odśwież delivery services” dla tego konta.';
-            $hints[] = '[HINT] 3) Upewnij się, że dla tej metody dostawy w tabeli dxna_allegropro_delivery_service pole credentials_id NIE jest puste (wtedy API wie jaką umowę wybrać).';
-            if (is_array($service)) {
-                $hints[] = '[HINT] delivery-service owner=' . (string)($service['owner'] ?? '-') . ', carrier_id=' . (string)($service['carrier_id'] ?? '-') . ', credentials_id=' . (string)($service['credentials_id'] ?? '(brak)');
-            }
-            $hints[] = '[HINT] Jeżeli to Paczkomat/Punkt InPost: upewnij się, że w delivery-services jest zwrócone additionalProperties.inpost#sendingMethod i że moduł je przekazuje (parcel_locker/any_point).';
-        }
-
-        
-        // Błąd umowy: próbujesz nadać metodę przypisaną do umowy własnej używając usługi Allegro Standard (owner=ALLEGRO).
-        if (strpos($msgLower, 'allegro standard agreement') !== false || strpos($msgLower, 'separate agreement') !== false || strpos($msgLower, 'delivery_method_not_available') !== false) {
-            $hints[] = '';
-            $hints[] = '[HINT] Ten błąd oznacza, że metoda dostawy w tym zamówieniu jest przypisana do UMOWY WŁASNEJ (owner=CLIENT), a próbujesz utworzyć przesyłkę usługą Allegro Standard (owner=ALLEGRO).';
-            $hints[] = '[HINT] Rozwiązanie: użyj dokładnie takiej usługi dostawy (deliveryMethodId z /shipment-management/delivery-services), która ma owner=CLIENT i odpowiada metodzie z zamówienia.';
-            $hints[] = '[HINT] Dla InPost upewnij się, że w Sales Center → Wysyłam z Allegro → Integracja z InPost masz dodany token ShipX oraz wybraną aktywną umowę (po zmianach z 17.09.2025 działa tylko jedna umowa).';
-            if (is_array($service)) {
-                $hints[] = '[HINT] Aktualnie dobrany delivery-service: owner=' . (string)($service['owner'] ?? '-') . ', carrier_id=' . (string)($service['carrier_id'] ?? '-') . ', credentials_id=' . (string)($service['credentials_id'] ?? '(brak)') . ', delivery_method_id=' . (string)($service['delivery_method_id'] ?? '-');
-            }
-        }
-
-return $hints;
-    }
-
-    private function normalizeDateTime($value): ?string
-    {
-        if (!is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-        if ($value === '') {
-            return null;
-        }
-
-        $ts = strtotime($value);
-        if ($ts === false) {
-            return null;
-        }
-
-        return date('Y-m-d H:i:s', $ts);
-    }
-
-    private function extractSmartDataFromCheckoutForm(array $cf): array
-    {
-        $delivery = is_array($cf['delivery'] ?? null) ? $cf['delivery'] : [];
-        $packageCount = null;
-        $candidates = [
-            $delivery['calculatedNumberOfPackages'] ?? null,
-            $delivery['numberOfPackages'] ?? null,
-            $delivery['packagesCount'] ?? null,
-            $cf['calculatedNumberOfPackages'] ?? null,
-            $cf['numberOfPackages'] ?? null,
+        $res = [
+            'package_count' => null,
         ];
-        foreach ($candidates as $candidate) {
-            if ($candidate === null || $candidate === '') {
-                continue;
+
+        // Spotykane ścieżki:
+        // delivery.smart.packageCount
+        // delivery.smart.package_count
+        // delivery.smart.deliveryLimit
+        // summary.smart.packageCount
+        $paths = [
+            ['delivery', 'smart', 'packageCount'],
+            ['delivery', 'smart', 'package_count'],
+            ['delivery', 'smart', 'deliveryLimit'],
+            ['summary', 'smart', 'packageCount'],
+            ['summary', 'smart', 'package_count'],
+        ];
+
+        foreach ($paths as $path) {
+            $v = $cfJson;
+            $ok = true;
+            foreach ($path as $k) {
+                if (!is_array($v) || !array_key_exists($k, $v)) {
+                    $ok = false;
+                    break;
+                }
+                $v = $v[$k];
             }
-            if (is_numeric($candidate)) {
-                $packageCount = max(0, (int)$candidate);
+            if ($ok && is_numeric($v)) {
+                $res['package_count'] = (int)$v;
                 break;
             }
         }
 
-        $isSmart = null;
-        if (isset($delivery['smart'])) {
-            $isSmart = !empty($delivery['smart']) ? 1 : 0;
-        } elseif (isset($cf['smart'])) {
-            $isSmart = !empty($cf['smart']) ? 1 : 0;
+        // Ostateczny fallback: jeśli metoda ma strict limit na 1 paczkę (np. część One Box),
+        // Allegro zwykle i tak odrzuci 2. etykietę – ale tu nic nie wymuszamy.
+        return $res;
+    }
+
+    private function troubleshootHints(string $errMsg, ?array $service): array
+    {
+        $m = mb_strtolower($errMsg);
+        $hints = [];
+
+        if (strpos($m, 'credentials') !== false || strpos($m, 'shipx') !== false || strpos($m, 'inpost') !== false) {
+            $hints[] = '[HINT] Dla metod InPost (szczególnie Paczkomat) wymagane jest credentialsId (ShipX token) powiązane z delivery-service.';
+            $hints[] = '[HINT] Upewnij się, że: (1) masz token ShipX w module, (2) delivery-services są zsynchronizowane, (3) wybrany delivery-service ma credentials_id.';
         }
 
-        return ['package_count' => $packageCount, 'is_smart' => $isSmart];
+        if (strpos($m, 'credentials id is not allowed') !== false) {
+            $hints[] = '[HINT] Ta metoda nie akceptuje credentialsId. Spróbuj bez credentialsId (moduł robi to automatycznie w retry).';
+        }
+
+        if (strpos($m, 'point') !== false || strpos($m, 'pickup') !== false) {
+            $hints[] = '[HINT] Zamówienie ma pickupPoint — sprawdź, czy receiver.point jest poprawnie ustawiony.';
+        }
+
+        if (strpos($m, 'length') !== false || strpos($m, 'width') !== false || strpos($m, 'height') !== false) {
+            $hints[] = '[HINT] Allegro wymaga pól packages[].length/width/height bezpośrednio w paczce.';
+        }
+
+        if (strpos($m, 'additionalproperties') !== false || strpos($m, 'sendingmethod') !== false) {
+            $hints[] = '[HINT] Dla InPost pickup często wymagane additionalProperties.inpost#sendingMethod=any_point.';
+            $hints[] = '[HINT] Dla InPost courier często wymagane additionalProperties.inpost#sendingMethod=dispatch_order.';
+        }
+
+        if (is_array($service)) {
+            $hints[] = '[HINT] Aktualnie dobrany delivery-service: owner=' . (string)($service['owner'] ?? '-') . ', carrier_id=' . (string)($service['carrier_id'] ?? '-') . ', credentials_id=' . (string)($service['credentials_id'] ?? '(brak)') . ', delivery_method_id=' . (string)($service['delivery_method_id'] ?? '-');
+        }
+
+        return $hints;
+    }
+
+    private function normalizeDateTime($value): ?string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+        $ts = strtotime($value);
+        if ($ts === false) {
+            return null;
+        }
+        return date('Y-m-d H:i:s', $ts);
     }
 
     private function extractTrackingNumber(array $shipment): ?string
     {
-        if (!empty($shipment['packages']) && is_array($shipment['packages'])) {
+        $candidates = [];
+
+        // Najczęstsze miejsca
+        if (isset($shipment['trackingNumber'])) {
+            $candidates[] = $shipment['trackingNumber'];
+        }
+        if (isset($shipment['tracking']['number'])) {
+            $candidates[] = $shipment['tracking']['number'];
+        }
+        if (isset($shipment['tracking']['waybill'])) {
+            $candidates[] = $shipment['tracking']['waybill'];
+        }
+        if (isset($shipment['waybill'])) {
+            $candidates[] = $shipment['waybill'];
+        }
+
+        // Bywa w tablicy package'ów
+        if (isset($shipment['packages']) && is_array($shipment['packages'])) {
             foreach ($shipment['packages'] as $p) {
-                if (!is_array($p)) {
-                    continue;
+                if (isset($p['trackingNumber'])) {
+                    $candidates[] = $p['trackingNumber'];
                 }
-                $wb = $p['waybill'] ?? ($p['trackingNumber'] ?? ($p['waybillNumber'] ?? null));
-                if (is_string($wb) && trim($wb) !== '') {
-                    return trim($wb);
+                if (isset($p['tracking']['number'])) {
+                    $candidates[] = $p['tracking']['number'];
                 }
             }
         }
 
-        $candidates = [
-            $shipment['trackingNumber'] ?? null,
-            $shipment['waybill'] ?? null,
-            $shipment['waybillNumber'] ?? null,
-            $shipment['tracking']['number'] ?? null,
-            $shipment['label']['trackingNumber'] ?? null,
-            $shipment['summary']['trackingNumber'] ?? null,
-        ];
-
         foreach ($candidates as $candidate) {
-            if (is_string($candidate) && trim($candidate) !== '') {
-                return trim($candidate);
+            if (!is_string($candidate)) {
+                continue;
+            }
+            $v = trim($candidate);
+            if ($v !== '') {
+                return $v;
             }
         }
 
         return null;
     }
 
-    private function extractIsSmart(array $shipment): ?int
+    private function extractIsSmart(array $shipment): int
     {
-        if (isset($shipment['smart'])) {
-            return !empty($shipment['smart']) ? 1 : 0;
-        }
-        if (isset($shipment['service']['smart'])) {
-            return !empty($shipment['service']['smart']) ? 1 : 0;
-        }
-
-        $textCandidates = [
-            $shipment['service']['name'] ?? null,
-            $shipment['service']['id'] ?? null,
-            $shipment['deliveryMethod']['name'] ?? null,
-            $shipment['deliveryMethod']['id'] ?? null,
-            $shipment['summary']['name'] ?? null,
+        $paths = [
+            ['smart'],
+            ['service', 'smart'],
+            ['delivery', 'smart'],
+            ['additionalServices', 'smart'],
         ];
-        foreach ($textCandidates as $candidate) {
-            if (is_string($candidate) && $candidate !== '' && mb_stripos($candidate, 'smart') !== false) {
-                return 1;
+
+        foreach ($paths as $path) {
+            $v = $shipment;
+            $ok = true;
+            foreach ($path as $k) {
+                if (!is_array($v) || !array_key_exists($k, $v)) {
+                    $ok = false;
+                    break;
+                }
+                $v = $v[$k];
+            }
+            if (!$ok) {
+                continue;
+            }
+
+            if (is_bool($v)) {
+                return $v ? 1 : 0;
+            }
+            if (is_numeric($v)) {
+                return ((int)$v) > 0 ? 1 : 0;
+            }
+            if (is_string($v)) {
+                $u = strtolower(trim($v));
+                if (in_array($u, ['1', 'true', 'yes', 'on'], true)) {
+                    return 1;
+                }
+                if (in_array($u, ['0', 'false', 'no', 'off'], true)) {
+                    return 0;
+                }
             }
         }
 
-        return null;
+        return 0;
     }
 
     private function extractCarrierMode(array $shipment): ?string
@@ -1044,6 +898,8 @@ return $hints;
 
     private function resolvePackageDimensions(array $params, string $checkoutFormId): array
     {
+        $pkgDefaults = Config::pkgDefaults();
+
         $inputWeight = null;
         if (isset($params['weight']) && $params['weight'] !== '' && is_numeric($params['weight'])) {
             $inputWeight = (float)$params['weight'];
@@ -1059,8 +915,7 @@ return $hints;
 
         $resolvedWeight = $inputWeight;
         if ($weightSource === 'CONFIG') {
-            $cfg = Config::pkgDefaults();
-            $cfgWeight = isset($cfg['weight']) ? (float)$cfg['weight'] : 1.0;
+            $cfgWeight = isset($pkgDefaults['weight']) ? (float)$pkgDefaults['weight'] : 1.0;
             $resolvedWeight = $cfgWeight > 0 ? $cfgWeight : 1.0;
         } elseif ($weightSource === 'PRODUCTS') {
             $productsWeight = $this->calculateProductsWeight($checkoutFormId);
@@ -1079,16 +934,42 @@ return $hints;
             }
         }
 
-        if ($resolvedWeight !== null) {
-            $def = Config::pkgDefaults();
-            return [
-                'height' => $def['height'], 'width' => $def['width'], 'length' => $def['length'],
-                'weight' => $resolvedWeight,
-                'type' => 'PACKAGE'
-            ];
+        $dimensionSource = strtoupper(trim((string)($params['dimension_source'] ?? 'MANUAL')));
+        if (!in_array($dimensionSource, ['MANUAL', 'CONFIG'], true)) {
+            $dimensionSource = 'MANUAL';
         }
 
-        return Config::pkgDefaults();
+        $manualLength = isset($params['length']) && is_numeric($params['length']) ? (int)$params['length'] : 0;
+        $manualWidth = isset($params['width']) && is_numeric($params['width']) ? (int)$params['width'] : 0;
+        $manualHeight = isset($params['height']) && is_numeric($params['height']) ? (int)$params['height'] : 0;
+
+        if ($dimensionSource === 'CONFIG') {
+            $resolvedLength = (int)($pkgDefaults['length'] ?? 10);
+            $resolvedWidth = (int)($pkgDefaults['width'] ?? 10);
+            $resolvedHeight = (int)($pkgDefaults['height'] ?? 10);
+        } else {
+            $resolvedLength = $manualLength > 0 ? $manualLength : (int)($pkgDefaults['length'] ?? 10);
+            $resolvedWidth = $manualWidth > 0 ? $manualWidth : (int)($pkgDefaults['width'] ?? 10);
+            $resolvedHeight = $manualHeight > 0 ? $manualHeight : (int)($pkgDefaults['height'] ?? 10);
+        }
+
+        if ($resolvedLength <= 0) {
+            $resolvedLength = 10;
+        }
+        if ($resolvedWidth <= 0) {
+            $resolvedWidth = 10;
+        }
+        if ($resolvedHeight <= 0) {
+            $resolvedHeight = 10;
+        }
+
+        return [
+            'height' => $resolvedHeight,
+            'width' => $resolvedWidth,
+            'length' => $resolvedLength,
+            'weight' => $resolvedWeight ?? ((isset($pkgDefaults['weight']) && (float)$pkgDefaults['weight'] > 0) ? (float)$pkgDefaults['weight'] : 1.0),
+            'type' => 'PACKAGE'
+        ];
     }
 
     private function calculateProductsWeight(string $checkoutFormId): ?float

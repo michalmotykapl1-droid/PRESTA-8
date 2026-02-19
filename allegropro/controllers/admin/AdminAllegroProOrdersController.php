@@ -101,6 +101,31 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         return $limit;
     }
 
+    private function sanitizeDimensionInput($value): string
+    {
+        $raw = trim((string)$value);
+        if ($raw === '' || !is_numeric($raw)) {
+            return '';
+        }
+
+        $asInt = (int)$raw;
+        if ($asInt <= 0) {
+            return '';
+        }
+
+        return (string)$asInt;
+    }
+
+    private function normalizeDimensionSource($value): string
+    {
+        $normalized = strtoupper(trim((string)$value));
+        if (!in_array($normalized, ['MANUAL', 'CONFIG'], true)) {
+            return 'MANUAL';
+        }
+
+        return $normalized;
+    }
+
 
     private function getCheckoutIdCandidatesForPaymentLookup(string $checkoutId): array
     {
@@ -494,11 +519,19 @@ class AdminAllegroProOrdersController extends ModuleAdminController
     // ============================================================
 
     public function displayAjaxCreateShipment() {
-        $cfId = (string)Tools::getValue('checkout_form_id');
-        $sizeCode = (string)Tools::getValue('size_code');
-        $weight = (string)Tools::getValue('weight');
-        $weightSource = (string)Tools::getValue('weight_source', 'MANUAL');
+        $cfId = trim((string)Tools::getValue('checkout_form_id'));
+        $sizeCode = trim((string)Tools::getValue('size_code'));
+        $weight = trim((string)Tools::getValue('weight'));
+        $weightSource = strtoupper(trim((string)Tools::getValue('weight_source', 'MANUAL')));
+        if (!in_array($weightSource, ['MANUAL', 'CONFIG', 'PRODUCTS'], true)) {
+            $weightSource = 'MANUAL';
+        }
+
         $isSmart = (int)Tools::getValue('is_smart');
+        $length = $this->sanitizeDimensionInput(Tools::getValue('length'));
+        $width = $this->sanitizeDimensionInput(Tools::getValue('width'));
+        $height = $this->sanitizeDimensionInput(Tools::getValue('height'));
+        $dimensionSource = $this->normalizeDimensionSource(Tools::getValue('dimension_source', 'MANUAL'));
         $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
 
         if ($cfId === '') {
@@ -525,6 +558,10 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'size_code' => $sizeCode,
             'weight' => $weight,
             'weight_source' => $weightSource,
+            'length' => $length,
+            'width' => $width,
+            'height' => $height,
+            'dimension_source' => $dimensionSource,
             'smart' => $isSmart,
             'debug' => $debug ? 1 : 0,
         ]);
