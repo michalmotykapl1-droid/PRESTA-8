@@ -583,5 +583,289 @@
         closeModal();
       }
     });
+
+
+    /* ============================
+     * Sync button: progress modal + throttled steps
+     * ============================ */
+    (function initSyncProgress() {
+      var syncBtn = document.getElementById('alproSyncBtn');
+      if (!syncBtn) return;
+
+      var cancelled = false;
+
+      function showModal() {
+        cancelled = false;
+        var m = document.getElementById('alproSyncModal');
+        if (!m) return;
+        // reset UI
+        var bBar = document.getElementById('alproSyncBillingBar');
+        var eBar = document.getElementById('alproSyncEnrichBar');
+        var bTxt = document.getElementById('alproSyncBillingText');
+        var eTxt = document.getElementById('alproSyncEnrichText');
+        var log = document.getElementById('alproSyncLog');
+        var closeBtn = document.getElementById('alproSyncClose');
+        if (bBar) { bBar.style.width = '100%'; bBar.classList.add('progress-bar-striped','progress-bar-animated'); }
+        if (eBar) { eBar.style.width = '0%'; }
+        if (bTxt) bTxt.textContent = 'Start…';
+        if (eTxt) eTxt.textContent = 'Oczekiwanie…';
+        if (log) { log.style.display='none'; log.textContent=''; }
+        if (closeBtn) closeBtn.style.display='none';
+
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.modal) {
+          window.jQuery(m).modal({backdrop:'static', keyboard:false, show:true});
+        } else {
+          m.style.display = 'block';
+          m.classList.add('in');
+        }
+      }
+
+      function appendLog(line) {
+        var log = document.getElementById('alproSyncLog');
+        if (!log) return;
+        log.style.display = 'block';
+        log.textContent += (line + "\n");
+      }
+
+      function hideModalFinish() {
+        var closeBtn = document.getElementById('alproSyncClose');
+        var cancelBtn = document.getElementById('alproSyncCancel');
+        if (cancelBtn) cancelBtn.style.display='none';
+        if (closeBtn) closeBtn.style.display='inline-block';
+      }
+
+      function getSelectedAccountId() {
+        // z hidden inputs (po kliknięciu "Wybierz" strona już jest w kontekście wybranych kont)
+        var hidden = document.querySelectorAll('#alproAccountsMs .alpro-ms__hidden input[name="id_allegropro_account[]"]');
+        var ids = [];
+        for (var i=0;i<hidden.length;i++){
+          var v = parseInt(hidden[i].value, 10);
+          if (v>0) ids.push(v);
+        }
+        if (ids.length === 1) return ids[0];
+        return 0;
+      }
+
+      function ajax(action, params) {
+        params = params || {};
+        params.ajax = 1;
+        params.action = action;
+
+        var url = cfg.ajaxUrl;
+        var qs = [];
+        for (var k in params) {
+          if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
+          qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k])));
+        }
+        url += (url.indexOf('?') >= 0 ? '&' : '?') + qs.join('&');
+
+        return fetch(url, {credentials:'same-origin'})
+          .then(function(r){
+            return r.text().then(function(txt){
+              try {
+                return JSON.parse(txt);
+              } catch (e) {
+                var snip = (txt || '').slice(0, 240).replace(/\s+/g,' ').trim();
+                var err = new Error('JSON.parse: ' + snip);
+                err._http = r.status;
+                throw err;
+              }
+            });
+          });
+      }
+
+      function startWorkflow() {
+        if (syncBtn.disabled) return;
+
+        // tylko tryb billing
+        if (cfg.mode !== 'billing') {
+          alert('Synchronizacja działa w trybie "Księgowanie opłat". Przełącz tryb i spróbuj ponownie.');
+          return;
+        }
+
+        var accountId = getSelectedAccountId();
+        if (!accountId) {
+          alert('Synchronizacja działa dla jednego konta naraz. Wybierz jedno konto i kliknij "Wybierz".');
+          return;
+        }
+
+        showModal();
+        syncBtn.disabled = true;
+
+        var cancelBtn = document.getElementById('alproSyncCancel');
+        if (cancelBtn) {
+          cancelBtn.style.display='inline-block';
+          cancelBtn.onclick = function(){
+            cancelled = true;
+            cancelBtn.disabled = true;
+          };
+          cancelBtn.disabled = false;
+        }
+
+        var bTxt = document.getElementById('alproSyncBillingText');
+        var eTxt = document.getElementById('alproSyncEnrichText');
+        var eBar = document.getElementById('alproSyncEnrichBar');
+
+        var fetched = 0, inserted = 0, updated = 0;
+
+        function stepBilling(offset) {
+          if (cancelled) return finishCancelled();
+
+          if (bTxt) bTxt.textContent = 'Pobieranie opłat… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+
+          ajax('BillingSyncStep', {
+            account_id: accountId,
+            date_from: cfg.dateFrom,
+            date_to: cfg.dateTo,
+            offset: offset,
+            limit: 100
+          }).then(function(res){
+            if (!res || !res.ok) {
+              appendLog('Błąd billing sync: ' + (res && res.code ? ('HTTP ' + res.code) : ''));
+              if (bTxt) bTxt.textContent = 'Błąd pobierania opłat.';
+              syncBtn.disabled = false;
+              hideModalFinish();
+              return;
+            }
+
+            fetched += Number(res.got || 0);
+            inserted += Number(res.inserted || 0);
+            updated += Number(res.updated || 0);
+
+            if (res.debug_tail && res.debug_tail.length) {
+              for (var i=0;i<res.debug_tail.length;i++) appendLog(res.debug_tail[i]);
+            }
+
+            if (bTxt) bTxt.textContent = 'Pobieranie opłat… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+
+            if (Number(res.done || 0) === 1) {
+              // przejdź do etapu 1: enrichment
+              startEnrich();
+              return;
+            }
+
+            // throttle
+            setTimeout(function(){ stepBilling(Number(res.next_offset || (offset+100))); }, 300);
+          }).catch(function(err){
+            var msg = (err && err.message) ? err.message : String(err);
+            appendLog('Błąd billing sync: ' + msg);
+            if (bTxt) bTxt.textContent = 'Błąd pobierania opłat.';
+            syncBtn.disabled = false;
+            hideModalFinish();
+          });
+        }
+
+        function startEnrich() {
+          if (cancelled) return finishCancelled();
+          if (eTxt) eTxt.textContent = 'Sprawdzam braki…';
+
+          ajax('EnrichMissingCount', {
+            account_id: accountId,
+            date_from: cfg.dateFrom,
+            date_to: cfg.dateTo
+          }).then(function(res){
+            if (!res || !res.ok) {
+              appendLog('Błąd: nie udało się policzyć braków.');
+              if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
+              syncBtn.disabled = false;
+              hideModalFinish();
+              return;
+            }
+
+            var missing = Number(res.missing || 0);
+            if (!missing) {
+              if (eTxt) eTxt.textContent = 'Brak brakujących danych — OK.';
+              finishOk();
+              return;
+            }
+
+            var processed = 0;
+            var filled = 0;
+
+            function stepEnrich(offset) {
+              if (cancelled) return finishCancelled();
+
+              if (eTxt) eTxt.textContent = 'Uzupełniam dane… ' + processed + '/' + missing;
+
+              ajax('EnrichMissingStep', {
+                account_id: accountId,
+                date_from: cfg.dateFrom,
+                date_to: cfg.dateTo,
+                offset: offset,
+                limit: 10
+              }).then(function(r){
+                if (!r || !r.ok) {
+                  appendLog('Błąd uzupełniania danych.');
+                  if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
+                  syncBtn.disabled = false;
+                  hideModalFinish();
+                  return;
+                }
+
+                processed += Number(r.processed || 0);
+                filled += Number(r.updated_orders || 0);
+
+                if (r.errors && r.errors.length) {
+                  for (var i=0;i<r.errors.length;i++) {
+                    appendLog('ERR ' + (r.errors[i].id || '') + ' ' + (r.errors[i].code || '') + ' ' + (r.errors[i].error || ''));
+                  }
+                }
+
+                var pct = missing ? Math.min(100, Math.round((processed / missing) * 100)) : 100;
+                if (eBar) eBar.style.width = pct + '%';
+                if (eTxt) eTxt.textContent = 'Uzupełniam dane… ' + processed + '/' + missing + ' (uzupełnione: ' + filled + ')';
+
+                if (Number(r.done || 0) === 1) {
+                  finishOk();
+                  return;
+                }
+
+                setTimeout(function(){ stepEnrich(Number(r.next_offset || (offset+10))); }, 700);
+          }).catch(function(err){
+            var msg = (err && err.message) ? err.message : String(err);
+            appendLog('Błąd uzupełniania: ' + msg);
+                if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
+                syncBtn.disabled = false;
+                hideModalFinish();
+              });
+            }
+
+            stepEnrich(0);
+          }).catch(function(err){
+            var msg = (err && err.message) ? err.message : String(err);
+            appendLog('Błąd liczenia braków: ' + msg);
+            if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
+            syncBtn.disabled = false;
+            hideModalFinish();
+          });
+        }
+
+        function finishOk() {
+          var bTxt = document.getElementById('alproSyncBillingText');
+          var eTxt = document.getElementById('alproSyncEnrichText');
+          if (bTxt) bTxt.textContent = 'Etap 1 zakończony: pobrano ' + fetched + ' wpisów (nowe: ' + inserted + ', aktualizacje: ' + updated + ').';
+          if (eTxt && eTxt.textContent.indexOf('Błąd') === -1) eTxt.textContent = 'Etap 2 zakończony — gotowe.';
+          hideModalFinish();
+
+          // odśwież widok, żeby zobaczyć kwoty/login
+          setTimeout(function(){ window.location.reload(); }, 900);
+        }
+
+        function finishCancelled() {
+          appendLog('Anulowano przez użytkownika.');
+          hideModalFinish();
+          syncBtn.disabled = false;
+        }
+
+        stepBilling(0);
+      }
+
+      syncBtn.addEventListener('click', function (e) {
+        // jeśli jest w formie submit, zatrzymaj default
+        e.preventDefault();
+        startWorkflow();
+      });
+    })();
+
   });
 })();

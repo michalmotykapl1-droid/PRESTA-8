@@ -168,7 +168,7 @@
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 
-            <button type="submit" name="submitAllegroProBillingSync" value="1" class="btn btn-primary" {if $selected_account_ids|@count > 1 || $mode!='billing'}disabled title="Synchronizacja działa dla jednego konta naraz i dotyczy księgowania opłat — wybierz jedno konto oraz tryb 'Księgowanie opłat'."{/if}>
+            <button type="submit" id="alproSyncBtn" name="submitAllegroProBillingSync" value="1" class="btn btn-primary" {if $selected_account_ids|@count > 1 || $mode!='billing'}disabled title="Synchronizacja działa dla jednego konta naraz i dotyczy księgowania opłat — wybierz jedno konto oraz tryb 'Księgowanie opłat'."{/if}>
               <i class="material-icons" style="font-size:18px; vertical-align:middle;">cloud_download</i>
               <span style="vertical-align:middle;">Synchronizuj opłaty</span>
             </button>
@@ -465,3 +465,42 @@
     </div>
   </div>
 </div>
+
+
+  {* Modal synchronizacji (pasek postępu + etapy) *}
+  <div class="modal fade" id="alproSyncModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-md" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Synchronizacja rozliczeń</h4>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="alpro-sync-step">
+            <div class="alpro-sync-step__title">1) Pobieranie opłat (billing-entries)</div>
+            <div class="progress">
+              <div id="alproSyncBillingBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+            </div>
+            <div id="alproSyncBillingText" class="alpro-muted">Oczekiwanie…</div>
+          </div>
+
+          <hr />
+
+          <div class="alpro-sync-step">
+            <div class="alpro-sync-step__title">2) Uzupełnianie brakujących danych zamówień</div>
+            <div class="progress">
+              <div id="alproSyncEnrichBar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div id="alproSyncEnrichText" class="alpro-muted">Oczekiwanie…</div>
+          </div>
+
+          <div id="alproSyncLog" class="alpro-sync-log" style="display:none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" id="alproSyncCancel">Anuluj</button>
+          <button type="button" class="btn btn-primary" data-dismiss="modal" id="alproSyncClose" style="display:none">Zamknij</button>
+        </div>
+      </div>
+    </div>
+  </div>
+

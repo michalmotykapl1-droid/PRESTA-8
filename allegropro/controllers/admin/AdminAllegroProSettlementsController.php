@@ -5,15 +5,18 @@
 
 use AllegroPro\Repository\AccountRepository;
 use AllegroPro\Repository\BillingEntryRepository;
+use AllegroPro\Repository\OrderRepository;
 use AllegroPro\Service\HttpClient;
 use AllegroPro\Service\AllegroApiClient;
 use AllegroPro\Service\BillingSyncService;
+use AllegroPro\Service\OrderFetcher;
 use AllegroPro\Service\SettlementsReportService;
 
 class AdminAllegroProSettlementsController extends ModuleAdminController
 {
     private AccountRepository $accounts;
     private BillingEntryRepository $billingRepo;
+    private OrderRepository $orderRepo;
 
     public function setMedia($isNewTheme = false)
     {
@@ -30,6 +33,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $this->bootstrap = true;
         $this->accounts = new AccountRepository();
         $this->billingRepo = new BillingEntryRepository();
+        $this->orderRepo = new OrderRepository();
     }
 
     public function initContent()
@@ -410,7 +414,293 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
-    private function toIsoStart(string $ymd): string
+    
+    /* ============================
+     * AJAX: krokowa synchronizacja + uzupełnianie braków zamówień
+     * ============================ */
+
+    private function ajaxJson(array $payload): void
+    {
+        // Minimalna ochrona przed "zanieczyszczeniem" odpowiedzi (notice/warning/HTML),
+        // które psuje JSON.parse po stronie przeglądarki.
+        if (function_exists('ob_get_length') && ob_get_length()) {
+            @ob_clean();
+        }
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        $this->ajaxDie(json_encode($payload, JSON_UNESCAPED_UNICODE));
+    }
+
+    public function ajaxProcessBillingSyncStep(): void
+    {
+        $accountId = (int)Tools::getValue('account_id', 0);
+        $dateFrom = (string)Tools::getValue('date_from', '');
+        $dateTo = (string)Tools::getValue('date_to', '');
+        $offset = (int)Tools::getValue('offset', 0);
+        $limit = (int)Tools::getValue('limit', 100);
+
+        $acc = $this->accounts->get($accountId);
+        if (!$accountId || !is_array($acc)) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'Brak konta.']);
+            return;
+        }
+
+        $http = new HttpClient();
+        $api = new AllegroApiClient($http, $this->accounts);
+        $sync = new BillingSyncService($api, $this->billingRepo);
+
+        $debug = [];
+        $step = $sync->syncRangeStep(
+            $acc,
+            $this->toIsoStart($dateFrom),
+            $this->toIsoEnd($dateTo),
+            $offset,
+            $limit,
+            $debug
+        );
+
+        $this->ajaxJson([
+            'ok' => !empty($step['ok']) ? 1 : 0,
+            'code' => (int)($step['code'] ?? 0),
+            'got' => (int)($step['got'] ?? 0),
+            'inserted' => (int)($step['inserted'] ?? 0),
+            'updated' => (int)($step['updated'] ?? 0),
+            'next_offset' => (int)($step['next_offset'] ?? $offset),
+            'done' => !empty($step['done']) ? 1 : 0,
+            'debug_tail' => array_slice($debug, -2),
+        ]);
+    }
+
+    private function normalizeIdSql(string $expr): string
+    {
+        // usuń "-" i "_" oraz ignoruj wielkość liter
+        return "LOWER(REPLACE(REPLACE(IFNULL({$expr},''),'-',''),'_',''))";
+    }
+
+    private function feeWhereSql(string $typeNameExpr): string
+    {
+        // UWAGA: BillingEntryRepository::buildFeeWhereSql() bywa prywatne w części wdrożeń.
+        // Nie możemy tego wołać bez ryzyka fatal error (co psuje AJAX i daje JSON.parse error po stronie UI).
+        // Implementujemy tu tę samą logikę "opłat".
+
+        // Zasada:
+        // - bierzemy wszystkie ujemne operacje (opłaty)
+        // - oraz dodatnie tylko wtedy, gdy są korektą/rabatem/zwrotem
+        // - wykluczamy przepływy środków (wpłaty/wypłaty/przelewy/"środki")
+
+        $include = "(b.value_amount < 0 OR {$typeNameExpr} LIKE '%zwrot%' OR {$typeNameExpr} LIKE '%rabat%' OR {$typeNameExpr} LIKE '%korekt%' OR {$typeNameExpr} LIKE '%rekompens%')";
+        $exclude = "({$typeNameExpr} LIKE '%wypł%' OR {$typeNameExpr} LIKE '%wypl%' OR {$typeNameExpr} LIKE '%wpł%' OR {$typeNameExpr} LIKE '%wpl%' OR {$typeNameExpr} LIKE '%przelew%' OR {$typeNameExpr} LIKE '%środk%' OR {$typeNameExpr} LIKE '%srodk%')";
+        return "({$include} AND NOT {$exclude})";
+    }
+
+    private function countMissingOrders(int $accountId, string $dateFrom, string $dateTo): int
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
+
+        $normO = $this->normalizeIdSql('o.checkout_form_id');
+        $normB = $this->normalizeIdSql('b.order_id');
+
+        $sql = "SELECT COUNT(*) FROM (
+                  SELECT b.order_id
+                  FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+                  LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
+                    ON (
+                      o.id_allegropro_account=b.id_allegropro_account
+                      AND {$normO} = {$normB}
+                    )
+                  WHERE b.id_allegropro_account=" . (int)$accountId . "
+                    AND b.order_id IS NOT NULL AND b.order_id <> ''
+                    AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+                    AND {$feeWhere}
+                  GROUP BY b.order_id
+                  HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
+                ) t";
+        return (int)Db::getInstance()->getValue($sql);
+    }
+
+    private function listMissingOrderIds(int $accountId, string $dateFrom, string $dateTo, int $limit, int $offset): array
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
+
+        $normO = $this->normalizeIdSql('o.checkout_form_id');
+        $normB = $this->normalizeIdSql('b.order_id');
+
+        $sql = "SELECT b.order_id, MAX(b.occurred_at) as last_at
+                FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
+                  ON (
+                    o.id_allegropro_account=b.id_allegropro_account
+                    AND {$normO} = {$normB}
+                  )
+                WHERE b.id_allegropro_account=" . (int)$accountId . "
+                  AND b.order_id IS NOT NULL AND b.order_id <> ''
+                  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+                  AND {$feeWhere}
+                GROUP BY b.order_id
+                HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
+                ORDER BY last_at DESC
+                LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $ids = [];
+        foreach ($rows as $r) {
+            if (!empty($r['order_id'])) {
+                $ids[] = (string)$r['order_id'];
+            }
+        }
+        return $ids;
+    }
+
+    private function normalizeCheckoutFormIdForApi(string $id): string
+    {
+        $id = trim($id);
+        if ($id === '') {
+            return $id;
+        }
+        // wariant z podkreśleniami
+        if (strpos($id, '_') !== false && strpos($id, '-') === false) {
+            return str_replace('_', '-', $id);
+        }
+        // wariant 32-znakowy bez separatorów
+        if (preg_match('/^[0-9a-f]{32}$/i', $id)) {
+            return substr($id, 0, 8) . '-' . substr($id, 8, 4) . '-' . substr($id, 12, 4) . '-' . substr($id, 16, 4) . '-' . substr($id, 20);
+        }
+        return $id;
+    }
+
+    private function findExistingCheckoutFormIdByNorm(int $accountId, string $anyId): ?string
+    {
+        $anyId = trim($anyId);
+        if ($anyId === '') {
+            return null;
+        }
+        $normAny = preg_replace('/[^0-9a-f]/i', '', strtolower($anyId));
+        if ($normAny === '') {
+            return null;
+        }
+
+        $sql = "SELECT checkout_form_id
+                FROM `" . _DB_PREFIX_ . "allegropro_order`
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND LOWER(REPLACE(REPLACE(IFNULL(checkout_form_id,''),'-',''),'_','')) = '" . pSQL($normAny) . "'
+                LIMIT 1";
+        $val = Db::getInstance()->getValue($sql);
+        return $val ? (string)$val : null;
+    }
+
+    private function rekeyCheckoutFormId(int $accountId, string $oldId, string $newId): void
+    {
+        if ($oldId === '' || $newId === '' || $oldId === $newId) {
+            return;
+        }
+        $db = Db::getInstance();
+        $oldEsc = pSQL($oldId);
+        $newEsc = pSQL($newId);
+
+        // główna tabela
+        $db->update('allegropro_order', ['checkout_form_id' => $newEsc], "id_allegropro_account=" . (int)$accountId . " AND checkout_form_id='" . $oldEsc . "'");
+
+        // tabele szczegółów
+        $tables = ['allegropro_order_item', 'allegropro_order_shipping', 'allegropro_order_payment', 'allegropro_order_invoice', 'allegropro_order_buyer'];
+        foreach ($tables as $t) {
+            $db->update($t, ['checkout_form_id' => $newEsc], "checkout_form_id='" . $oldEsc . "'");
+        }
+    }
+
+    public function ajaxProcessEnrichMissingCount(): void
+    {
+        $accountId = (int)Tools::getValue('account_id', 0);
+        $dateFrom = (string)Tools::getValue('date_from', '');
+        $dateTo = (string)Tools::getValue('date_to', '');
+
+        if (!$accountId) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'Brak konta.']);
+            return;
+        }
+
+        $cnt = $this->countMissingOrders($accountId, $dateFrom, $dateTo);
+        $this->ajaxJson(['ok' => 1, 'missing' => (int)$cnt]);
+    }
+
+    public function ajaxProcessEnrichMissingStep(): void
+    {
+        $accountId = (int)Tools::getValue('account_id', 0);
+        $dateFrom = (string)Tools::getValue('date_from', '');
+        $dateTo = (string)Tools::getValue('date_to', '');
+        $offset = (int)Tools::getValue('offset', 0);
+        $limit = (int)Tools::getValue('limit', 10);
+
+        $acc = $this->accounts->get($accountId);
+        if (!$accountId || !is_array($acc)) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'Brak konta.']);
+            return;
+        }
+
+        $limit = max(1, min(25, (int)$limit));
+        $offset = max(0, (int)$offset);
+
+        $ids = $this->listMissingOrderIds($accountId, $dateFrom, $dateTo, $limit, $offset);
+        if (empty($ids)) {
+            $this->ajaxJson(['ok' => 1, 'processed' => 0, 'updated_orders' => 0, 'errors' => [], 'next_offset' => $offset, 'done' => 1]);
+            return;
+        }
+
+        $http = new HttpClient();
+        $api = new AllegroApiClient($http, $this->accounts);
+
+        $updated = 0;
+        $errors = [];
+
+        foreach ($ids as $rawId) {
+            $apiId = $this->normalizeCheckoutFormIdForApi($rawId);
+            $existing = $this->findExistingCheckoutFormIdByNorm($accountId, $rawId);
+            if ($existing && $existing !== $apiId) {
+                $this->rekeyCheckoutFormId($accountId, $existing, $apiId);
+            }
+
+            $resp = $api->get($acc, '/order/checkout-forms/' . rawurlencode($apiId));
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                $errors[] = ['id' => $rawId, 'code' => (int)($resp['code'] ?? 0)];
+                continue;
+            }
+            $order = $resp['json'];
+
+            if (!is_array($order) || empty($order['id'])) {
+                $errors[] = ['id' => $rawId, 'code' => (int)($resp['code'] ?? 0), 'error' => 'Brak danych zamówienia'];
+                continue;
+            }
+
+            // dopisz account_id aby repo potrafiło zapisać
+            $order['account_id'] = $accountId;
+
+            try {
+                $this->orderRepo->saveFullOrder($order);
+                $updated++;
+            } catch (\Throwable $e) {
+                $errors[] = ['id' => $rawId, 'error' => $e->getMessage()];
+            }
+        }
+
+        $done = count($ids) < $limit;
+
+        $this->ajaxJson([
+            'ok' => 1,
+            'processed' => count($ids),
+            'updated_orders' => (int)$updated,
+            'errors' => $errors,
+            'next_offset' => $offset + $limit,
+            'done' => $done ? 1 : 0,
+        ]);
+    }
+
+
+private function toIsoStart(string $ymd): string
     {
         $ymd = preg_replace('/[^0-9-]/', '', $ymd);
         if (!$ymd) {

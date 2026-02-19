@@ -15,6 +15,8 @@ class BillingSyncService
     }
 
     /**
+     * Pełna synchronizacja (legacy) — używana jako fallback.
+     *
      * @param array $account row from allegropro_account
      * @param string $occurredAtGte ISO8601 Z
      * @param string $occurredAtLte ISO8601 Z
@@ -35,36 +37,77 @@ class BillingSyncService
         }
 
         for ($page = 1; $page <= 200; $page++) {
-            $query = [
-                'occurredAt.gte' => $occurredAtGte,
-                'occurredAt.lte' => $occurredAtLte,
-                'limit' => $limit,
-                'offset' => $offset,
-            ];
-
-            $resp = $this->api->get($account, '/billing/billing-entries', $query);
-            $debug[] = sprintf('[BILLING] GET /billing/billing-entries page=%d offset=%d: HTTP %d ok=%d', $page, $offset, (int)$resp['code'], $resp['ok'] ? 1 : 0);
-
-            if (empty($resp['ok']) || !is_array($resp['json'])) {
-                return ['ok' => false, 'code' => (int)($resp['code'] ?? 0), 'total' => $total, 'inserted' => $inserted, 'updated' => $updated];
+            $step = $this->syncRangeStep($account, $occurredAtGte, $occurredAtLte, $offset, $limit, $debug);
+            if (empty($step['ok'])) {
+                return ['ok' => false, 'code' => (int)($step['code'] ?? 0), 'total' => $total, 'inserted' => $inserted, 'updated' => $updated];
             }
 
-            $list = $resp['json']['billingEntries'] ?? [];
-            if (!is_array($list) || empty($list)) {
+            $total += (int)($step['got'] ?? 0);
+            $inserted += (int)($step['inserted'] ?? 0);
+            $updated += (int)($step['updated'] ?? 0);
+
+            if (!empty($step['done'])) {
                 break;
             }
-
-            $total += count($list);
-            $res = $this->repo->upsertEntries($accountId, $list);
-            $inserted += (int)($res['inserted'] ?? 0);
-            $updated += (int)($res['updated'] ?? 0);
-
-            if (count($list) < $limit) {
-                break;
-            }
-            $offset += $limit;
+            $offset = (int)($step['next_offset'] ?? ($offset + $limit));
         }
 
         return ['ok' => true, 'code' => 200, 'total' => $total, 'inserted' => $inserted, 'updated' => $updated];
+    }
+
+    /**
+     * Synchronizacja krokowa (1 zapytanie do API na wywołanie) — do paska postępu / throttlingu.
+     *
+     * @param array $account
+     * @param string $occurredAtGte ISO8601 Z
+     * @param string $occurredAtLte ISO8601 Z
+     * @param int $offset
+     * @param int $limit
+     * @param array $debug
+     * @return array{ok:bool,code:int,got:int,inserted:int,updated:int,next_offset:int,done:bool}
+     */
+    public function syncRangeStep(array $account, string $occurredAtGte, string $occurredAtLte, int $offset, int $limit = 100, array &$debug = []): array
+    {
+        $limit = max(1, min(200, (int)$limit));
+        $offset = max(0, (int)$offset);
+
+        $accountId = (int)($account['id_allegropro_account'] ?? 0);
+        if (!$accountId) {
+            return ['ok' => false, 'code' => 0, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
+        }
+
+        $query = [
+            'occurredAt.gte' => $occurredAtGte,
+            'occurredAt.lte' => $occurredAtLte,
+            'limit' => $limit,
+            'offset' => $offset,
+        ];
+
+        $resp = $this->api->get($account, '/billing/billing-entries', $query);
+        $debug[] = sprintf('[BILLING] GET /billing/billing-entries offset=%d limit=%d: HTTP %d ok=%d', $offset, $limit, (int)$resp['code'], $resp['ok'] ? 1 : 0);
+
+        if (empty($resp['ok']) || !is_array($resp['json'])) {
+            return ['ok' => false, 'code' => (int)($resp['code'] ?? 0), 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
+        }
+
+        $list = $resp['json']['billingEntries'] ?? [];
+        if (!is_array($list) || empty($list)) {
+            return ['ok' => true, 'code' => 200, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
+        }
+
+        $res = $this->repo->upsertEntries($accountId, $list);
+
+        $got = count($list);
+        $done = $got < $limit;
+
+        return [
+            'ok' => true,
+            'code' => 200,
+            'got' => $got,
+            'inserted' => (int)($res['inserted'] ?? 0),
+            'updated' => (int)($res['updated'] ?? 0),
+            'next_offset' => $offset + $limit,
+            'done' => $done,
+        ];
     }
 }

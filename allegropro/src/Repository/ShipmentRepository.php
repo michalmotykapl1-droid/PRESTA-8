@@ -359,33 +359,37 @@ class ShipmentRepository
             return;
         }
 
-        
-$trackingKey = is_string($trackingNumber) ? trim((string)$trackingNumber) : '';
-$trackingKey = $trackingKey !== '' ? strtoupper($trackingKey) : '';
-
-$q = new DbQuery();
+        $q = new DbQuery();
 $q->select('id_allegropro_shipment');
 $q->from('allegropro_shipment');
 $q->where('id_allegropro_account=' . (int)$accountId);
 $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
 $q->where("shipment_id='" . pSQL($shipmentId) . "'");
 
-// Jeśli mamy tracking_number, to rekord "paczki" identyfikujemy po (shipment_id + tracking_number),
-// żeby można było trzymać kilka paczek pod jednym shipment_id (wiele waybilli).
-if ($trackingKey !== '') {
-    $q->where("tracking_number='" . pSQL($trackingKey) . "'");
+// Pozwalamy na wiele paczek (różne tracking_number) w ramach jednego shipment_id.
+// 1) jeśli mamy trackingNumber -> szukamy dokładnego wiersza (shipment_id + tracking_number)
+// 2) jeśli nie ma takiego wiersza, a istnieje "placeholder" z pustym tracking_number -> aktualizujemy placeholder
+// 3) jeśli trackingNumber jest puste -> aktualizujemy tylko placeholder (tracking_number='')
+$trackingNumberNorm = trim((string)($trackingNumber ?: ''));
+if ($trackingNumberNorm !== '') {
+    $qExact = clone $q;
+    $qExact->where("tracking_number='" . pSQL($trackingNumberNorm) . "'");
+    $existingId = (int) Db::getInstance()->getValue($qExact);
+    if ($existingId <= 0) {
+        $qPlaceholder = clone $q;
+        $qPlaceholder->where("(tracking_number IS NULL OR tracking_number='')");
+        $existingId = (int) Db::getInstance()->getValue($qPlaceholder);
+    }
 } else {
-    $q->where("(tracking_number='' OR tracking_number IS NULL)");
+    $q->where("(tracking_number IS NULL OR tracking_number='')");
+    $existingId = (int) Db::getInstance()->getValue($q);
 }
-
-$existingId = (int) Db::getInstance()->getValue($q);
-
 $row = [
             'id_allegropro_account' => (int)$accountId,
             'checkout_form_id' => pSQL($checkoutFormId),
             'shipment_id' => pSQL($shipmentId),
             'status' => pSQL((string)($status ?: 'NEW')),
-            'tracking_number' => pSQL((string)($trackingKey !== '' ? $trackingKey : '')),
+            'tracking_number' => pSQL((string)($trackingNumber ?: '')),
             'is_smart' => $isSmart === null ? 0 : (int)$isSmart,
             'carrier_mode' => pSQL((string)($carrierMode ?: 'COURIER')),
             'size_details' => pSQL((string)($sizeDetails ?: 'CUSTOM')),
@@ -486,32 +490,30 @@ $row = [
             $shipmentId = trim((string)($row['shipment_id'] ?? ''));
             $tracking = strtoupper(trim((string)($row['tracking_number'] ?? '')));
 
-            
+            // Duplikat definiujemy tak:
+// - jeśli tracking_number jest niepusty: unikalność po tracking_number (różne shipment_id dla tego samego trackingu traktujemy jako duplikat)
+// - jeśli tracking_number jest pusty: unikalność po shipment_id (jeden placeholder na shipment)
 $duplicate = false;
-
-// Jeśli jest tracking_number, to unikalność robimy po tracking_number (bo jeden shipment_id może mieć wiele paczek).
 if ($tracking !== '') {
     if (isset($seenTracking[$tracking])) {
         $duplicate = true;
     }
 } else {
-    // Jeśli brak tracking_number, dopiero wtedy deduplikujemy po shipment_id.
     if ($shipmentId !== '' && isset($seenShipment[$shipmentId])) {
         $duplicate = true;
     }
-}if ($duplicate) {
+}
+if ($duplicate) {
                 $toDelete[] = $id;
                 continue;
             }
 
-            
-if ($tracking === '' && $shipmentId !== '') {
+            if ($tracking !== '') {
+    $seenTracking[$tracking] = true;
+} elseif ($shipmentId !== '') {
     $seenShipment[$shipmentId] = true;
 }
-if ($tracking !== '') {
-    $seenTracking[$tracking] = true;
 }
-        }
 
         if (empty($toDelete)) {
             return 0;
@@ -525,56 +527,7 @@ if ($tracking !== '') {
         return count($toDelete);
     }
 
-    
-/**
- * Naprawia stare błędne rekordy, gdzie shipment_id zapisano jako sam tracking_number (np. "AD0..."),
- * a z API mamy już właściwy shipmentIdCandidate (np. base64("ALLEGRO:AD0...")).
- *
- * @param array $map [waybill => shipmentIdCandidate]
- * @return int liczba zaktualizowanych rekordów
- */
-public function relinkWrongShipmentIdsForOrder(int $accountId, string $checkoutFormId, array $map): int
-{
-    if (empty($map)) {
-        return 0;
-    }
-
-    $updated = 0;
-    foreach ($map as $waybill => $shipmentIdCandidate) {
-        $waybill = strtoupper(trim((string)$waybill));
-        $shipmentIdCandidate = trim((string)$shipmentIdCandidate);
-        if ($waybill === '' || $shipmentIdCandidate === '') {
-            continue;
-        }
-
-        // Aktualizujemy TYLKO rekordy ewidentnie błędne: shipment_id == tracking_number == waybill
-        $where = 'id_allegropro_account=' . (int)$accountId
-            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
-            . " AND shipment_id='" . pSQL($waybill) . "'"
-            . " AND tracking_number='" . pSQL($waybill) . "'";
-
-        $ok = Db::getInstance()->update(
-            'allegropro_shipment',
-            [
-                'shipment_id' => pSQL($shipmentIdCandidate),
-                'updated_at' => pSQL(date('Y-m-d H:i:s')),
-            ],
-            $where
-        );
-
-        if ($ok) {
-            // Db::update zwraca true nawet gdy 0 rows — policzymy realnie
-            $cnt = (int)Db::getInstance()->Affected_Rows();
-            if ($cnt > 0) {
-                $updated += $cnt;
-            }
-        }
-    }
-
-    return $updated;
-}
-
-/** ---------------------------
+    /** ---------------------------
      *  WZA helpers (UUID/command/waybill)
      *  --------------------------- */
 
@@ -622,7 +575,7 @@ public function relinkWrongShipmentIdsForOrder(int $accountId, string $checkoutF
      */
     public function updateTrackingForShipmentUuid(int $accountId, string $checkoutFormId, string $shipmentUuid, string $trackingNumber): void
     {
-        $trackingNumber = strtoupper(trim($trackingNumber));
+        $trackingNumber = trim($trackingNumber);
         $shipmentUuid = trim($shipmentUuid);
         if ($trackingNumber === '' || $shipmentUuid === '') {
             return;
@@ -779,7 +732,7 @@ public function relinkWrongShipmentIdsForOrder(int $accountId, string $checkoutF
     {
         $accountId = (int)$accountId;
         $checkoutFormId = trim($checkoutFormId);
-        $trackingNumber = strtoupper(trim($trackingNumber));
+        $trackingNumber = trim($trackingNumber);
 
         if ($accountId <= 0 || $checkoutFormId === '' || $trackingNumber === '') {
             return false;
@@ -877,7 +830,7 @@ public function relinkWrongShipmentIdsForOrder(int $accountId, string $checkoutF
     {
         $accountId = (int)$accountId;
         $checkoutFormId = trim($checkoutFormId);
-        $trackingNumber = strtoupper(trim($trackingNumber));
+        $trackingNumber = trim($trackingNumber);
         $wzaCommandId = is_string($wzaCommandId) ? trim($wzaCommandId) : '';
         $wzaShipmentUuid = is_string($wzaShipmentUuid) ? trim($wzaShipmentUuid) : '';
 

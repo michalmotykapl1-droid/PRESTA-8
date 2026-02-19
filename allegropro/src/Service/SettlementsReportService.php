@@ -154,7 +154,7 @@ class SettlementsReportService
                     LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
                       ON (
                         o.id_allegropro_account=b.id_allegropro_account
-                        AND LOWER(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_','')) = LOWER(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''))
+                        AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_',''),'_',''),'_','')) = LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''),'_',''),'_',''))
                       )
                     WHERE b.id_allegropro_account IN " . $in . "
                       AND b.order_id IS NOT NULL AND b.order_id <> ''
@@ -227,7 +227,7 @@ class SettlementsReportService
                 LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
                   ON (
                     o.id_allegropro_account=b.id_allegropro_account
-                    AND LOWER(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_','')) = LOWER(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''))
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(o.checkout_form_id,''),'-',''),'_',''),'_',''),'_','')) = LOWER(REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''),'_',''),'_',''))
                   )
                 LEFT JOIN `" . _DB_PREFIX_ . "allegropro_account` a
                   ON (a.id_allegropro_account=b.id_allegropro_account)
