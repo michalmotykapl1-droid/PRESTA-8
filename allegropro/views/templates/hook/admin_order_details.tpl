@@ -726,6 +726,166 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
     // --- 4c. Dokumenty sprzedażowe z Allegro ---
+    var initialOrderDocuments = {$allegro_data.documents_cache|default:[]|@json_encode nofilter};
+
+    function apDocEsc(v) {
+        return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function apDocBuildDownloadUrl(doc) {
+        if (doc && doc.download_url) {
+            return String(doc.download_url);
+        }
+
+        var p = [];
+        p.push('controller=AdminAllegroProOrders');
+        p.push('token={getAdminToken tab='AdminAllegroProOrders'}');
+        p.push('ajax=1');
+        p.push('action=downloadOrderDocumentFile');
+        p.push('checkout_form_id=' + encodeURIComponent(cfId || ''));
+        p.push('id_allegropro_account=' + encodeURIComponent(accId || ''));
+        p.push('document_id=' + encodeURIComponent((doc && doc.id) ? doc.id : ''));
+        p.push('document_type=' + encodeURIComponent((doc && doc.type) ? doc.type : 'Dokument'));
+        p.push('document_number=' + encodeURIComponent((doc && doc.number) ? doc.number : ''));
+        p.push('direct_url=' + encodeURIComponent((doc && doc.direct_url) ? doc.direct_url : ''));
+        return 'index.php?' + p.join('&');
+    }
+
+    function apRenderOrderDocuments(docs) {
+        var listBox = document.getElementById('order_documents_list');
+        if (!listBox) {
+            return;
+        }
+
+        if (!Array.isArray(docs) || !docs.length) {
+            listBox.innerHTML = '<div class="text-muted" style="font-size:12px;">Brak dokumentów do pobrania.</div>';
+            return;
+        }
+
+        var header = '<div class="table-responsive"><table class="table table-sm table-striped" style="font-size:12px; margin-bottom:0;">'
+            + '<thead><tr><th>Typ</th><th>Numer</th><th>Status</th><th>Data</th><th class="text-right">Akcja</th></tr></thead><tbody>';
+        var footer = '</tbody></table></div>';
+        var chunks = [];
+        var batchSize = 50;
+
+        for (var i = 0; i < docs.length; i += batchSize) {
+            var batch = docs.slice(i, i + batchSize);
+            var rows = [];
+
+            batch.forEach(function(doc){
+                var type = doc.type || 'Dokument';
+                var number = doc.number || '—';
+                var status = doc.status || '—';
+                var issued = doc.issued_at || '—';
+                var url = apDocBuildDownloadUrl(doc);
+
+                rows.push('<tr>'
+                    + '<td>' + apDocEsc(type) + '</td>'
+                    + '<td>' + apDocEsc(number) + '</td>'
+                    + '<td>' + apDocEsc(status) + '</td>'
+                    + '<td>' + apDocEsc(issued) + '</td>'
+                    + '<td class="text-right"><a class="btn btn-xs btn-default ap-doc-download" href="' + apDocEsc(url) + '" data-doc-type="' + apDocEsc(type) + '" data-doc-number="' + apDocEsc(number) + '" target="_blank">Pobierz</a></td>'
+                    + '</tr>');
+            });
+
+            chunks.push(rows.join(''));
+        }
+
+        listBox.innerHTML = header + chunks.join('') + footer;
+    }
+
+    var orderDocsMsgBox = document.getElementById('order_documents_msg');
+    if (Array.isArray(initialOrderDocuments) && initialOrderDocuments.length) {
+        apRenderOrderDocuments(initialOrderDocuments);
+        if (orderDocsMsgBox) {
+            orderDocsMsgBox.className = 'text-info';
+            orderDocsMsgBox.innerText = 'Załadowano z zapisanej listy dokumentów: ' + initialOrderDocuments.length;
+        }
+    }
+
+    var orderDocsListBox = document.getElementById('order_documents_list');
+    if (orderDocsListBox) {
+        orderDocsListBox.addEventListener('click', function(e){
+            var node = e.target;
+            var link = node ? node.closest('a.ap-doc-download') : null;
+            if (!link) {
+                return;
+            }
+
+            var debugToggle = document.getElementById('order_documents_debug');
+            var debugEnabled = !!(debugToggle && debugToggle.checked);
+            if (!debugEnabled) {
+                return;
+            }
+
+            e.preventDefault();
+
+            var debugBox = document.getElementById('order_documents_debug_box');
+            var msgBox = document.getElementById('order_documents_msg');
+            var baseUrl = link.getAttribute('href') || '';
+            var debugUrl = baseUrl;
+
+            if (debugUrl.indexOf('debug=') === -1) {
+                debugUrl += (debugUrl.indexOf('?') !== -1 ? '&' : '?') + 'debug=1';
+            }
+
+            if (msgBox) {
+                msgBox.className = 'text-warning';
+                msgBox.innerText = 'Tryb debug pobierania dokumentu: ' + (link.getAttribute('data-doc-type') || 'Dokument') + ' ' + (link.getAttribute('data-doc-number') || '');
+            }
+            if (debugBox) {
+                debugBox.style.display = 'block';
+                debugBox.innerText = 'Pobieranie danych debug dokumentu...';
+            }
+
+            fetch(debugUrl)
+                .then(function(resp){ return resp.json(); })
+                .then(function(data){
+                    var lines = [];
+                    lines.push('success=' + (!!data.success ? '1' : '0'));
+                    lines.push('message=' + (data.message || 'brak'));
+                    if (typeof data.http_code !== 'undefined') {
+                        lines.push('http_code=' + data.http_code);
+                    }
+                    if (data.file_name) {
+                        lines.push('file_name=' + data.file_name);
+                    }
+                    if (typeof data.size !== 'undefined') {
+                        lines.push('size=' + data.size);
+                    }
+                    if (data.document) {
+                        lines.push('document.checkout_form_id=' + (data.document.checkout_form_id || ''));
+                        lines.push('document.document_id=' + (data.document.document_id || ''));
+                        lines.push('document.document_type=' + (data.document.document_type || ''));
+                        lines.push('document.document_number=' + (data.document.document_number || ''));
+                        lines.push('document.direct_url=' + (data.document.direct_url || ''));
+                    }
+                    if (Array.isArray(data.debug_lines) && data.debug_lines.length) {
+                        lines = lines.concat(data.debug_lines);
+                    }
+
+                    if (debugBox) {
+                        debugBox.style.display = 'block';
+                        debugBox.innerText = lines.join("\n");
+                    }
+                    if (msgBox) {
+                        msgBox.className = data.success ? 'text-info' : 'text-danger';
+                        msgBox.innerText = data.success ? 'Debug pobrania zakończony (plik nie został pobrany).' : 'Debug pobrania zakończony błędem.';
+                    }
+                })
+                .catch(function(){
+                    if (debugBox) {
+                        debugBox.style.display = 'block';
+                        debugBox.innerText = 'Błąd połączenia podczas debugowania pobrania dokumentu.';
+                    }
+                    if (msgBox) {
+                        msgBox.className = 'text-danger';
+                        msgBox.innerText = 'Nie udało się pobrać danych debug dokumentu.';
+                    }
+                });
+        });
+    }
+
     var btnFetchDocs = document.getElementById('btnFetchOrderDocuments');
     if (btnFetchDocs) {
         btnFetchDocs.addEventListener('click', function(e){
@@ -780,35 +940,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     msgBox.innerText = data.message || ('Pobrano dokumenty: ' + data.documents.length);
                 }
 
-                if (!listBox) {
-                    return;
-                }
-
-                if (!data.documents.length) {
-                    listBox.innerHTML = '<div class="text-muted" style="font-size:12px;">Brak dokumentów do pobrania.</div>';
-                    return;
-                }
-
-                var rows = ['<div class="table-responsive"><table class="table table-sm table-striped" style="font-size:12px; margin-bottom:0;">',
-                    '<thead><tr><th>Typ</th><th>Numer</th><th>Status</th><th>Data</th><th class="text-right">Akcja</th></tr></thead><tbody>'];
-
-                data.documents.forEach(function(doc){
-                    var type = doc.type || 'Dokument';
-                    var number = doc.number || '—';
-                    var status = doc.status || '—';
-                    var issued = doc.issued_at || '—';
-                    var url = doc.download_url || '#';
-                    rows.push('<tr>'
-                        + '<td>' + String(type).replace(/</g, '&lt;') + '</td>'
-                        + '<td>' + String(number).replace(/</g, '&lt;') + '</td>'
-                        + '<td>' + String(status).replace(/</g, '&lt;') + '</td>'
-                        + '<td>' + String(issued).replace(/</g, '&lt;') + '</td>'
-                        + '<td class="text-right"><a class="btn btn-xs btn-default" href="' + String(url).replace(/"/g, '&quot;') + '" target="_blank">Pobierz</a></td>'
-                        + '</tr>');
-                });
-
-                rows.push('</tbody></table></div>');
-                listBox.innerHTML = rows.join('');
+                apRenderOrderDocuments(data.documents);
             })
             .catch(function(){
                 if (msgBox) {
