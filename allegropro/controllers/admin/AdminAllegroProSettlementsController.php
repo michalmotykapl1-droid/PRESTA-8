@@ -200,6 +200,15 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             : 0;
 
 
+        // Podsumowanie "do zwrotu" (anulowane/nieopłacone): pobrane vs zwrócone vs kwota do zwrotu.
+        $refundSummary = [];
+        if (!empty($selectedAccountIds)) {
+            $refundSummary = ($mode === 'billing')
+                ? $report->getRefundPendingSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund)
+                : $report->getRefundPendingSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund);
+        }
+
+
         // Dane do wykresu kołowego (struktura opłat) na górze.
         $structureChartJson = '';
         if (!empty($summary)) {
@@ -304,6 +313,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             'sync_result' => $syncResult,
             'sync_debug' => $syncDebug,
             'summary' => $summary,
+            'refund_summary' => $refundSummary,
             'structure_chart_json' => $structureChartJson,
             'orders_rows' => $ordersRows,
             'orders_total' => (int)$ordersTotal,

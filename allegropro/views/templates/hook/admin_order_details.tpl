@@ -111,76 +111,8 @@
                         <p><strong>Metoda:</strong> {$allegro_data.shipping.method_name|default:'-'}</p>
 
                         {* FORMULARZ NADAWANIA *}
-                        <div class="card border mb-3">
-                            <div class="card-body p-2">
-                                <label class="mb-1"><strong>Nadaj nową paczkę:</strong></label>
-                                <div class="form-row mb-2">
-                                    <div class="col-md-4 mb-2 mb-md-0">
-                                        <select id="shipment_size_select" class="form-control">
-                                            {assign var=sizeOptions value=$allegro_data.shipment_size_options.options|default:[]}
-                                            {foreach from=$sizeOptions item=sizeOption}
-                                                <option value="{$sizeOption.value|escape:'htmlall':'UTF-8'}"{if $sizeOption.value == 'CUSTOM'} selected{/if}>{$sizeOption.label|escape:'htmlall':'UTF-8'}</option>
-                                            {/foreach}
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6 mb-2 mb-md-0">
-                                        <input type="hidden" id="shipment_weight_source" value="CONFIG">
-                                        <div class="ap-weight-panel" style="border:1px solid #cfd7df; border-radius:10px; background:#fff; padding:8px;">
-                                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                                                <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WAGA PACZKI (KG)</span>
-                                                <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WYBÓR WAGI</span>
-                                            </div>
-                                            <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:8px; align-items:center;">
-                                                <input
-                                                    type="text"
-                                                    id="shipment_weight_input"
-                                                    class="form-control"
-                                                    value="{$allegro_data.shipment_weight_defaults.manual_default|default:1.0|escape:'htmlall':'UTF-8'}"
-                                                    placeholder="Np. 2.50"
-                                                    data-manual-default="{$allegro_data.shipment_weight_defaults.manual_default|default:1.0|escape:'htmlall':'UTF-8'}"
-                                                    data-config-weight="{$allegro_data.shipment_weight_defaults.config_weight|default:1.0|escape:'htmlall':'UTF-8'}"
-                                                    data-products-weight="{$allegro_data.shipment_weight_defaults.products_weight|default:''|escape:'htmlall':'UTF-8'}"
-                                                >
-                                                <div style="display:flex; gap:6px;">
-                                                    <button type="button" id="weight_mode_config" class="btn btn-sm btn-primary" data-weight-mode="CONFIG" style="flex:1; border-radius:7px;">Konfiguracja</button>
-                                                    <button type="button" id="weight_mode_products" class="btn btn-sm btn-default" data-weight-mode="PRODUCTS" style="flex:1; border-radius:7px;">Z produktów</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
-                                    </div>
-                                </div>
-                                <input type="hidden" id="shipment_dimension_source" value="CONFIG">
-                                <div class="mb-2" id="shipment_dimensions_panel" style="border:1px solid #cfd7df; border-radius:10px; background:#fff; padding:8px;{if $allegro_data.carrier_mode == 'COURIER'} display:block;{else} display:none;{/if}">
-                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px;">
-                                        <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WYMIARY PACZKI (CM)</span>
-                                        <div style="display:flex; gap:6px;">
-                                            <button type="button" id="dimension_mode_config" class="btn btn-sm btn-primary" data-dimension-mode="CONFIG" style="border-radius:7px;">Konfiguracja</button>
-                                            <button type="button" id="dimension_mode_manual" class="btn btn-sm btn-default" data-dimension-mode="MANUAL" style="border-radius:7px;">Ręcznie</button>
-                                        </div>
-                                    </div>
-                                    <div style="display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:8px;">
-                                        <input type="number" min="1" step="1" id="shipment_length_input" class="form-control" placeholder="Długość" value="{$allegro_data.shipment_dimension_defaults.manual_default_length|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_length|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_length|default:10|intval}">
-                                        <input type="number" min="1" step="1" id="shipment_width_input" class="form-control" placeholder="Szerokość" value="{$allegro_data.shipment_dimension_defaults.manual_default_width|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_width|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_width|default:10|intval}">
-                                        <input type="number" min="1" step="1" id="shipment_height_input" class="form-control" placeholder="Wysokość" value="{$allegro_data.shipment_dimension_defaults.manual_default_height|default:10|intval}" data-manual-default="{$allegro_data.shipment_dimension_defaults.manual_default_height|default:10|intval}" data-config-value="{$allegro_data.shipment_dimension_defaults.config_height|default:10|intval}">
-                                    </div>
-                                </div>
-                                <small class="form-text text-muted mb-2">{$allegro_data.shipment_size_options.help_text|default:'Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.'|escape:'htmlall':'UTF-8'}</small>
-                                <small class="form-text text-muted mb-2">W tym panelu ustawiasz wagę paczki: wybierz źródło (Konfiguracja / Z produktów), a wartość w polu obok zaktualizuje się automatycznie. W każdej chwili możesz ją ręcznie nadpisać.</small>
-                                <small class="form-text text-muted mb-2">Dla metod kurierskich od razu pokazujemy pola długość / szerokość / wysokość. Możesz użyć wartości z konfiguracji i w razie potrzeby ręcznie je zmienić.</small>
-                                <small class="form-text text-muted mb-2" style="font-size:11px;">
-                                    Źródło gabarytów: <strong>{$allegro_data.shipment_size_options.source|default:'fallback'|escape:'htmlall':'UTF-8'}</strong>
-                                    | Profil: <strong>{$allegro_data.shipment_size_options.profile|default:'-'|escape:'htmlall':'UTF-8'}</strong>
-                                    | method_id: <code>{$allegro_data.shipment_size_options.method_id|default:$allegro_data.shipping.method_id|escape:'htmlall':'UTF-8'}</code>
-                                </small>
-                                <div class="form-check">
-                                    <input type="checkbox" id="is_smart_shipment" class="form-check-input" {if $allegro_data.smart_left <= 0}disabled{else}checked{/if}>
-                                    <label for="is_smart_shipment" class="form-check-label">Użyj Allegro Smart! (jeśli dostępny)</label>
-                                </div>
-                            </div>
-                        </div>
+                        {include file='./partials/shipment_form.tpl' allegro_data=$allegro_data}
+
                         {* HISTORIA *}
                         <h5 style="font-size:13px;">Historia Przesyłek:</h5>
                         <div class="table-responsive">
@@ -467,7 +399,11 @@ document.addEventListener("DOMContentLoaded", function() {
             .catch(() => alert('Błąd połączenia.'))
             .finally(() => {
                 thisBtn.disabled = false;
-                thisBtn.innerText = 'Utwórz przesyłkę';
+                if (thisBtn.querySelector('.ap-create-main') || thisBtn.querySelector('.ap-create-sub')) {
+                    thisBtn.innerHTML = '<span class="ap-create-main">Utwórz</span><span class="ap-create-sub">przesyłkę</span>';
+                } else {
+                    thisBtn.innerText = 'Utwórz przesyłkę';
+                }
             });
         });
     }

@@ -325,6 +325,34 @@
             </div>
           </div>
 
+          {if isset($refund_summary.pending_total)}
+          <div class="alpro-kpi alpro-kpi--refundpending">
+            <div class="top">
+              <div>
+                <div class="label">Do zwrotu opłat (anul./nieopł.)</div>
+                <div class="value {if $refund_summary.pending_total > 0}text-warning{else}text-success{/if}">{$refund_summary.pending_total|number_format:2:',':' '} zł</div>
+                <div class="sub">Zamówień z kwotą do zwrotu: <strong>{$refund_summary.pending_orders|intval}</strong></div>
+                <div class="sub">
+                  Pobrane: <span class="text-danger">-{$refund_summary.charged_total|number_format:2:',':' '} zł</span>
+                  • Zwrócone: <span class="text-success">{$refund_summary.refunded_total|number_format:2:',':' '} zł</span>
+                </div>
+                {if isset($refund_summary.missing_orders) && $refund_summary.missing_orders > 0}
+                  <div class="sub text-warning">Brak danych zamówienia dla: <strong>{$refund_summary.missing_orders|intval}</strong></div>
+                {/if}
+              </div>
+              <div class="icon" title="Do zwrotu opłat">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 12a8 8 0 1 1-2.343-5.657" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          {/if}
+
+
         </div>
           </div>
 

@@ -64,14 +64,15 @@
 .alpro-kpi--commission{grid-column:span 3;border-left:4px solid rgba(111,66,193,.45);} /* purple */
 .alpro-kpi--delivery{grid-column:span 3;border-left:4px solid rgba(0,123,255,.45);} /* blue */
 .alpro-kpi--promo{grid-column:span 3;border-left:4px solid rgba(255,193,7,.5);} /* warning */
+.alpro-kpi--refundpending{grid-column:span 3;border-left:4px solid rgba(253,126,20,.55);} /* orange */
 
 @media (max-width: 1300px){
-  .alpro-kpi--sales,.alpro-kpi--fees,.alpro-kpi--net,.alpro-kpi--commission,.alpro-kpi--delivery,.alpro-kpi--promo{grid-column:span 6;}
+  .alpro-kpi--sales,.alpro-kpi--fees,.alpro-kpi--net,.alpro-kpi--commission,.alpro-kpi--delivery,.alpro-kpi--promo,.alpro-kpi--refundpending{grid-column:span 6;}
 }
 @media (max-width: 820px){
   .alpro-filters{grid-template-columns:1fr;}
   .alpro-filters .filters-right{justify-content:flex-start;}
-  .alpro-kpi--sales,.alpro-kpi--fees,.alpro-kpi--net,.alpro-kpi--commission,.alpro-kpi--delivery,.alpro-kpi--promo{grid-column:span 12;}
+  .alpro-kpi--sales,.alpro-kpi--fees,.alpro-kpi--net,.alpro-kpi--commission,.alpro-kpi--delivery,.alpro-kpi--promo,.alpro-kpi--refundpending{grid-column:span 12;}
 }
 
 /* Breakdown */

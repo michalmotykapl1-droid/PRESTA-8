@@ -199,6 +199,217 @@ class SettlementsReportService
         return $this->getPeriodSummaryBilling($accountIds, $dateFrom, $dateTo);
     }
 
+
+    /**
+     * Zestawienie "zwrotów opłat" dla anulowanych i nieopłaconych (czy Allegro pobrało opłaty i czy je oddało).
+     * Liczy: pobrane (ujemne), zwrócone (dodatnie) oraz "do zwrotu" = pobrane - zwrócone.
+     *
+     * TRYB A (billing): zakres dat dotyczy księgowania opłat (occurred_at), ale pobrane/zwrócone są liczone bez filtra daty,
+     *                  żeby zwroty księgowane później też były widoczne.
+     */
+    public function getRefundPendingSummaryBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', string $orderState = 'all', bool $cancelledNoRefund = false): array
+    {
+        $ids = $this->normalizeAccountIds($accountIds);
+        if (empty($ids)) {
+            return [
+                'orders_total' => 0,
+                'missing_orders' => 0,
+                'expected_orders' => 0,
+                'pending_orders' => 0,
+                'charged_total' => 0.0,
+                'refunded_total' => 0.0,
+                'pending_total' => 0.0,
+            ];
+        }
+
+        $in = $this->buildIn($ids);
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+
+        $tn = "LOWER(IFNULL(b.type_name,''))";
+        $feeWhere = $this->feeWhere('b.value_amount', $tn);
+
+        $whereQ = '';
+        if ($q !== '') {
+            $qEsc = pSQL('%' . $q . '%');
+            $whereQ = " AND (b.order_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
+        }
+
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $normO = $this->normalizeKeySql('o.checkout_form_id');
+        $normB = $this->normalizeKeySql('b.order_id');
+
+        $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids) . ") bf
+"
+            . "   ON (bf.id_allegropro_account=b.id_allegropro_account AND bf.order_key={$normB})";
+
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $inner = "SELECT b.id_allegropro_account, b.order_id, o.status AS order_status, IFNULL(bf.neg_sum,0) AS neg_sum, IFNULL(bf.pos_sum,0) AS pos_sum
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+"
+            . "LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
+"
+            . "  ON (o.id_allegropro_account=b.id_allegropro_account AND {$normO} = {$normB})
+"
+            . $bfJoin . "
+"
+            . "WHERE b.id_allegropro_account IN {$in}
+"
+            . "  AND b.order_id IS NOT NULL AND b.order_id <> ''
+"
+            . "  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+"
+            . "  AND {$feeWhere}
+"
+            . "  {$whereQ}
+"
+            . "  {$statusWhere}
+"
+            . "  {$bfWhere}
+"
+            . "GROUP BY b.id_allegropro_account, b.order_id";
+
+        $sql = "SELECT
+"
+            . "  COUNT(*) AS orders_total,
+"
+            . "  SUM(CASE WHEN order_status IS NULL OR order_status='' THEN 1 ELSE 0 END) AS missing_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN 1 ELSE 0 END) AS expected_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN')
+"
+            . "           AND (ABS(IFNULL(neg_sum,0)) - IFNULL(pos_sum,0)) > 0.01 AND IFNULL(neg_sum,0) < 0
+"
+            . "      THEN 1 ELSE 0 END) AS pending_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN ABS(IFNULL(neg_sum,0)) ELSE 0 END) AS charged_total,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN GREATEST(IFNULL(pos_sum,0),0) ELSE 0 END) AS refunded_total,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN GREATEST(0, ABS(IFNULL(neg_sum,0)) - IFNULL(pos_sum,0)) ELSE 0 END) AS pending_total
+"
+            . "FROM (
+" . $inner . "
+) t";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+
+        return [
+            'orders_total' => (int)($row['orders_total'] ?? 0),
+            'missing_orders' => (int)($row['missing_orders'] ?? 0),
+            'expected_orders' => (int)($row['expected_orders'] ?? 0),
+            'pending_orders' => (int)($row['pending_orders'] ?? 0),
+            'charged_total' => (float)($row['charged_total'] ?? 0),
+            'refunded_total' => (float)($row['refunded_total'] ?? 0),
+            'pending_total' => (float)($row['pending_total'] ?? 0),
+        ];
+    }
+
+    /**
+     * TRYB B (orders): zakres dat dotyczy złożenia zamówień; pobrane/zwrócone liczone są bez filtra daty,
+     * żeby było widać zwroty zaksięgowane później.
+     */
+    public function getRefundPendingSummaryOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', string $orderState = 'all', bool $cancelledNoRefund = false): array
+    {
+        $ids = $this->normalizeAccountIds($accountIds);
+        if (empty($ids)) {
+            return [
+                'orders_total' => 0,
+                'missing_orders' => 0,
+                'expected_orders' => 0,
+                'pending_orders' => 0,
+                'charged_total' => 0.0,
+                'refunded_total' => 0.0,
+                'pending_total' => 0.0,
+            ];
+        }
+
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+        $in = $this->buildIn($ids);
+
+        $whereQ = '';
+        if ($q !== '') {
+            $qEsc = pSQL('%' . $q . '%');
+            $whereQ = " AND (o.checkout_form_id LIKE '" . $qEsc . "' OR o.buyer_login LIKE '" . $qEsc . "')";
+        }
+
+        $statusWhere = $this->orderStateWhere('o.status', $orderState);
+
+        $normO = $this->normalizeKeySql('o.checkout_form_id');
+        $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids) . ") bf
+"
+            . "   ON (bf.id_allegropro_account=o.id_allegropro_account AND bf.order_key={$normO})";
+
+        $bfWhere = '';
+        if ($cancelledNoRefund) {
+            $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
+        }
+
+        $inner = "SELECT o.id_allegropro_account, o.checkout_form_id AS order_id, o.status AS order_status,
+"
+            . "       IFNULL(bf.neg_sum,0) AS neg_sum, IFNULL(bf.pos_sum,0) AS pos_sum
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_order` o
+"
+            . $bfJoin . "
+"
+            . "WHERE o.id_allegropro_account IN {$in}
+"
+            . "  AND o.created_at_allegro BETWEEN '" . $from . "' AND '" . $to . "'
+"
+            . "  {$whereQ}
+"
+            . "  {$statusWhere}
+"
+            . "  {$bfWhere}
+"
+            . "GROUP BY o.id_allegropro_account, o.checkout_form_id";
+
+        $sql = "SELECT
+"
+            . "  COUNT(*) AS orders_total,
+"
+            . "  0 AS missing_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN 1 ELSE 0 END) AS expected_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN')
+"
+            . "           AND (ABS(IFNULL(neg_sum,0)) - IFNULL(pos_sum,0)) > 0.01 AND IFNULL(neg_sum,0) < 0
+"
+            . "      THEN 1 ELSE 0 END) AS pending_orders,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN ABS(IFNULL(neg_sum,0)) ELSE 0 END) AS charged_total,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN GREATEST(IFNULL(pos_sum,0),0) ELSE 0 END) AS refunded_total,
+"
+            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN GREATEST(0, ABS(IFNULL(neg_sum,0)) - IFNULL(pos_sum,0)) ELSE 0 END) AS pending_total
+"
+            . "FROM (
+" . $inner . "
+) t";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+
+        return [
+            'orders_total' => (int)($row['orders_total'] ?? 0),
+            'missing_orders' => 0,
+            'expected_orders' => (int)($row['expected_orders'] ?? 0),
+            'pending_orders' => (int)($row['pending_orders'] ?? 0),
+            'charged_total' => (float)($row['charged_total'] ?? 0),
+            'refunded_total' => (float)($row['refunded_total'] ?? 0),
+            'pending_total' => (float)($row['pending_total'] ?? 0),
+        ];
+    }
+
     /**
      * TRYB A: liczba zamówień (unikalne order_id) mających opłaty zaksięgowane w okresie.
      */
