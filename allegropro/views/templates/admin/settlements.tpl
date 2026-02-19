@@ -157,13 +157,13 @@
               <div class="form-group">
                 <label class="form-control-label">Grupa operacji</label>
                 <select name="fee_group" class="form-control">
-                  <option value="">Wszystkie</option>
-                  <option value="commission">Prowizje / sprzedaż</option>
-                  <option value="delivery">Dostawa / etykiety</option>
-                  <option value="smart">SMART</option>
-                  <option value="promotion">Promocja / wyróżnienia</option>
-                  <option value="refunds">Rabaty / zwroty</option>
-                  <option value="other">Pozostałe</option>
+                  <option value="" {if $fee_group==''}selected{/if}>Wszystkie</option>
+                  <option value="commission" {if $fee_group=='commission'}selected{/if}>Prowizje / sprzedaż</option>
+                  <option value="delivery" {if $fee_group=='delivery'}selected{/if}>Dostawa / etykiety</option>
+                  <option value="smart" {if $fee_group=='smart'}selected{/if}>SMART</option>
+                  <option value="promotion" {if $fee_group=='promotion'}selected{/if}>Promocja / wyróżnienia</option>
+                  <option value="refunds" {if $fee_group=='refunds'}selected{/if}>Rabaty / zwroty</option>
+                  <option value="other" {if $fee_group=='other'}selected{/if}>Pozostałe</option>
                 </select>
               </div>
 
@@ -184,9 +184,17 @@
                       </div>
                     </div>
                     <div class="alpro-ms__list">
-                      <div class="alpro-ms__empty">
-                        Lista typów operacji (1:1 jak w Allegro) zostanie dodana w kolejnym ZIP (pobranie z billing_entry).
-                      </div>
+                      {if isset($fee_types_available) && $fee_types_available|@count > 0}
+                        {foreach from=$fee_types_available item=ft}
+                          <label class="alpro-ms__item">
+                            <input type="checkbox" value="{$ft.type_name|escape:'htmlall':'UTF-8'}" {if isset($fee_types_selected) && in_array($ft.type_name, $fee_types_selected)}checked{/if}>
+                            <span class="alpro-ms__label">{$ft.type_name|escape:'htmlall':'UTF-8'}</span>
+                            <span style="margin-left:auto;color:#8a93a0;font-size:12px;">{$ft.cnt|intval}</span>
+                          </label>
+                        {/foreach}
+                      {else}
+                        <div class="alpro-ms__empty">Brak typów operacji w wybranym okresie.</div>
+                      {/if}
                     </div>
                     <div class="alpro-ms__hidden"></div>
                   </div>

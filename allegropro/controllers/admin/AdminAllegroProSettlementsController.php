@@ -118,6 +118,35 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         if ($cancelledNoRefund) {
             $orderState = 'cancelled';
         }
+// koszt/typy operacji (UI jak w Allegro) — na tym etapie tylko pobranie listy i zapamiętywanie wyboru
+$feeGroup = (string)Tools::getValue('fee_group', '');
+$allowedFeeGroups = ['', 'commission', 'delivery', 'smart', 'promotion', 'refunds', 'other'];
+if (!in_array($feeGroup, $allowedFeeGroups, true)) {
+    $feeGroup = '';
+}
+
+$feeTypesSelected = Tools::getValue('fee_type', []);
+if (!is_array($feeTypesSelected)) {
+    $feeTypesSelected = [$feeTypesSelected];
+}
+$feeTypesSelectedClean = [];
+foreach ($feeTypesSelected as $t) {
+    $t = trim((string)$t);
+    if ($t === '') {
+        continue;
+    }
+    if (Tools::strlen($t) > 160) {
+        $t = Tools::substr($t, 0, 160);
+    }
+    $feeTypesSelectedClean[$t] = $t;
+    if (count($feeTypesSelectedClean) >= 80) { // limit bezpieczeństwa
+        break;
+    }
+}
+$feeTypesSelected = array_values($feeTypesSelectedClean);
+
+// Lista typów z billing_entry w wybranym zakresie dat (1:1 nazwy jak w Allegro)
+$feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dateFrom, $dateTo);
 
         // pagination
         $allowedPerPage = [25, 50, 100, 200];
@@ -289,6 +318,8 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             . '&q=' . urlencode($q)
             . '&order_state=' . urlencode($orderState)
             . ($cancelledNoRefund ? '&cancelled_no_refund=1' : '')
+            . '&fee_group=' . urlencode($feeGroup)
+            . $this->buildFeeTypesQueryString($feeTypesSelected)
             . '&per_page=' . (int)$perPage;
 
         $pageLinks = $this->buildPageLinks($base, $page, $pages);
@@ -309,6 +340,9 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             'q' => $q,
             'order_state' => $orderState,
             'cancelled_no_refund' => $cancelledNoRefund ? 1 : 0,
+            'fee_group' => $feeGroup,
+            'fee_types_selected' => $feeTypesSelected,
+            'fee_types_available' => $feeTypesAvailable,
             'mode' => $mode,
             'sync_result' => $syncResult,
             'sync_debug' => $syncDebug,
@@ -878,4 +912,65 @@ private function toIsoStart(string $ymd): string
 
         return $links;
     }
+
+/**
+ * Zwraca listę dostępnych typów operacji (type_name) z tabeli billing_entry w wybranym zakresie dat.
+ * Nazwy są 1:1 jak w Allegro (Sales Center).
+ *
+ * @return array<int, array{type_name:string,cnt:int}>
+ */
+private function listFeeTypesInBillingRange(array $accountIds, string $dateFrom, string $dateTo): array
+{
+    $accountIds = array_values(array_filter(array_map('intval', $accountIds)));
+    if (empty($accountIds)) {
+        return [];
+    }
+
+    $from = pSQL($dateFrom . ' 00:00:00');
+    $to = pSQL($dateTo . ' 23:59:59');
+
+    $in = '(' . implode(',', $accountIds) . ')';
+
+    $sql = "SELECT type_name, COUNT(*) AS cnt
+            FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+            WHERE id_allegropro_account IN " . $in . "
+              AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+              AND type_name IS NOT NULL AND type_name <> ''
+            GROUP BY type_name
+            ORDER BY type_name ASC";
+
+    $rows = Db::getInstance()->executeS($sql);
+    if (!is_array($rows)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $r) {
+        $name = (string)($r['type_name'] ?? '');
+        if ($name === '') {
+            continue;
+        }
+        $out[] = [
+            'type_name' => $name,
+            'cnt' => (int)($r['cnt'] ?? 0),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Buduje query string dla fee_type[] (zachowanie filtrów w paginacji/odświeżeniu).
+ */
+private function buildFeeTypesQueryString(array $feeTypesSelected): string
+{
+    if (empty($feeTypesSelected)) {
+        return '';
+    }
+    $qs = '';
+    foreach ($feeTypesSelected as $t) {
+        $qs .= '&fee_type[]=' . urlencode((string)$t);
+    }
+    return $qs;
+}
+
 }

@@ -78,6 +78,7 @@ class OrderDetailsProvider
         $shipping = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_shipping WHERE checkout_form_id = '$cfIdEsc'");
         $invoice = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_invoice WHERE checkout_form_id = '$cfIdEsc'");
         $items = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."allegropro_order_item WHERE checkout_form_id = '$cfIdEsc'");
+        $documentsCache = $this->loadOrderDocumentsSnapshot($cfId, (int)$order['id_allegropro_account']);
 
         // 4. Tryb i historia przesyłek
         $carrierMode = 'COURIER';
@@ -192,6 +193,7 @@ class OrderDetailsProvider
             'shipping' => $shipping,
             'invoice' => $invoice,
             'items' => $items,
+            'documents_cache' => $documentsCache,
             'ps_status_name' => $psStatusName,
             'allegro_statuses' => $allegroStatuses,
 
@@ -205,6 +207,75 @@ class OrderDetailsProvider
             'shipment_weight_defaults' => $weightDefaults,
             'shipment_dimension_defaults' => $dimensionDefaults,
         ];
+    }
+
+    private function ensureOrderDocumentsTableExists(): void
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'allegropro_order_document` ('
+            . '`id_allegropro_order_document` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
+            . '`id_allegropro_account` INT UNSIGNED NOT NULL,'
+            . '`checkout_form_id` VARCHAR(64) NOT NULL,'
+            . '`doc_key` CHAR(32) NOT NULL,'
+            . '`document_id` VARCHAR(128) NULL,'
+            . '`document_type` VARCHAR(128) NULL,'
+            . '`document_number` VARCHAR(255) NULL,'
+            . '`document_status` VARCHAR(64) NULL,'
+            . '`issued_at` VARCHAR(64) NULL,'
+            . '`direct_url` TEXT NULL,'
+            . '`source_endpoint` VARCHAR(255) NULL,'
+            . '`updated_at` DATETIME NOT NULL,'
+            . 'PRIMARY KEY (`id_allegropro_order_document`),'
+            . 'UNIQUE KEY `uniq_doc` (`id_allegropro_account`,`checkout_form_id`,`doc_key`),'
+            . 'KEY `idx_cf` (`checkout_form_id`),'
+            . 'KEY `idx_account_cf` (`id_allegropro_account`,`checkout_form_id`)'
+            . ') ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4';
+
+        Db::getInstance()->execute($sql);
+    }
+
+    private function loadOrderDocumentsSnapshot(string $checkoutFormId, int $accountId): array
+    {
+        if ($checkoutFormId === '' || $accountId <= 0) {
+            return [];
+        }
+
+        $this->ensureOrderDocumentsTableExists();
+
+        $rows = Db::getInstance()->executeS(
+            'SELECT * FROM `' . _DB_PREFIX_ . 'allegropro_order_document` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . ' ORDER BY updated_at DESC, id_allegropro_order_document DESC'
+        ) ?: [];
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        $docs = [];
+        foreach ($rows as $r) {
+            $id = trim((string)($r['document_id'] ?? ''));
+            $type = trim((string)($r['document_type'] ?? 'Dokument'));
+            $number = trim((string)($r['document_number'] ?? ''));
+            $status = trim((string)($r['document_status'] ?? ''));
+            $issuedAt = trim((string)($r['issued_at'] ?? ''));
+            $directUrl = trim((string)($r['direct_url'] ?? ''));
+
+            if ($status === '') {
+                $status = ($directUrl !== '' || $id !== '') ? 'DOSTĘPNY' : 'BRAK';
+            }
+
+            $docs[] = [
+                'id' => $id,
+                'type' => $type,
+                'number' => $number,
+                'status' => $status,
+                'issued_at' => $issuedAt,
+                'direct_url' => $directUrl,
+            ];
+        }
+
+        return $docs;
     }
 
     private function buildShipmentDimensionDefaults(): array
@@ -423,7 +494,6 @@ class OrderDetailsProvider
             'method_name' => (string)($shipping['method_name'] ?? ''),
         ];
     }
-
     private function fetchDeliveryServiceByMethodId(array $account, string $deliveryMethodId): ?array
     {
         try {

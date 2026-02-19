@@ -747,7 +747,25 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $documents = $this->normalizeOrderDocuments($documents, $cfId, (int)$account['id_allegropro_account']);
 
+        if (!empty($documents)) {
+            $this->saveOrderDocumentsSnapshot($cfId, (int)$account['id_allegropro_account'], $documents);
+        }
+
         if (empty($documents)) {
+            $cachedDocs = $this->loadOrderDocumentsSnapshot($cfId, (int)$account['id_allegropro_account']);
+            if (!empty($cachedDocs)) {
+                $payload = [
+                    'success' => true,
+                    'message' => 'Załadowano dokumenty z lokalnej pamięci: ' . count($cachedDocs),
+                    'documents' => $cachedDocs,
+                    'cached' => true,
+                ];
+                if ($debug) {
+                    $payload['debug_lines'] = array_merge($debugLines, ['[DOCS] fallback=cache']);
+                }
+                $this->ajaxDie(json_encode($payload));
+            }
+
             $payload = [
                 'success' => false,
                 'message' => 'Brak dokumentów sprzedażowych dostępnych w Allegro dla tego zamówienia.',
@@ -1033,17 +1051,61 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $out = [];
         foreach ($containers as $list) {
-            foreach ((array)$list as $item) {
+            foreach ($this->normalizeDocumentContainer($list) as $item) {
                 if (!is_array($item)) {
                     continue;
                 }
 
-                $id = (string)($item['id'] ?? $item['documentId'] ?? $item['uuid'] ?? '');
-                $type = (string)($item['type'] ?? $item['kind'] ?? $item['documentType'] ?? 'DOKUMENT');
-                $number = (string)($item['number'] ?? $item['name'] ?? $item['documentNumber'] ?? '');
-                $status = (string)($item['status'] ?? '');
-                $issuedAt = (string)($item['issuedAt'] ?? $item['createdAt'] ?? $item['created_at'] ?? '');
-                $downloadUrl = (string)($item['downloadUrl'] ?? $item['url'] ?? (($item['file']['url'] ?? '')));
+                $id = (string)$this->firstDocumentValue($item, [
+                    'id',
+                    'documentId',
+                    'uuid',
+                    'invoice.id',
+                    'invoiceId',
+                    'invoice.idInvoice',
+                ], '');
+
+                $type = (string)$this->firstDocumentValue($item, [
+                    'type',
+                    'kind',
+                    'documentType',
+                    'invoice.type',
+                    'invoice.kind',
+                    'invoice.documentType',
+                ], 'DOKUMENT');
+
+                $number = (string)$this->firstDocumentValue($item, [
+                    'number',
+                    'name',
+                    'documentNumber',
+                    'invoiceNumber',
+                    'invoice.number',
+                    'invoice.documentNumber',
+                ], '');
+
+                $status = (string)$this->firstDocumentValue($item, [
+                    'status',
+                    'invoice.status',
+                    'state',
+                ], '');
+
+                $issuedAt = (string)$this->firstDocumentValue($item, [
+                    'issuedAt',
+                    'createdAt',
+                    'created_at',
+                    'invoice.issuedAt',
+                    'invoice.createdAt',
+                    'invoice.updatedAt',
+                ], '');
+
+                $downloadUrl = (string)$this->firstDocumentValue($item, [
+                    'downloadUrl',
+                    'url',
+                    'file.url',
+                    'invoice.downloadUrl',
+                    'invoice.url',
+                    'invoice.file.url',
+                ], '');
 
                 $out[] = [
                     'id' => $id,
@@ -1059,6 +1121,70 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         return $out;
     }
 
+    private function normalizeDocumentContainer($list): array
+    {
+        if (!is_array($list)) {
+            return [];
+        }
+
+        if (empty($list)) {
+            return [];
+        }
+
+        $keys = array_keys($list);
+        $isSequential = ($keys === range(0, count($keys) - 1));
+
+        if (!$isSequential) {
+            return [$list];
+        }
+
+        return $list;
+    }
+
+    private function firstDocumentValue(array $item, array $paths, string $default = ''): string
+    {
+        foreach ($paths as $path) {
+            $path = trim((string)$path);
+            if ($path === '') {
+                continue;
+            }
+
+            $value = $this->documentValueByPath($item, $path);
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+
+            if ($value === '' || $value === null) {
+                continue;
+            }
+
+            if (is_scalar($value)) {
+                return (string)$value;
+            }
+        }
+
+        return $default;
+    }
+
+    private function documentValueByPath(array $item, string $path)
+    {
+        $segments = explode('.', $path);
+        $cursor = $item;
+
+        foreach ($segments as $segment) {
+            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                return null;
+            }
+            $cursor = $cursor[$segment];
+        }
+
+        return $cursor;
+    }
+
     private function normalizeOrderDocuments(array $docs, string $checkoutFormId, int $accountId): array
     {
         $out = [];
@@ -1071,6 +1197,13 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $status = trim((string)($doc['status'] ?? ''));
             $issuedAt = trim((string)($doc['issued_at'] ?? ''));
             $directUrl = trim((string)($doc['direct_url'] ?? ''));
+            if ($status === '') {
+                if ($directUrl !== '' || $id !== '') {
+                    $status = 'DOSTĘPNY';
+                } else {
+                    $status = 'BRAK';
+                }
+            }
 
             $key = strtolower(($id !== '' ? $id : ('row_' . $idx)) . '|' . $type . '|' . $number . '|' . $issuedAt);
             if (isset($seen[$key])) {
@@ -1084,6 +1217,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 . '&id_allegropro_account=' . (int)$accountId
                 . '&document_id=' . rawurlencode($id)
                 . '&document_type=' . rawurlencode($type)
+                . '&document_number=' . rawurlencode($number)
                 . '&direct_url=' . rawurlencode($directUrl);
 
             $out[] = [
@@ -1103,6 +1237,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $cfId = trim((string)Tools::getValue('checkout_form_id'));
         $docId = trim((string)Tools::getValue('document_id'));
         $docType = trim((string)Tools::getValue('document_type', 'dokument'));
+        $docNumber = trim((string)Tools::getValue('document_number'));
         $directUrl = trim((string)Tools::getValue('direct_url'));
         $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
 
@@ -1126,12 +1261,26 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $httpCode = 0;
 
         if ($directUrl !== '' && preg_match('#^https?://#i', $directUrl)) {
-            $resp = $api->fetchPublicUrl($directUrl);
-            $debugLines[] = sprintf('[DOC-DL] direct url %s => HTTP %d ok=%d', $directUrl, (int)($resp['code'] ?? 0), !empty($resp['ok']) ? 1 : 0);
-            if (!empty($resp['ok']) && (string)($resp['body'] ?? '') !== '') {
-                $ok = true;
-                $binary = (string)$resp['body'];
-                $httpCode = (int)$resp['code'];
+            $directUrlHeaders = [
+                [],
+                ['Authorization' => 'Bearer ' . (string)($account['access_token'] ?? '')],
+            ];
+
+            foreach ($directUrlHeaders as $hdrs) {
+                $resp = $api->fetchPublicUrl($directUrl, $hdrs);
+                $debugLines[] = sprintf(
+                    '[DOC-DL] direct url %s => HTTP %d ok=%d auth=%d',
+                    $directUrl,
+                    (int)($resp['code'] ?? 0),
+                    !empty($resp['ok']) ? 1 : 0,
+                    isset($hdrs['Authorization']) ? 1 : 0
+                );
+                if (!empty($resp['ok']) && (string)($resp['body'] ?? '') !== '') {
+                    $ok = true;
+                    $binary = (string)$resp['body'];
+                    $httpCode = (int)$resp['code'];
+                    break;
+                }
             }
         }
 
@@ -1141,16 +1290,130 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $candidates = [
                 '/order/checkout-forms/' . $encodedCfId . '/invoices/' . $encodedDocId . '/file',
                 '/order/checkout-forms/' . $encodedCfId . '/documents/' . $encodedDocId . '/file',
+                '/order/checkout-forms/' . $encodedCfId . '/invoices/' . $encodedDocId,
+                '/order/checkout-forms/' . $encodedCfId . '/documents/' . $encodedDocId,
             ];
 
             foreach ($candidates as $ep) {
-                $resp = $api->get($account, $ep, [], 'application/pdf');
-                $debugLines[] = sprintf('[DOC-DL] GET %s => HTTP %d ok=%d', $ep, (int)($resp['code'] ?? 0), !empty($resp['ok']) ? 1 : 0);
+                $resp = $api->getWithAcceptFallbacks($account, $ep, [], [
+                    'application/pdf',
+                    'application/octet-stream',
+                    'application/vnd.allegro.public.v1+json',
+                    'application/json',
+                ]);
+                $debugLines[] = sprintf(
+                    '[DOC-DL] GET %s => HTTP %d ok=%d accept=%s',
+                    $ep,
+                    (int)($resp['code'] ?? 0),
+                    !empty($resp['ok']) ? 1 : 0,
+                    (string)($resp['accept'] ?? 'n/a')
+                );
                 $httpCode = (int)($resp['code'] ?? 0);
+
+                if (!empty($resp['ok']) && is_array($resp['json'])) {
+                    $payloadUrl = (string)$this->firstDocumentValue($resp['json'], [
+                        'url',
+                        'downloadUrl',
+                        'file.url',
+                        'invoice.url',
+                        'invoice.downloadUrl',
+                        'invoice.file.url',
+                    ], '');
+                    if ($payloadUrl !== '' && preg_match('#^https?://#i', $payloadUrl)) {
+                        $payloadUrlHeaders = [
+                            [],
+                            ['Authorization' => 'Bearer ' . (string)($account['access_token'] ?? '')],
+                        ];
+
+                        foreach ($payloadUrlHeaders as $hdrs) {
+                            $redir = $api->fetchPublicUrl($payloadUrl, $hdrs);
+                            $debugLines[] = sprintf(
+                                '[DOC-DL] payload url %s => HTTP %d ok=%d auth=%d',
+                                $payloadUrl,
+                                (int)($redir['code'] ?? 0),
+                                !empty($redir['ok']) ? 1 : 0,
+                                isset($hdrs['Authorization']) ? 1 : 0
+                            );
+                            if (!empty($redir['ok']) && (string)($redir['body'] ?? '') !== '') {
+                                $binary = (string)$redir['body'];
+                                $ok = true;
+                                $httpCode = (int)($redir['code'] ?? 0);
+                                break 2;
+                            }
+                        }
+                    }
+                }
+
                 if (!empty($resp['ok']) && (string)($resp['raw'] ?? '') !== '') {
                     $binary = (string)$resp['raw'];
                     $ok = true;
                     break;
+                }
+            }
+        }
+
+        if (!$ok) {
+            $encodedCfId = rawurlencode($cfId);
+            $metaCandidates = [
+                '/order/checkout-forms/' . $encodedCfId . '/invoices',
+                '/order/checkout-forms/' . $encodedCfId . '/documents',
+            ];
+
+            foreach ($metaCandidates as $metaEp) {
+                $meta = $api->getWithAcceptFallbacks($account, $metaEp, [], [
+                    'application/vnd.allegro.public.v1+json',
+                    'application/json',
+                ]);
+                $debugLines[] = sprintf('[DOC-DL] META %s => HTTP %d ok=%d', $metaEp, (int)($meta['code'] ?? 0), !empty($meta['ok']) ? 1 : 0);
+
+                if (empty($meta['ok']) || !is_array($meta['json'])) {
+                    continue;
+                }
+
+                $parsedMeta = $this->extractOrderDocumentsFromPayload($meta['json']);
+                if (empty($parsedMeta)) {
+                    continue;
+                }
+
+                foreach ($parsedMeta as $metaDoc) {
+                    $metaId = trim((string)($metaDoc['id'] ?? ''));
+                    $metaNumber = trim((string)($metaDoc['number'] ?? ''));
+                    $metaUrl = trim((string)($metaDoc['direct_url'] ?? ''));
+
+                    $idMatch = ($docId !== '' && $metaId !== '' && $metaId === $docId);
+                    $numberMatch = ($docNumber !== '' && $metaNumber !== '' && $metaNumber === $docNumber);
+
+                    if (!$idMatch && !$numberMatch) {
+                        continue;
+                    }
+
+                    if ($metaUrl !== '' && preg_match('#^https?://#i', $metaUrl)) {
+                        $urlHeaders = [
+                            [],
+                            ['Authorization' => 'Bearer ' . (string)($account['access_token'] ?? '')],
+                        ];
+                        foreach ($urlHeaders as $hdrs) {
+                            $metaResp = $api->fetchPublicUrl($metaUrl, $hdrs);
+                            $debugLines[] = sprintf(
+                                '[DOC-DL] META-URL %s => HTTP %d ok=%d auth=%d',
+                                $metaUrl,
+                                (int)($metaResp['code'] ?? 0),
+                                !empty($metaResp['ok']) ? 1 : 0,
+                                isset($hdrs['Authorization']) ? 1 : 0
+                            );
+                            if (!empty($metaResp['ok']) && (string)($metaResp['body'] ?? '') !== '') {
+                                $binary = (string)$metaResp['body'];
+                                $ok = true;
+                                $httpCode = (int)($metaResp['code'] ?? 0);
+                                break 3;
+                            }
+                        }
+                    }
+
+                    if (!$ok && $docId === '' && $metaId !== '') {
+                        $docId = $metaId;
+                        $debugLines[] = '[DOC-DL] META resolved missing document_id=' . $docId;
+                    }
                 }
             }
         }
@@ -1195,7 +1458,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         header('Content-Type: application/pdf');
         header('Content-Length: ' . (string)strlen($binary));
-        header('Content-Disposition: inline; filename="' . $fileName . '"');
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
         header('X-Content-Type-Options: nosniff');
         echo $binary;
         exit;
@@ -1328,6 +1591,140 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         exit;
     }
 
+
+    private function ensureOrderDocumentsTableExists(): void
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'allegropro_order_document` ('
+            . '`id_allegropro_order_document` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,'
+            . '`id_allegropro_account` INT UNSIGNED NOT NULL,'
+            . '`checkout_form_id` VARCHAR(64) NOT NULL,'
+            . '`doc_key` CHAR(32) NOT NULL,'
+            . '`document_id` VARCHAR(128) NULL,'
+            . '`document_type` VARCHAR(128) NULL,'
+            . '`document_number` VARCHAR(255) NULL,'
+            . '`document_status` VARCHAR(64) NULL,'
+            . '`issued_at` VARCHAR(64) NULL,'
+            . '`direct_url` TEXT NULL,'
+            . '`source_endpoint` VARCHAR(255) NULL,'
+            . '`updated_at` DATETIME NOT NULL,'
+            . 'PRIMARY KEY (`id_allegropro_order_document`),'
+            . 'UNIQUE KEY `uniq_doc` (`id_allegropro_account`,`checkout_form_id`,`doc_key`),'
+            . 'KEY `idx_cf` (`checkout_form_id`),'
+            . 'KEY `idx_account_cf` (`id_allegropro_account`,`checkout_form_id`)'
+            . ') ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4';
+
+        Db::getInstance()->execute($sql);
+    }
+
+    private function saveOrderDocumentsSnapshot(string $checkoutFormId, int $accountId, array $documents): void
+    {
+        if ($checkoutFormId === '' || $accountId <= 0) {
+            return;
+        }
+
+        $this->ensureOrderDocumentsTableExists();
+
+        $db = Db::getInstance();
+        $db->delete(
+            'allegropro_order_document',
+            'id_allegropro_account=' . (int)$accountId . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+        );
+
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($documents as $idx => $doc) {
+            if (!is_array($doc)) {
+                continue;
+            }
+
+            $id = trim((string)($doc['id'] ?? ''));
+            $type = trim((string)($doc['type'] ?? 'Dokument'));
+            $number = trim((string)($doc['number'] ?? ''));
+            $status = trim((string)($doc['status'] ?? ''));
+            $issuedAt = trim((string)($doc['issued_at'] ?? ''));
+            $directUrl = trim((string)($doc['direct_url'] ?? ''));
+            if ($directUrl === '' && !empty($doc['download_url'])) {
+                $parsed = parse_url((string)$doc['download_url']);
+                if (!empty($parsed['query'])) {
+                    parse_str((string)$parsed['query'], $qs);
+                    $directUrl = trim((string)($qs['direct_url'] ?? ''));
+                }
+            }
+
+            $sourceEndpoint = trim((string)($doc['endpoint'] ?? ''));
+            $docKey = md5(strtolower(($id !== '' ? $id : ('row_' . $idx)) . '|' . $type . '|' . $number . '|' . $issuedAt));
+
+            $db->insert('allegropro_order_document', [
+                'id_allegropro_account' => (int)$accountId,
+                'checkout_form_id' => pSQL($checkoutFormId),
+                'doc_key' => pSQL($docKey),
+                'document_id' => pSQL($id),
+                'document_type' => pSQL($type),
+                'document_number' => pSQL($number),
+                'document_status' => pSQL($status),
+                'issued_at' => pSQL($issuedAt),
+                'direct_url' => pSQL($directUrl, true),
+                'source_endpoint' => pSQL($sourceEndpoint),
+                'updated_at' => pSQL($now),
+            ]);
+        }
+    }
+
+    private function loadOrderDocumentsSnapshot(string $checkoutFormId, int $accountId): array
+    {
+        if ($checkoutFormId === '' || $accountId <= 0) {
+            return [];
+        }
+
+        $this->ensureOrderDocumentsTableExists();
+
+        $rows = Db::getInstance()->executeS(
+            'SELECT * FROM `' . _DB_PREFIX_ . 'allegropro_order_document` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . ' ORDER BY updated_at DESC, id_allegropro_order_document DESC'
+        ) ?: [];
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        $docs = [];
+        foreach ($rows as $r) {
+            $id = trim((string)($r['document_id'] ?? ''));
+            $type = trim((string)($r['document_type'] ?? 'Dokument'));
+            $number = trim((string)($r['document_number'] ?? ''));
+            $status = trim((string)($r['document_status'] ?? ''));
+            $issuedAt = trim((string)($r['issued_at'] ?? ''));
+            $directUrl = trim((string)($r['direct_url'] ?? ''));
+
+            if ($status === '') {
+                $status = ($directUrl !== '' || $id !== '') ? 'DOSTĘPNY' : 'BRAK';
+            }
+
+            $downloadUrl = $this->context->link->getAdminLink('AdminAllegroProOrders')
+                . '&ajax=1&action=downloadOrderDocumentFile'
+                . '&checkout_form_id=' . rawurlencode($checkoutFormId)
+                . '&id_allegropro_account=' . (int)$accountId
+                . '&document_id=' . rawurlencode($id)
+                . '&document_type=' . rawurlencode($type)
+                . '&document_number=' . rawurlencode($number)
+                . '&direct_url=' . rawurlencode($directUrl);
+
+            $docs[] = [
+                'id' => $id,
+                'type' => $type,
+                'number' => $number,
+                'status' => $status,
+                'issued_at' => $issuedAt,
+                'download_url' => $downloadUrl,
+                'direct_url' => $directUrl,
+                'endpoint' => (string)($r['source_endpoint'] ?? ''),
+            ];
+        }
+
+        return $docs;
+    }
 
     private function ajaxGetOrderDetails()
     {
