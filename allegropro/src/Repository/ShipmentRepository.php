@@ -311,6 +311,45 @@ class ShipmentRepository
     }
 
     /**
+     * Czy zamówienie ma już jakikolwiek zapisany numer nadania.
+     *
+     * Używane do filtrowania "placeholderów" bez trackingu, które potrafią
+     * duplikować historię i prowokować niepotrzebne akcje etykiet.
+     */
+    public function hasAnyTrackingNumberForOrder(int $accountId, string $checkoutFormId): bool
+    {
+        $val = Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM `' . $this->table . '` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . " AND tracking_number IS NOT NULL AND tracking_number != ''"
+        );
+
+        return (int)$val > 0;
+    }
+
+
+    /**
+     * Sprawdza czy dla zamówienia istnieje już rekord o podanym shipment_id.
+     */
+    public function shipmentIdExistsForOrder(int $accountId, string $checkoutFormId, string $shipmentId): bool
+    {
+        $shipmentId = trim($shipmentId);
+        if ($accountId <= 0 || trim($checkoutFormId) === '' || $shipmentId === '') {
+            return false;
+        }
+
+        $val = Db::getInstance()->getValue(
+            'SELECT COUNT(*) FROM `' . $this->table . '` '
+            . 'WHERE id_allegropro_account=' . (int)$accountId
+            . " AND checkout_form_id='" . pSQL($checkoutFormId) . "'"
+            . " AND shipment_id='" . pSQL($shipmentId) . "'"
+        );
+
+        return (int)$val > 0;
+    }
+
+    /**
      * TTL guard - ogranicza zbyt częste synchronizacje.
      */
     public function shouldSyncOrder(int $accountId, string $checkoutFormId, int $ttlSeconds): bool
@@ -360,36 +399,45 @@ class ShipmentRepository
         }
 
         $q = new DbQuery();
-$q->select('id_allegropro_shipment');
-$q->from('allegropro_shipment');
-$q->where('id_allegropro_account=' . (int)$accountId);
-$q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
-$q->where("shipment_id='" . pSQL($shipmentId) . "'");
+        $q->select('id_allegropro_shipment');
+        $q->from('allegropro_shipment');
+        $q->where('id_allegropro_account=' . (int)$accountId);
+        $q->where("checkout_form_id='" . pSQL($checkoutFormId) . "'");
+        $q->where("shipment_id='" . pSQL($shipmentId) . "'");
 
-// Pozwalamy na wiele paczek (różne tracking_number) w ramach jednego shipment_id.
-// 1) jeśli mamy trackingNumber -> szukamy dokładnego wiersza (shipment_id + tracking_number)
-// 2) jeśli nie ma takiego wiersza, a istnieje "placeholder" z pustym tracking_number -> aktualizujemy placeholder
-// 3) jeśli trackingNumber jest puste -> aktualizujemy tylko placeholder (tracking_number='')
-$trackingNumberNorm = trim((string)($trackingNumber ?: ''));
-if ($trackingNumberNorm !== '') {
-    $qExact = clone $q;
-    $qExact->where("tracking_number='" . pSQL($trackingNumberNorm) . "'");
-    $existingId = (int) Db::getInstance()->getValue($qExact);
-    if ($existingId <= 0) {
-        $qPlaceholder = clone $q;
-        $qPlaceholder->where("(tracking_number IS NULL OR tracking_number='')");
-        $existingId = (int) Db::getInstance()->getValue($qPlaceholder);
-    }
-} else {
-    $q->where("(tracking_number IS NULL OR tracking_number='')");
-    $existingId = (int) Db::getInstance()->getValue($q);
-}
-$row = [
+        // Wymaganie biznesowe: jeśli shipment_id już istnieje w bazie,
+        // aktualizuj istniejący rekord zamiast tworzyć nowy.
+        // Preferujemy najnowszy rekord dla shipment_id.
+        $qExistingByShipment = clone $q;
+        $qExistingByShipment->orderBy('id_allegropro_shipment DESC');
+        $existingId = (int) Db::getInstance()->getValue($qExistingByShipment);
+
+        // Gdy rekordu jeszcze nie ma, próbujemy dopasować dokładnie po tracking_number
+        // (lub placeholder bez trackingu), żeby nie mnożyć wpisów przy pierwszym sync.
+        $trackingNumberNorm = trim((string)($trackingNumber ?: ''));
+        if ($existingId <= 0) {
+            if ($trackingNumberNorm !== '') {
+                $qExact = clone $q;
+                $qExact->where("tracking_number='" . pSQL($trackingNumberNorm) . "'");
+                $existingId = (int) Db::getInstance()->getValue($qExact);
+                if ($existingId <= 0) {
+                    $qPlaceholder = clone $q;
+                    $qPlaceholder->where("(tracking_number IS NULL OR tracking_number='')");
+                    $existingId = (int) Db::getInstance()->getValue($qPlaceholder);
+                }
+            } else {
+                $qPlaceholder = clone $q;
+                $qPlaceholder->where("(tracking_number IS NULL OR tracking_number='')");
+                $existingId = (int) Db::getInstance()->getValue($qPlaceholder);
+            }
+        }
+
+        $row = [
             'id_allegropro_account' => (int)$accountId,
             'checkout_form_id' => pSQL($checkoutFormId),
             'shipment_id' => pSQL($shipmentId),
             'status' => pSQL((string)($status ?: 'NEW')),
-            'tracking_number' => pSQL((string)($trackingNumber ?: '')),
+            'tracking_number' => pSQL($trackingNumberNorm),
             'is_smart' => $isSmart === null ? 0 : (int)$isSmart,
             'carrier_mode' => pSQL((string)($carrierMode ?: 'COURIER')),
             'size_details' => pSQL((string)($sizeDetails ?: 'CUSTOM')),
@@ -615,10 +663,14 @@ if ($duplicate) {
         $statuses = ["CANCELLED", "CANCELED", "DELETED"];
         $statusSql = "'" . implode("','", array_map('pSQL', $statuses)) . "'";
 
-        $expr = 'shipment_id';
+        // Licz jako paczki: preferuj tracking_number (najbardziej granularny),
+        // a dla rekordów bez trackingu fallback do shipment UUID/shipment_id.
+        $exprFallback = 'shipment_id';
         if ($this->columnExists('wza_shipment_uuid')) {
-            $expr = "IF(wza_shipment_uuid IS NOT NULL AND wza_shipment_uuid != '', wza_shipment_uuid, shipment_id)";
+            $exprFallback = "IF(wza_shipment_uuid IS NOT NULL AND wza_shipment_uuid != '', wza_shipment_uuid, shipment_id)";
         }
+
+        $expr = "IF(tracking_number IS NOT NULL AND tracking_number != '', tracking_number, {$exprFallback})";
 
         $sql = "SELECT COUNT(DISTINCT {$expr})
                 FROM `{$this->table}`

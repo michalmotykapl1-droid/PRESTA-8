@@ -142,24 +142,15 @@ class ShipmentCreatorService
         }
 
         try {
-            if (is_array($cfJson)) {
+            if ($debug && is_array($cfJson)) {
                 $smartData = $this->extractSmartDataFromCheckoutForm($cfJson);
                 $packageLimit = $smartData['package_count'] ?? null;
-
-                // Ograniczenie liczby paczek z checkout-form dotyczy wyłącznie przesyłek SMART.
-                // Dla zwykłych przesyłek (smart=0) Allegro pozwala tworzyć kolejne etykiety.
-                $requestIsSmart = !empty($params['smart']);
-                if ($requestIsSmart && is_int($packageLimit) && $packageLimit > 0) {
+                if (is_int($packageLimit) && $packageLimit > 0) {
                     $activeCount = method_exists($this->shipments, 'countActiveShipmentsForOrder')
                         ? (int)$this->shipments->countActiveShipmentsForOrder($accountId, $checkoutFormId)
                         : (int)count($this->shipments->findAllByOrderForAccount($accountId, $checkoutFormId));
 
-                    if ($activeCount >= $packageLimit) {
-                        return [
-                            'ok' => false,
-                            'message' => 'Limit paczek SMART dla tej przesyłki został osiągnięty (' . $activeCount . '/' . $packageLimit . '). Wyłącz SMART albo usuń nadmiarową przesyłkę (czerwony X) i spróbuj ponownie.'
-                        ];
-                    }
+                    $debugLines[] = '[CREATE] checkout-form package limit=' . $packageLimit . ', active(local)=' . $activeCount . ' (informacyjnie, bez blokady tworzenia)';
                 }
             }
         } catch (Exception $e) {

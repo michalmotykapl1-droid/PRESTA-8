@@ -546,7 +546,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
                 GROUP BY b.order_id
                 HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
                 ORDER BY last_at DESC
-                LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                LIMIT " . (int)$offset . ", " . (int)$limit;
         $rows = Db::getInstance()->executeS($sql) ?: [];
         $ids = [];
         foreach ($rows as $r) {
@@ -574,43 +574,52 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         return $id;
     }
 
-    private function findExistingCheckoutFormIdByNorm(int $accountId, string $anyId): ?string
+    /**
+     * Rekey (naprawa) checkout_form_id gdy lokalnie mamy ten sam UUID w innym formacie (np. z podkreśleniami),
+     * a z API przychodzi w formacie z myślnikami.
+     *
+     * Poprzednia wersja robiła SELECT ... LIMIT 1 i na części konfiguracji MariaDB dawało to 1064.
+     * Tu robimy bezpieczny UPDATE po znormalizowanym UUID (bez - i _), bez LIMIT.
+     */
+    private function rekeyCheckoutFormIdByNorm(int $accountId, string $rawId, string $apiId): int
     {
-        $anyId = trim($anyId);
-        if ($anyId === '') {
-            return null;
-        }
-        $normAny = preg_replace('/[^0-9a-f]/i', '', strtolower($anyId));
-        if ($normAny === '') {
-            return null;
+        $rawId = trim($rawId);
+        $apiId = trim($apiId);
+        if ($rawId === '' || $apiId === '') {
+            return 0;
         }
 
-        $sql = "SELECT checkout_form_id
-                FROM `" . _DB_PREFIX_ . "allegropro_order`
-                WHERE id_allegropro_account=" . (int)$accountId . "
-                  AND LOWER(REPLACE(REPLACE(IFNULL(checkout_form_id,''),'-',''),'_','')) = '" . pSQL($normAny) . "'
-                LIMIT 1";
-        $val = Db::getInstance()->getValue($sql);
-        return $val ? (string)$val : null;
-    }
-
-    private function rekeyCheckoutFormId(int $accountId, string $oldId, string $newId): void
-    {
-        if ($oldId === '' || $newId === '' || $oldId === $newId) {
-            return;
+        $norm = preg_replace('/[^0-9a-f]/i', '', strtolower($rawId));
+        if ($norm === '') {
+            return 0;
         }
+
         $db = Db::getInstance();
-        $oldEsc = pSQL($oldId);
-        $newEsc = pSQL($newId);
+        $p = _DB_PREFIX_;
+        $newEsc = pSQL($apiId);
+        $normEsc = pSQL($norm);
 
-        // główna tabela
-        $db->update('allegropro_order', ['checkout_form_id' => $newEsc], "id_allegropro_account=" . (int)$accountId . " AND checkout_form_id='" . $oldEsc . "'");
+        $affected = 0;
 
-        // tabele szczegółów
+        // główna tabela zamówienia (z filtrem konta)
+        $sqlMain = "UPDATE `{$p}allegropro_order`
+                    SET checkout_form_id='{$newEsc}'
+                    WHERE id_allegropro_account=" . (int)$accountId . "
+                      AND " . $this->normalizeIdSql('checkout_form_id') . " = '{$normEsc}'";
+        $db->execute($sqlMain);
+        $affected += (int)$db->Affected_Rows();
+
+        // tabele szczegółów – bez account_id, ale po tym samym znormalizowanym UUID
         $tables = ['allegropro_order_item', 'allegropro_order_shipping', 'allegropro_order_payment', 'allegropro_order_invoice', 'allegropro_order_buyer'];
         foreach ($tables as $t) {
-            $db->update($t, ['checkout_form_id' => $newEsc], "checkout_form_id='" . $oldEsc . "'");
+            $sql = "UPDATE `{$p}{$t}`
+                    SET checkout_form_id='{$newEsc}'
+                    WHERE " . $this->normalizeIdSql('checkout_form_id') . " = '{$normEsc}'";
+            $db->execute($sql);
+            $affected += (int)$db->Affected_Rows();
         }
+
+        return $affected;
     }
 
     public function ajaxProcessEnrichMissingCount(): void
@@ -624,7 +633,13 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             return;
         }
 
-        $cnt = $this->countMissingOrders($accountId, $dateFrom, $dateTo);
+        try {
+            $cnt = $this->countMissingOrders($accountId, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'SQL: ' . $e->getMessage()]);
+            return;
+        }
+
         $this->ajaxJson(['ok' => 1, 'missing' => (int)$cnt]);
     }
 
@@ -645,7 +660,12 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $limit = max(1, min(25, (int)$limit));
         $offset = max(0, (int)$offset);
 
-        $ids = $this->listMissingOrderIds($accountId, $dateFrom, $dateTo, $limit, $offset);
+        try {
+            $ids = $this->listMissingOrderIds($accountId, $dateFrom, $dateTo, $limit, $offset);
+        } catch (\Throwable $e) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'SQL: ' . $e->getMessage()]);
+            return;
+        }
         if (empty($ids)) {
             $this->ajaxJson(['ok' => 1, 'processed' => 0, 'updated_orders' => 0, 'errors' => [], 'next_offset' => $offset, 'done' => 1]);
             return;
@@ -659,12 +679,20 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
 
         foreach ($ids as $rawId) {
             $apiId = $this->normalizeCheckoutFormIdForApi($rawId);
-            $existing = $this->findExistingCheckoutFormIdByNorm($accountId, $rawId);
-            if ($existing && $existing !== $apiId) {
-                $this->rekeyCheckoutFormId($accountId, $existing, $apiId);
+
+            // Rekey po znormalizowanym UUID (bez SELECT/LIMIT)
+            try {
+                $this->rekeyCheckoutFormIdByNorm($accountId, $rawId, $apiId);
+            } catch (\Throwable $e) {
+                $errors[] = ['id' => $rawId, 'error' => 'SQL(rekey): ' . $e->getMessage()];
             }
 
+            try {
             $resp = $api->get($acc, '/order/checkout-forms/' . rawurlencode($apiId));
+        } catch (\Throwable $e) {
+            $errors[] = ['id' => $rawId, 'error' => 'API: ' . $e->getMessage()];
+            continue;
+        }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 $errors[] = ['id' => $rawId, 'code' => (int)($resp['code'] ?? 0)];
                 continue;
