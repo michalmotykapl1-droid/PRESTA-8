@@ -41,30 +41,34 @@
             }
             #allegropro_order_details .ap-shipment-card .ap-create-col {
                 display: flex;
-                align-items: stretch;
+                align-items: center;
             }
             #allegropro_order_details .ap-shipment-card .ap-create-col .btn {
                 width: 100%;
-                height: 100%;
+                max-width: 340px;
+                height: 62px;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 4px;
+                gap: 2px;
                 font-weight: 700;
                 line-height: 1.05;
-                padding: 12px 10px;
+                padding: 8px 10px;
                 white-space: normal;
+                margin-right: -12px;
             }
             #allegropro_order_details .ap-shipment-card .ap-create-main {
                 display: block;
-                font-size: 24px;
-                letter-spacing: .8px;
+                font-size: 20px;
+                letter-spacing: 1.1px;
                 text-transform: uppercase;
             }
             #allegropro_order_details .ap-shipment-card .ap-create-sub {
                 display: block;
-                font-size: 28px;
+                font-size: 20px;
+                letter-spacing: 1.1px;
+                text-transform: uppercase;
             }
             #allegropro_order_details .ap-shipment-card .ap-weight-layout {
                 display: grid;
@@ -99,6 +103,12 @@
                 }
                 #allegropro_order_details .ap-shipment-card .ap-create-col {
                     align-items: stretch;
+                }
+                #allegropro_order_details .ap-shipment-card .ap-create-col .btn {
+                    max-width: none;
+                    height: auto;
+                    min-height: 50px;
+                    margin-right: 0;
                 }
             }
         </style>
