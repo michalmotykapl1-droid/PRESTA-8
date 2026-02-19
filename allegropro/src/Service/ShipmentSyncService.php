@@ -122,6 +122,23 @@ class ShipmentSyncService
 
             $detail = $this->api->get($account, '/shipment-management/shipments/' . rawurlencode($resolvedShipmentId));
             if (!$detail['ok'] || !is_array($detail['json'])) {
+                // Dla shipmentId typu base64("CARRIER:WAYBILL") endpoint detail bywa pusty/404,
+                // ale status możemy nadal pobrać po tracking_number (waybill).
+                $waybillFromContext = $this->extractWaybillCandidate($resolvedShipmentId, $context);
+                if (is_string($waybillFromContext) && $waybillFromContext !== '') {
+                    $progress = $this->fetchTrackingProgressByWaybill($account, $carrierCandidates, $waybillFromContext, $debugLines, $debug);
+                    if (is_array($progress) && !empty($progress['status'])) {
+                        if (!is_array($context)) {
+                            $context = [];
+                        }
+                        $context['tracking'] = $waybillFromContext;
+                        $context['status'] = (string)$progress['status'];
+                        if (!empty($progress['at'])) {
+                            $context['status_changed_at'] = (string)$progress['at'];
+                        }
+                    }
+                }
+
                 if ($this->upsertFromDiscoveredContext($accountId, $checkoutFormId, $resolvedShipmentId, $context, $debugLines)) {
                     $synced++;
                 }
@@ -217,7 +234,6 @@ class ShipmentSyncService
                     $resolvedShipmentId
                 );
             }
-
             $synced++;
         }
 
@@ -319,8 +335,14 @@ class ShipmentSyncService
                     if ($wb === '') {
                         continue;
                     }
-                    $found[$wb] = true;
-                    // Kontekst dla upsertFromDiscoveredContext
+
+                    // Nie dodawaj waybilla jako osobnego shipment_id, jeśli ten wiersz ma już shipmentId.
+                    // W przeciwnym razie przy kolejnym odświeżeniu robi się 2x więcej wpisów (2 -> 4).
+                    if ($sid === null) {
+                        $found[$wb] = true;
+                    }
+
+                    // Kontekst dla upsertFromDiscoveredContext / fallbacków trackingu.
                     $this->captureDiscoveredRowContext($wb, $row);
                     if (isset($this->discoveredShipmentContext[$wb])) {
                         $this->discoveredShipmentContext[$wb]['tracking'] = $wb;
@@ -438,7 +460,6 @@ class ShipmentSyncService
             $createdAt,
             $statusChangedAt
         );
-
         return true;
     }
 
@@ -920,13 +941,20 @@ class ShipmentSyncService
 
         // Fallback: rekurencyjnie przejdź po payloadzie (czasem różne kształty odpowiedzi)
         $events = [];
-        $this->collectTrackingEvents($payload, $events);
+        $seq = 0;
+        $this->collectTrackingEvents($payload, $events, $seq);
         if (empty($events)) {
             return null;
         }
         usort($events, function (array $a, array $b): int {
             $ta = strtotime((string)($a['at'] ?? '')) ?: 0;
             $tb = strtotime((string)($b['at'] ?? '')) ?: 0;
+
+            // Gdy brak timestampu, preferuj event dodany później (zwykle bardziej aktualny).
+            if ($ta === 0 && $tb === 0) {
+                return ((int)($b['_seq'] ?? 0)) <=> ((int)($a['_seq'] ?? 0));
+            }
+
             return $tb <=> $ta;
         });
         return $events[0] ?? null;
@@ -953,7 +981,7 @@ class ShipmentSyncService
         return null;
     }
 
-    private function collectTrackingEvents($node, array &$events): void
+    private function collectTrackingEvents($node, array &$events, int &$seq = 0): void
     {
         if (!is_array($node)) {
             return;
@@ -981,13 +1009,14 @@ class ShipmentSyncService
             }
         }
 
-        if ($status !== null && $at !== null) {
-            $events[] = ['status' => $status, 'at' => $at];
+        // Część przewoźników zwraca sam status bez daty – nadal chcemy zaktualizować status przesyłki.
+        if ($status !== null) {
+            $events[] = ['status' => $status, 'at' => $at, '_seq' => ++$seq];
         }
 
         foreach ($node as $v) {
             if (is_array($v)) {
-                $this->collectTrackingEvents($v, $events);
+                $this->collectTrackingEvents($v, $events, $seq);
             }
         }
     }
