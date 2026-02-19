@@ -20,16 +20,17 @@ class OrderDetailsProvider
 {
     private ShipmentManager $shipmentManager;
     private AccountRepository $accounts;
+    private AllegroApiClient $api;
 
     public function __construct()
     {
         // Ręczne wstrzykiwanie zależności
         $http = new HttpClient();
         $this->accounts = new AccountRepository();
-        $api = new AllegroApiClient($http, $this->accounts);
+        $this->api = new AllegroApiClient($http, $this->accounts);
 
         $this->shipmentManager = new ShipmentManager(
-            $api,
+            $this->api,
             new LabelConfig(),
             new LabelStorage(),
             new OrderRepository(),
@@ -181,6 +182,8 @@ class OrderDetailsProvider
             'CANCELLED' => 'Anulowane'
         ];
 
+        $shipmentSizeOptions = $this->buildShipmentSizeOptions(is_array($account) ? $account : [], is_array($shipping) ? $shipping : []);
+
         return [
             'order' => $order,
             'buyer' => $buyer,
@@ -196,6 +199,291 @@ class OrderDetailsProvider
             'smart_limit' => $smartLimit,
             'smart_left' => $smartLeft,
             'shipments_sync' => $syncMeta,
+            'shipment_size_options' => $shipmentSizeOptions,
         ];
     }
+
+
+    private function buildShipmentSizeOptions(array $account, array $shipping): array
+    {
+        $fallback = $this->buildShipmentSizeOptionsFallback($shipping);
+
+        $methodId = trim((string)($shipping['method_id'] ?? ''));
+        if ($methodId === '' || empty($account['access_token'])) {
+            $fallback['source'] = 'fallback';
+            return $fallback;
+        }
+
+        $service = $this->fetchDeliveryServiceByMethodId($account, $methodId);
+        if (!is_array($service)) {
+            $fallback['source'] = 'fallback';
+            return $fallback;
+        }
+
+        $apiOptions = $this->buildSizeOptionsFromDeliveryService($service);
+        if (!empty($apiOptions['supports_presets'])) {
+            $apiOptions['source'] = 'api';
+            return $apiOptions;
+        }
+
+        $fallback['source'] = 'fallback';
+        return $fallback;
+    }
+
+    private function buildShipmentSizeOptionsFallback(array $shipping): array
+    {
+        $methodName = mb_strtolower(trim((string)($shipping['method_name'] ?? '')));
+        $methodId = mb_strtolower(trim((string)($shipping['method_id'] ?? '')));
+        $haystack = trim($methodName . ' ' . $methodId);
+
+        $profile = 'DEFAULT';
+        if ($this->containsAnyKeyword($haystack, ['inpost', 'paczkomat'])) {
+            $profile = 'INPOST';
+        } elseif ($this->containsAnyKeyword($haystack, ['allegro one box', 'one box', 'allegro one punkt', 'one punkt'])) {
+            $profile = 'ALLEGRO_ONE';
+        } elseif ($this->containsAnyKeyword($haystack, ['dpd pickup', 'dpd odbiór', 'dpd punkt'])) {
+            $profile = 'DPD_PICKUP';
+        } elseif ($this->containsAnyKeyword($haystack, ['orlen paczka', 'orlen'])) {
+            $profile = 'ORLEN';
+        } elseif ($this->containsAnyKeyword($haystack, ['odbiór w punkcie', 'punkt odbioru', 'automat paczkowy'])) {
+            $profile = 'PICKUP_GENERIC';
+        }
+
+        $options = [];
+
+        $helpText = 'Dla tej metody dostawy dostępny jest tylko "Własny gabaryt" (waga).';
+        $supportsPresetSizes = false;
+
+        switch ($profile) {
+            case 'INPOST':
+                $supportsPresetSizes = true;
+                $options[] = ['value' => 'A', 'label' => 'Gabaryt A (Allegro/InPost)'];
+                $options[] = ['value' => 'B', 'label' => 'Gabaryt B (Allegro/InPost)'];
+                $options[] = ['value' => 'C', 'label' => 'Gabaryt C (Allegro/InPost)'];
+                $helpText = 'Paczkomaty InPost: możesz użyć A/B/C lub "Własny gabaryt". Dla A/B/C moduł używa zdefiniowanych wymiarów.';
+                break;
+
+            case 'ALLEGRO_ONE':
+                $helpText = 'Allegro One: brak jednoznacznych gabarytów A/B/C w fallbacku. Wybierz "Własny gabaryt" albo zsynchronizuj metody, aby pobrać ograniczenia z API Allegro.';
+                break;
+
+            case 'DPD_PICKUP':
+                $helpText = 'DPD Pickup: brak jednoznacznych gabarytów A/B/C w fallbacku. Wybierz "Własny gabaryt" albo zsynchronizuj metody, aby pobrać ograniczenia z API Allegro.';
+                break;
+
+            case 'ORLEN':
+                $helpText = 'ORLEN Paczka: brak jednoznacznych gabarytów A/B/C w fallbacku. Wybierz "Własny gabaryt" albo zsynchronizuj metody, aby pobrać ograniczenia z API Allegro.';
+                break;
+
+            case 'PICKUP_GENERIC':
+                $helpText = 'Punkt odbioru/automat: fallback nie zakłada gabarytów A/B/C. Wybierz "Własny gabaryt" albo zsynchronizuj metody, aby pobrać ograniczenia z API Allegro.';
+                break;
+        }
+
+        if (!$supportsPresetSizes) {
+            $options[] = ['value' => 'CUSTOM', 'label' => 'Własny gabaryt (waga)'];
+        }
+
+        return [
+            'options' => $options,
+            'supports_presets' => $supportsPresetSizes ? 1 : 0,
+            'profile' => $profile,
+            'help_text' => $helpText,
+            'method_id' => (string)($shipping['method_id'] ?? ''),
+            'method_name' => (string)($shipping['method_name'] ?? ''),
+        ];
+    }
+
+    private function fetchDeliveryServiceByMethodId(array $account, string $deliveryMethodId): ?array
+    {
+        try {
+            $resp = $this->api->get($account, '/shipment-management/delivery-services', ['limit' => 500]);
+            if (empty($resp['ok']) || !is_array($resp['json'])) {
+                return null;
+            }
+
+            $services = [];
+            if (isset($resp['json']['services']) && is_array($resp['json']['services'])) {
+                $services = $resp['json']['services'];
+            } elseif (isset($resp['json']['deliveryServices']) && is_array($resp['json']['deliveryServices'])) {
+                $services = $resp['json']['deliveryServices'];
+            } elseif (array_values($resp['json']) === $resp['json']) {
+                $services = $resp['json'];
+            }
+
+            $matches = [];
+            foreach ($services as $service) {
+                if (!is_array($service)) {
+                    continue;
+                }
+                $serviceMethodId = $this->extractDeliveryMethodId($service);
+                if ($serviceMethodId !== $deliveryMethodId) {
+                    continue;
+                }
+                $matches[] = $service;
+            }
+
+            if (empty($matches)) {
+                return null;
+            }
+
+            usort($matches, function (array $a, array $b): int {
+                $scoreA = $this->scoreDeliveryServiceCandidate($a);
+                $scoreB = $this->scoreDeliveryServiceCandidate($b);
+                return $scoreB <=> $scoreA;
+            });
+
+            return $matches[0];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function scoreDeliveryServiceCandidate(array $service): int
+    {
+        $score = 0;
+        $owner = strtoupper(trim((string)($service['owner'] ?? '')));
+        $carrierId = strtoupper(trim((string)($service['carrierId'] ?? '')));
+
+        if ($owner === 'CLIENT') {
+            $score += 20;
+        }
+        if ($carrierId !== '') {
+            $score += 10;
+        }
+
+        $idObj = $service['id'] ?? null;
+        if (isset($service['credentialsId']) && trim((string)$service['credentialsId']) !== '') {
+            $score += 5;
+        } elseif (is_array($idObj) && isset($idObj['credentialsId']) && trim((string)$idObj['credentialsId']) !== '') {
+            $score += 5;
+        }
+
+        return $score;
+    }
+
+    private function extractDeliveryMethodId(array $service): string
+    {
+        $idObj = $service['id'] ?? null;
+
+        if (isset($service['deliveryMethodId'])) {
+            return trim((string)$service['deliveryMethodId']);
+        }
+        if (is_array($idObj) && isset($idObj['deliveryMethodId'])) {
+            return trim((string)$idObj['deliveryMethodId']);
+        }
+        if (is_array($service['deliveryMethod'] ?? null) && isset($service['deliveryMethod']['id'])) {
+            return trim((string)$service['deliveryMethod']['id']);
+        }
+
+        return '';
+    }
+
+    private function buildSizeOptionsFromDeliveryService(array $service): array
+    {
+        $tokens = $this->extractSizeTokensFromService($service);
+
+        $hasA = in_array('A', $tokens, true);
+        $hasB = in_array('B', $tokens, true);
+        $hasC = in_array('C', $tokens, true);
+
+        $profile = strtoupper(trim((string)($service['carrierId'] ?? '')));
+        if ($profile === '') {
+            $profile = 'API';
+        }
+
+        $options = [];
+
+        if ($hasA || $hasB || $hasC) {
+            if ($hasA) {
+                $options[] = ['value' => 'A', 'label' => 'Gabaryt A (z API Allegro)'];
+            }
+            if ($hasB) {
+                $options[] = ['value' => 'B', 'label' => 'Gabaryt B (z API Allegro)'];
+            }
+            if ($hasC) {
+                $options[] = ['value' => 'C', 'label' => 'Gabaryt C (z API Allegro)'];
+            }
+
+            return [
+                'options' => $options,
+                'supports_presets' => 1,
+                'profile' => $profile,
+                'help_text' => 'Opcje gabarytów pobrane bezpośrednio z API Allegro dla tej metody dostawy.',
+                'method_id' => (string)$this->extractDeliveryMethodId($service),
+                'method_name' => (string)($service['name'] ?? ''),
+            ];
+        }
+
+        $options[] = ['value' => 'CUSTOM', 'label' => 'Własny gabaryt (waga)'];
+
+        return [
+            'options' => $options,
+            'supports_presets' => 0,
+            'profile' => $profile,
+            'help_text' => 'API Allegro dla tej metody nie zwróciło jawnych presetów A/B/C — dostępny jest "Własny gabaryt".',
+            'method_id' => (string)$this->extractDeliveryMethodId($service),
+            'method_name' => (string)($service['name'] ?? ''),
+        ];
+    }
+
+    private function extractSizeTokensFromService(array $service): array
+    {
+        $tokens = [];
+
+        $walk = function ($value) use (&$walk, &$tokens): void {
+            if (is_array($value)) {
+                foreach ($value as $k => $v) {
+                    if (is_string($k)) {
+                        $uk = strtoupper(trim($k));
+                        if (in_array($uk, ['A', 'B', 'C'], true)) {
+                            $tokens[$uk] = true;
+                        }
+                    }
+                    $walk($v);
+                }
+                return;
+            }
+
+            if (!is_string($value)) {
+                return;
+            }
+
+            $u = strtoupper(trim($value));
+            if (in_array($u, ['A', 'B', 'C'], true)) {
+                $tokens[$u] = true;
+                return;
+            }
+
+            if (preg_match('/\bSIZE[_\- ]?A\b/', $u) || preg_match('/\bGABARYT[_\- ]?A\b/', $u)) {
+                $tokens['A'] = true;
+            }
+            if (preg_match('/\bSIZE[_\- ]?B\b/', $u) || preg_match('/\bGABARYT[_\- ]?B\b/', $u)) {
+                $tokens['B'] = true;
+            }
+            if (preg_match('/\bSIZE[_\- ]?C\b/', $u) || preg_match('/\bGABARYT[_\- ]?C\b/', $u)) {
+                $tokens['C'] = true;
+            }
+        };
+
+        $walk($service);
+
+        return array_keys($tokens);
+    }
+
+    private function containsAnyKeyword(string $haystack, array $keywords): bool
+    {
+        foreach ($keywords as $keyword) {
+            $needle = trim((string)$keyword);
+            if ($needle === '') {
+                continue;
+            }
+            if (mb_strpos($haystack, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
 }

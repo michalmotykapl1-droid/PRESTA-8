@@ -117,10 +117,10 @@
                                 <div class="form-row mb-2">
                                     <div class="col-md-4 mb-2 mb-md-0">
                                         <select id="shipment_size_select" class="form-control">
-                                            <option value="CUSTOM" selected>Własny gabaryt (waga)</option>
-                                            <option value="A">Gabaryt A (Allegro)</option>
-                                            <option value="B">Gabaryt B (Allegro)</option>
-                                            <option value="C">Gabaryt C (Allegro)</option>
+                                            {assign var=sizeOptions value=$allegro_data.shipment_size_options.options|default:[]}
+                                            {foreach from=$sizeOptions item=sizeOption}
+                                                <option value="{$sizeOption.value|escape:'htmlall':'UTF-8'}"{if $sizeOption.value == 'CUSTOM'} selected{/if}>{$sizeOption.label|escape:'htmlall':'UTF-8'}</option>
+                                            {/foreach}
                                         </select>
                                     </div>
                                     <div class="col-md-4 mb-2 mb-md-0">
@@ -130,9 +130,14 @@
                                         <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
                                     </div>
                                 </div>
-                                <small class="form-text text-muted mb-2">Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.</small>
+                                <small class="form-text text-muted mb-2">{$allegro_data.shipment_size_options.help_text|default:'Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.'|escape:'htmlall':'UTF-8'}</small>
+                                <small class="form-text text-muted mb-2" style="font-size:11px;">
+                                    Źródło gabarytów: <strong>{$allegro_data.shipment_size_options.source|default:'fallback'|escape:'htmlall':'UTF-8'}</strong>
+                                    | Profil: <strong>{$allegro_data.shipment_size_options.profile|default:'-'|escape:'htmlall':'UTF-8'}</strong>
+                                    | method_id: <code>{$allegro_data.shipment_size_options.method_id|default:$allegro_data.shipping.method_id|escape:'htmlall':'UTF-8'}</code>
+                                </small>
                                 <div class="form-check">
-                                    <input type="checkbox" id="is_smart_shipment" class="form-check-input" {if $allegro_data.smart_left <= 0}disabled{/if}>
+                                    <input type="checkbox" id="is_smart_shipment" class="form-check-input" {if $allegro_data.smart_left <= 0}disabled{else}checked{/if}>
                                     <label for="is_smart_shipment" class="form-check-label">Użyj Allegro Smart! (jeśli dostępny)</label>
                                 </div>
                             </div>
