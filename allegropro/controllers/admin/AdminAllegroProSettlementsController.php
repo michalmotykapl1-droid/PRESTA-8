@@ -110,6 +110,15 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $mode = in_array($mode, ['billing', 'orders'], true) ? $mode : 'billing';
 
 
+
+        $orderState = (string)Tools::getValue('order_state', 'all');
+        $orderState = in_array($orderState, ['all', 'paid', 'unpaid', 'cancelled'], true) ? $orderState : 'all';
+
+        $cancelledNoRefund = (int)Tools::getValue('cancelled_no_refund', 0) ? true : false;
+        if ($cancelledNoRefund) {
+            $orderState = 'cancelled';
+        }
+
         // pagination
         $allowedPerPage = [25, 50, 100, 200];
         $perPage = (int)Tools::getValue('per_page', 50);
@@ -151,17 +160,26 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $report = new SettlementsReportService($this->billingRepo);
         if (!empty($selectedAccountIds)) {
             $summary = ($mode === 'orders')
-                ? $report->getPeriodSummaryOrders($selectedAccountIds, $dateFrom, $dateTo)
-                : $report->getPeriodSummaryBilling($selectedAccountIds, $dateFrom, $dateTo);
+                ? $report->getPeriodSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund)
+                : $report->getPeriodSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund);
         } else {
             $summary = [];
+        }
+
+
+        // Liczba zamówień, z których wynika kwota „Sprzedaż brutto” (bez wpływu pola wyszukiwania)
+        if (!empty($selectedAccountIds) && is_array($summary)) {
+            $ordersCountForSales = ($mode === 'billing')
+                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund)
+                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund);
+            $summary['orders_count'] = (int)$ordersCountForSales;
         }
 
         $ordersTotal = 0;
         if (!empty($selectedAccountIds)) {
             $ordersTotal = ($mode === 'billing')
-                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, $q)
-                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q);
+                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund)
+                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund);
         }
 
         $pages = (int)max(1, (int)ceil(($ordersTotal ?: 0) / max(1, $perPage)));
@@ -173,8 +191,8 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $ordersRows = [];
         if (!empty($selectedAccountIds)) {
             $ordersRows = ($mode === 'billing')
-                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset)
-                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset);
+                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund)
+                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund);
         }
 
         $billingCount = (!empty($selectedAccountIds) && $mode === 'billing')
@@ -260,6 +278,8 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             . '&date_from=' . urlencode($dateFrom)
             . '&date_to=' . urlencode($dateTo)
             . '&q=' . urlencode($q)
+            . '&order_state=' . urlencode($orderState)
+            . ($cancelledNoRefund ? '&cancelled_no_refund=1' : '')
             . '&per_page=' . (int)$perPage;
 
         $pageLinks = $this->buildPageLinks($base, $page, $pages);
@@ -278,6 +298,8 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
             'q' => $q,
+            'order_state' => $orderState,
+            'cancelled_no_refund' => $cancelledNoRefund ? 1 : 0,
             'mode' => $mode,
             'sync_result' => $syncResult,
             'sync_debug' => $syncDebug,

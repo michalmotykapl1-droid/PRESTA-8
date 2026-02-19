@@ -131,6 +131,26 @@
                 <input type="text" class="form-control" name="q" value="{$q|escape:'htmlall':'UTF-8'}" placeholder="np. 23187951... lub login" />
               </div>
 
+              <div class="form-group" style="min-width:220px;">
+                <label class="form-control-label">Status zamówienia</label>
+                <select name="order_state" class="form-control">
+                  <option value="all" {if $order_state=='all'}selected{/if}>Wszystkie</option>
+                  <option value="paid" {if $order_state=='paid'}selected{/if}>Opłacone</option>
+                  <option value="unpaid" {if $order_state=='unpaid'}selected{/if}>Nieopłacone</option>
+                  <option value="cancelled" {if $order_state=='cancelled'}selected{/if}>Anulowane</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="min-width:260px;">
+                <label class="form-control-label">&nbsp;</label>
+                <div class="form-check" style="margin-top:8px;">
+                  <label class="form-check-label">
+                    <input type="checkbox" class="form-check-input" name="cancelled_no_refund" value="1" {if $cancelled_no_refund}checked{/if}>
+                    Anulowane bez zwrotu opłat
+                  </label>
+                </div>
+              </div>
+
               <div class="form-group" style="min-width:150px;">
                 <label class="form-control-label">Na stronę</label>
                 <select name="per_page" class="form-control">
@@ -152,7 +172,7 @@
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
@@ -165,6 +185,8 @@
             <input type="hidden" name="date_from" value="{$date_from|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="date_to" value="{$date_to|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="q" value="{$q|escape:'htmlall':'UTF-8'}" />
+            <input type="hidden" name="order_state" value="{$order_state|escape:'htmlall':'UTF-8'}" />
+            <input type="hidden" name="cancelled_no_refund" value="{$cancelled_no_refund|intval}" />
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 
@@ -205,6 +227,7 @@
               <div>
                 <div class="label">Sprzedaż brutto</div>
                 <div class="value">{$summary.sales_total|number_format:2:',':' '} zł</div>
+                <div class="sub">Zamówień: <strong>{$summary.orders_count|intval}</strong></div>
                 <div class="sub">{if $mode=='billing'}Zamówienia z opłatami zaksięgowanymi w okresie{else}Zamówienia złożone w okresie{/if}</div>
               </div>
               <div class="icon" title="Sprzedaż">

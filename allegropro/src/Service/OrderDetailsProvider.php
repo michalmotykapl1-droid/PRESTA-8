@@ -183,6 +183,7 @@ class OrderDetailsProvider
         ];
 
         $shipmentSizeOptions = $this->buildShipmentSizeOptions(is_array($account) ? $account : [], is_array($shipping) ? $shipping : []);
+        $weightDefaults = $this->buildShipmentWeightDefaults($cfId, $psOrderId);
 
         return [
             'order' => $order,
@@ -200,7 +201,116 @@ class OrderDetailsProvider
             'smart_left' => $smartLeft,
             'shipments_sync' => $syncMeta,
             'shipment_size_options' => $shipmentSizeOptions,
+            'shipment_weight_defaults' => $weightDefaults,
         ];
+    }
+
+    private function buildShipmentWeightDefaults(string $checkoutFormId, int $psOrderId): array
+    {
+        $pkgDefaults = Config::pkgDefaults();
+        $configWeight = isset($pkgDefaults['weight']) ? (float)$pkgDefaults['weight'] : 1.0;
+        if ($configWeight <= 0) {
+            $configWeight = 1.0;
+        }
+
+        $productsWeight = $this->calculateProductsWeight($checkoutFormId, $psOrderId);
+
+        return [
+            'manual_default' => 1.0,
+            'config_weight' => round($configWeight, 3),
+            'products_weight' => $productsWeight,
+        ];
+    }
+
+    private function calculateProductsWeight(string $checkoutFormId, int $psOrderId): ?float
+    {
+        $cf = pSQL($checkoutFormId);
+        if ($cf === '') {
+            return null;
+        }
+
+        $sql = 'SELECT oi.quantity, oi.id_product, oi.id_product_attribute, p.weight AS product_weight, pa.weight AS attr_weight '
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order_item` oi '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product` p ON p.id_product = oi.id_product '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` pa ON pa.id_product_attribute = oi.id_product_attribute '
+            . "WHERE oi.checkout_form_id='" . $cf . "'";
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        if (empty($rows)) {
+            $fallback = $this->calculateProductsWeightFromPrestashopOrder($psOrderId);
+            return $fallback > 0 ? round($fallback, 3) : null;
+        }
+
+        $sum = 0.0;
+        foreach ($rows as $row) {
+            $qty = max(0.0, (float)($row['quantity'] ?? 0));
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $baseWeight = (float)($row['product_weight'] ?? 0);
+            $attrImpact = (float)($row['attr_weight'] ?? 0);
+            $itemWeight = $baseWeight + $attrImpact;
+            if ($itemWeight <= 0) {
+                continue;
+            }
+
+            $sum += ($itemWeight * $qty);
+        }
+
+        if ($sum <= 0) {
+            $sum = $this->calculateProductsWeightFromPrestashopOrder($psOrderId);
+        }
+
+        if ($sum <= 0) {
+            return null;
+        }
+
+        return round($sum, 3);
+    }
+
+    private function calculateProductsWeightFromPrestashopOrder(int $psOrderId): float
+    {
+        if ($psOrderId <= 0) {
+            return 0.0;
+        }
+
+        $sql = 'SELECT od.product_quantity, od.product_weight, od.product_id, od.product_attribute_id, p.weight AS base_weight, pa.weight AS attr_impact '
+            . 'FROM `' . _DB_PREFIX_ . 'order_detail` od '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product` p ON p.id_product = od.product_id '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` pa ON pa.id_product_attribute = od.product_attribute_id '
+            . 'WHERE od.id_order=' . (int)$psOrderId;
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        if (empty($rows)) {
+            return 0.0;
+        }
+
+        $sum = 0.0;
+        foreach ($rows as $row) {
+            $qty = max(0.0, (float)($row['product_quantity'] ?? 0));
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $itemWeight = 0.0;
+            $orderDetailWeight = (float)($row['product_weight'] ?? 0);
+            if ($orderDetailWeight > 0) {
+                $itemWeight = $orderDetailWeight;
+            } else {
+                $baseWeight = (float)($row['base_weight'] ?? 0);
+                $attrImpact = (float)($row['attr_impact'] ?? 0);
+                $itemWeight = $baseWeight + $attrImpact;
+            }
+
+            if ($itemWeight <= 0) {
+                continue;
+            }
+
+            $sum += ($itemWeight * $qty);
+        }
+
+        return $sum;
     }
 
 

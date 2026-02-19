@@ -123,22 +123,37 @@
                                             {/foreach}
                                         </select>
                                     </div>
-                                    <div class="col-md-3 mb-2 mb-md-0">
-                                        <input type="text" id="shipment_weight_input" class="form-control" value="1.0" placeholder="Waga (kg)">
-                                    </div>
-                                    <div class="col-md-3 mb-2 mb-md-0">
-                                        <select id="shipment_weight_source" class="form-control">
-                                            <option value="MANUAL" selected>Waga ręczna</option>
-                                            <option value="CONFIG">Waga z konfiguracji modułu</option>
-                                            <option value="PRODUCTS">Waga z produktów zamówienia</option>
-                                        </select>
+                                    <div class="col-md-6 mb-2 mb-md-0">
+                                        <input type="hidden" id="shipment_weight_source" value="CONFIG">
+                                        <div class="ap-weight-panel" style="border:1px solid #cfd7df; border-radius:10px; background:#fff; padding:8px;">
+                                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                                                <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WAGA PACZKI (KG)</span>
+                                                <span style="font-size:10px; letter-spacing:.6px; font-weight:700; color:#6c7a88;">WYBÓR WAGI</span>
+                                            </div>
+                                            <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:8px; align-items:center;">
+                                                <input
+                                                    type="text"
+                                                    id="shipment_weight_input"
+                                                    class="form-control"
+                                                    value="{$allegro_data.shipment_weight_defaults.manual_default|default:1.0|escape:'htmlall':'UTF-8'}"
+                                                    placeholder="Np. 2.50"
+                                                    data-manual-default="{$allegro_data.shipment_weight_defaults.manual_default|default:1.0|escape:'htmlall':'UTF-8'}"
+                                                    data-config-weight="{$allegro_data.shipment_weight_defaults.config_weight|default:1.0|escape:'htmlall':'UTF-8'}"
+                                                    data-products-weight="{$allegro_data.shipment_weight_defaults.products_weight|default:''|escape:'htmlall':'UTF-8'}"
+                                                >
+                                                <div style="display:flex; gap:6px;">
+                                                    <button type="button" id="weight_mode_config" class="btn btn-sm btn-primary" data-weight-mode="CONFIG" style="flex:1; border-radius:7px;">Konfiguracja</button>
+                                                    <button type="button" id="weight_mode_products" class="btn btn-sm btn-default" data-weight-mode="PRODUCTS" style="flex:1; border-radius:7px;">Z produktów</button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-2">
                                         <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
                                     </div>
                                 </div>
                                 <small class="form-text text-muted mb-2">{$allegro_data.shipment_size_options.help_text|default:'Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.'|escape:'htmlall':'UTF-8'}</small>
-                                <small class="form-text text-muted mb-2">Źródło wagi: ręczna / konfiguracja modułu / suma wag produktów z zamówienia.</small>
+                                <small class="form-text text-muted mb-2">W tym panelu ustawiasz wagę paczki: wybierz źródło (Konfiguracja / Z produktów), a wartość w polu obok zaktualizuje się automatycznie. W każdej chwili możesz ją ręcznie nadpisać.</small>
                                 <small class="form-text text-muted mb-2" style="font-size:11px;">
                                     Źródło gabarytów: <strong>{$allegro_data.shipment_size_options.source|default:'fallback'|escape:'htmlall':'UTF-8'}</strong>
                                     | Profil: <strong>{$allegro_data.shipment_size_options.profile|default:'-'|escape:'htmlall':'UTF-8'}</strong>
@@ -440,19 +455,71 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var sizeSelect = document.getElementById('shipment_size_select');
     var weightInput = document.getElementById('shipment_weight_input');
-    var weightSourceSelect = document.getElementById('shipment_weight_source');
-    if (weightInput && weightSourceSelect) {
-        var updateWeightAvailability = function() {
-            var isManual = weightSourceSelect.value === 'MANUAL';
-            weightInput.disabled = !isManual;
-            if (!isManual) {
-                weightInput.classList.add('bg-light');
-            } else {
-                weightInput.classList.remove('bg-light');
-            }
+    var weightSourceInput = document.getElementById('shipment_weight_source');
+    var configBtn = document.getElementById('weight_mode_config');
+    var productsBtn = document.getElementById('weight_mode_products');
+    if (weightInput && weightSourceInput && configBtn && productsBtn) {
+        var weightDefaults = {
+            MANUAL: String(weightInput.getAttribute('data-manual-default') || '1.0'),
+            CONFIG: String(weightInput.getAttribute('data-config-weight') || '1.0'),
+            PRODUCTS: String(weightInput.getAttribute('data-products-weight') || '')
         };
-        weightSourceSelect.addEventListener('change', updateWeightAvailability);
-        updateWeightAvailability();
+
+        var currentMode = 'CONFIG';
+        var sourceWeights = {
+            CONFIG: weightDefaults.CONFIG,
+            PRODUCTS: weightDefaults.PRODUCTS || weightDefaults.MANUAL
+        };
+
+        var normalizeWeightValue = function(value, fallback) {
+            var v = String(value || '').trim();
+            if (!v) {
+                return fallback;
+            }
+
+            var normalized = v.replace(',', '.');
+            var asNumber = parseFloat(normalized);
+            if (isNaN(asNumber) || asNumber <= 0) {
+                return fallback;
+            }
+
+            return normalized;
+        };
+
+        var setActiveModeButton = function(mode) {
+            var isConfig = mode === 'CONFIG';
+            configBtn.className = 'btn btn-sm ' + (isConfig ? 'btn-primary' : 'btn-default');
+            productsBtn.className = 'btn btn-sm ' + (isConfig ? 'btn-default' : 'btn-primary');
+        };
+
+        var switchWeightMode = function(nextMode) {
+            sourceWeights[currentMode] = normalizeWeightValue(weightInput.value, sourceWeights[currentMode] || weightDefaults.MANUAL);
+
+            currentMode = nextMode;
+            weightSourceInput.value = nextMode;
+
+            var resolvedWeight = sourceWeights[nextMode] || weightDefaults.MANUAL;
+            resolvedWeight = normalizeWeightValue(resolvedWeight, weightDefaults.MANUAL);
+
+            weightInput.value = resolvedWeight;
+            weightInput.disabled = false;
+            weightInput.classList.remove('bg-light');
+            setActiveModeButton(nextMode);
+        };
+
+        configBtn.addEventListener('click', function() {
+            switchWeightMode('CONFIG');
+        });
+
+        productsBtn.addEventListener('click', function() {
+            switchWeightMode('PRODUCTS');
+        });
+
+        weightInput.addEventListener('input', function() {
+            sourceWeights[currentMode] = normalizeWeightValue(weightInput.value, sourceWeights[currentMode] || weightDefaults.MANUAL);
+        });
+
+        switchWeightMode('CONFIG');
     }
 
     // --- 3. Anulowanie Przesyłki ---
