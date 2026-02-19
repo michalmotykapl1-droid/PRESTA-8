@@ -44,8 +44,9 @@
             <input type="hidden" name="token" value="{$token|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="page" value="1" />
 
-            <div class="alpro-filter-row">
-              <div class="form-group alpro-account-group" style="min-width:360px;">
+            
+            <div class="alpro-accountbar">
+              <div class="form-group alpro-account-group">
                 <label class="form-control-label">Konto</label>
 
                 <div class="alpro-account-pick">
@@ -100,12 +101,14 @@
                   </button>
                 </div>
 
-                <div class="help-block alpro-help" style="margin-top:4px;">Możesz wybrać kilka kont i kliknąć „Wybierz”.</div>
+                <div class="help-block alpro-help">Możesz wybrać kilka kont i kliknąć „Wybierz”.</div>
                 <div class="help-block alpro-muted">Dostępne konta: {$accounts|@count}</div>
                 <a href="#" class="alpro-select-all" id="alproSelectAll">Zaznacz wszystkie</a>
               </div>
+            </div>
 
-              <div class="form-group" style="min-width:270px;">
+            <div class="alpro-filter-grid">
+              <div class="form-group">
                 <label class="form-control-label">Zakres dotyczy</label>
                 <select name="mode" class="form-control">
                   <option value="billing" {if $mode=='billing'}selected{/if}>Księgowanie opłat (Sales Center)</option>
@@ -116,22 +119,22 @@
                 </div>
               </div>
 
-              <div class="form-group" style="min-width:160px;">
+              <div class="form-group">
                 <label class="form-control-label">Od</label>
                 <input type="date" class="form-control" name="date_from" value="{$date_from|escape:'htmlall':'UTF-8'}" />
               </div>
 
-              <div class="form-group" style="min-width:160px;">
+              <div class="form-group">
                 <label class="form-control-label">Do</label>
                 <input type="date" class="form-control" name="date_to" value="{$date_to|escape:'htmlall':'UTF-8'}" />
               </div>
 
-              <div class="form-group" style="min-width:260px;">
+              <div class="form-group">
                 <label class="form-control-label">Szukaj (ID / login)</label>
                 <input type="text" class="form-control" name="q" value="{$q|escape:'htmlall':'UTF-8'}" placeholder="np. 23187951... lub login" />
               </div>
 
-              <div class="form-group" style="min-width:220px;">
+              <div class="form-group">
                 <label class="form-control-label">Status zamówienia</label>
                 <select name="order_state" class="form-control">
                   <option value="all" {if $order_state=='all'}selected{/if}>Wszystkie</option>
@@ -141,7 +144,7 @@
                 </select>
               </div>
 
-              <div class="form-group" style="min-width:260px;">
+              <div class="form-group">
                 <label class="form-control-label">&nbsp;</label>
                 <div class="form-check" style="margin-top:8px;">
                   <label class="form-check-label">
@@ -151,7 +154,46 @@
                 </div>
               </div>
 
-              <div class="form-group" style="min-width:150px;">
+              <div class="form-group">
+                <label class="form-control-label">Grupa operacji</label>
+                <select name="fee_group" class="form-control">
+                  <option value="">Wszystkie</option>
+                  <option value="commission">Prowizje / sprzedaż</option>
+                  <option value="delivery">Dostawa / etykiety</option>
+                  <option value="smart">SMART</option>
+                  <option value="promotion">Promocja / wyróżnienia</option>
+                  <option value="refunds">Rabaty / zwroty</option>
+                  <option value="other">Pozostałe</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-control-label">Typy operacji</label>
+                <div class="alpro-ms" id="alproFeeTypesMs">
+                  <button type="button" class="alpro-ms__btn" aria-haspopup="true" aria-expanded="false">
+                    <span class="alpro-ms__btnText">Wybierz typy</span>
+                    <span class="alpro-ms__chev">▾</span>
+                  </button>
+
+                  <div class="alpro-ms__menu" role="menu">
+                    <div class="alpro-ms__menuHead">
+                      <span class="alpro-ms__hint">Typy z wybranego okresu</span>
+                      <div class="alpro-ms__menuActions">
+                        <a href="#" data-act="all">Wszystkie</a>
+                        <a href="#" data-act="none">Wyczyść</a>
+                      </div>
+                    </div>
+                    <div class="alpro-ms__list">
+                      <div class="alpro-ms__empty">
+                        Lista typów operacji (1:1 jak w Allegro) zostanie dodana w kolejnym ZIP (pobranie z billing_entry).
+                      </div>
+                    </div>
+                    <div class="alpro-ms__hidden"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
                 <label class="form-control-label">Na stronę</label>
                 <select name="per_page" class="form-control">
                   <option value="25" {if $per_page==25}selected{/if}>25</option>
@@ -161,18 +203,19 @@
                 </select>
               </div>
 
-              <div class="form-group">
+              <div class="form-group alpro-filter-actions">
                 <button type="submit" class="btn btn-outline-secondary">
                   <i class="material-icons" style="font-size:18px; vertical-align:middle;">tune</i>
                   <span style="vertical-align:middle;">Filtruj</span>
                 </button>
               </div>
             </div>
+</div>
           </form>
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&fee_group={$smarty.get.fee_group|default:''|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
@@ -187,6 +230,7 @@
             <input type="hidden" name="q" value="{$q|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="order_state" value="{$order_state|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="cancelled_no_refund" value="{$cancelled_no_refund|intval}" />
+            <input type="hidden" name="fee_group" value="{$smarty.get.fee_group|default:''|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 

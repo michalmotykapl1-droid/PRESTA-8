@@ -600,7 +600,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         if ($res['ok']) $this->ajaxDie(json_encode(['success' => true]));
         else $this->ajaxDie(json_encode(['success' => false, 'message' => $res['message']]));
     }
-
     public function displayAjaxSyncShipments() {
         $cfId = (string)Tools::getValue('checkout_form_id');
         $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
@@ -873,7 +872,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             ]));
         }
     }
-
     // ============================================================
     // RENDER GŁÓWNEGO WIDOKU
     // ============================================================
@@ -942,6 +940,20 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $pages = max(1, (int)ceil($total / max(1, $pageSize)));
 
+        // Kompatybilność z szablonem orders.tpl, który odczytuje tablicę allegropro_filters
+        // (m.in. klucz id_allegropro_account bez filtra default w Smarty).
+        $smartyFilters = [
+            'global_query' => trim((string)Tools::getValue('filter_global_query', '')),
+            'id_allegropro_account' => $selectedAccount > 0 ? $selectedAccount : 0,
+            'date_from' => trim((string)Tools::getValue('filter_date_from', $filters['date_from'])),
+            'date_to' => trim((string)Tools::getValue('filter_date_to', $filters['date_to'])),
+            'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id', $filters['checkout_id'])),
+            'delivery_methods' => array_values(array_filter(array_map(
+                'trim',
+                (array)Tools::getValue('filter_delivery_methods', [])
+            ))),
+        ];
+
         // mapowanie status -> label
         $statusMap = [
             'BOUGHT' => 'Kupione',
@@ -962,6 +974,15 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $this->context->smarty->assign([
             'allegropro_accounts' => $accounts,
             'allegropro_selected_account' => $selectedAccount,
+            'allegropro_filters' => $smartyFilters,
+            'allegropro_pagination' => [
+                'page' => $page,
+                'per_page' => $pageSize,
+                'total_pages' => $pages,
+                'total_rows' => (int)$total,
+                'allowed_per_page' => [25, 50, 100, 200, 500],
+            ],
+            'allegropro_delivery_options' => [],
 
             'allegropro_rows' => $rows,
             'allegropro_total' => (int)$total,
@@ -1077,7 +1098,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         return array_values($out);
     }
-
     private function downloadOrderDocumentFile(): void
     {
         $cfId = trim((string)Tools::getValue('checkout_form_id'));

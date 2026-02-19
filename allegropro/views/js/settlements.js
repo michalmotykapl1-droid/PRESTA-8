@@ -143,10 +143,111 @@
         });
       }
 
+
       syncHidden();
     }
 
+    function initFeeTypesMultiselect() {
+      var ms = document.getElementById('alproFeeTypesMs');
+      if (!ms) return;
+
+      var btn = ms.querySelector('.alpro-ms__btn');
+      var menu = ms.querySelector('.alpro-ms__menu');
+      var hidden = ms.querySelector('.alpro-ms__hidden');
+      var btnText = ms.querySelector('.alpro-ms__btnText');
+      var checks = ms.querySelectorAll('input[type="checkbox"]');
+
+      function syncHidden() {
+        if (!hidden) return;
+        hidden.innerHTML = '';
+        var labels = [];
+        for (var i = 0; i < checks.length; i++) {
+          var cb = checks[i];
+          if (cb.checked) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'fee_type[]';
+            inp.value = cb.value;
+            hidden.appendChild(inp);
+
+            var labelEl = cb.parentNode && cb.parentNode.querySelector('.alpro-ms__label');
+            if (labelEl) labels.push(labelEl.textContent.trim());
+          }
+        }
+
+        var cnt = labels.length;
+        var t = 'Wybierz typy';
+        if (cnt === 1) t = labels[0];
+        else if (cnt > 1) t = 'Wybrane: ' + cnt;
+        if (btnText) btnText.textContent = t;
+      }
+
+      function openMenu() {
+        if (!menu) return;
+        menu.classList.add('open');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+      }
+      function closeMenu() {
+        if (!menu) return;
+        menu.classList.remove('open');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      }
+      function toggleMenu() {
+        if (!menu) return;
+        if (menu.classList.contains('open')) closeMenu();
+        else openMenu();
+      }
+
+      if (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          toggleMenu();
+        });
+      }
+
+      document.addEventListener('click', function (e) {
+        if (!ms.contains(e.target)) closeMenu();
+      });
+
+      if (menu) {
+        menu.addEventListener('click', function (e) {
+          var a = e.target.closest && e.target.closest('a[data-act]');
+          if (!a) return;
+          e.preventDefault();
+          var act = a.getAttribute('data-act');
+          if (act === 'all') {
+            for (var i = 0; i < checks.length; i++) checks[i].checked = true;
+          } else if (act === 'none') {
+            for (var i = 0; i < checks.length; i++) checks[i].checked = false;
+          }
+          syncHidden();
+        });
+      }
+
+      for (var i = 0; i < checks.length; i++) {
+        checks[i].addEventListener('change', syncHidden);
+      }
+
+      syncHidden();
+    }
+
+    function initFeeGroupFromUrl() {
+      var sel = document.querySelector('select[name="fee_group"]');
+      if (!sel) return;
+      try {
+        var p = new URLSearchParams(window.location.search || '');
+        var v = p.get('fee_group');
+        if (v !== null && v !== undefined && v !== '') {
+          sel.value = v;
+        }
+      } catch (e) {}
+    }
+
     initAccountsMultiselect();
+
+    initFeeTypesMultiselect();
+    initFeeGroupFromUrl();
+
 
     // Copy helper (ID zamówienia itd.)
     document.addEventListener('click', function (e) {
