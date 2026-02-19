@@ -165,7 +165,7 @@ class ShipmentCreatorService
         } catch (Exception $e) {
         }
 
-        $pkgDims = $this->resolvePackageDimensions($params);
+        $pkgDims = $this->resolvePackageDimensions($params, $checkoutFormId);
 
         // Fallback: jeśli nie znaleźliśmy mapowania dla deliveryMethodId, to dla debug pokaż statystyki INPOST.
         $inpostStats = $debug ? $this->deliveryServices->getCarrierStats($accountId, 'INPOST') : null;
@@ -837,7 +837,6 @@ class ShipmentCreatorService
             }
         }
 
-
         // Jeśli API nie zwróciło listy supported sendingMethod, a to jest InPost (po nazwie metody),
         // ustaw domyślnie, bo bez tego WZA potrafi zwrócić błędy (np. ShipX).
         $mn = function_exists('mb_strtolower') ? (string)mb_strtolower($methodName) : strtolower($methodName);
@@ -1043,7 +1042,7 @@ return $hints;
         return $text;
     }
 
-    private function resolvePackageDimensions(array $params): array
+    private function resolvePackageDimensions(array $params, string $checkoutFormId): array
     {
         $inputWeight = null;
         if (isset($params['weight']) && $params['weight'] !== '' && is_numeric($params['weight'])) {
@@ -1053,27 +1052,85 @@ return $hints;
             }
         }
 
+        $weightSource = strtoupper(trim((string)($params['weight_source'] ?? 'MANUAL')));
+        if (!in_array($weightSource, ['MANUAL', 'CONFIG', 'PRODUCTS'], true)) {
+            $weightSource = 'MANUAL';
+        }
+
+        $resolvedWeight = $inputWeight;
+        if ($weightSource === 'CONFIG') {
+            $cfg = Config::pkgDefaults();
+            $cfgWeight = isset($cfg['weight']) ? (float)$cfg['weight'] : 1.0;
+            $resolvedWeight = $cfgWeight > 0 ? $cfgWeight : 1.0;
+        } elseif ($weightSource === 'PRODUCTS') {
+            $productsWeight = $this->calculateProductsWeight($checkoutFormId);
+            if ($productsWeight !== null && $productsWeight > 0) {
+                $resolvedWeight = $productsWeight;
+            }
+        }
+
         if (!empty($params['size_code'])) {
             switch ($params['size_code']) {
                 // Allegro API akceptuje tylko: DOX|PACKAGE|PALLET|OTHER.
                 // Dla gabarytów A/B/C (np. paczkomaty) przekazujemy PACKAGE + wymiary.
-                // UWAGA: waga powinna pochodzić z pola formularza (użytkownik ją wpisuje). Wcześniej była na sztywno 25kg.
-                case 'A': return ['height' => 8,  'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
-                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
-                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => $inputWeight ?? 1.0, 'type' => 'PACKAGE'];
+                case 'A': return ['height' => 8,  'width' => 38, 'length' => 64, 'weight' => $resolvedWeight ?? 1.0, 'type' => 'PACKAGE'];
+                case 'B': return ['height' => 19, 'width' => 38, 'length' => 64, 'weight' => $resolvedWeight ?? 1.0, 'type' => 'PACKAGE'];
+                case 'C': return ['height' => 41, 'width' => 38, 'length' => 64, 'weight' => $resolvedWeight ?? 1.0, 'type' => 'PACKAGE'];
             }
         }
 
-        if ($inputWeight !== null) {
+        if ($resolvedWeight !== null) {
             $def = Config::pkgDefaults();
             return [
                 'height' => $def['height'], 'width' => $def['width'], 'length' => $def['length'],
-                'weight' => $inputWeight,
+                'weight' => $resolvedWeight,
                 'type' => 'PACKAGE'
             ];
         }
 
         return Config::pkgDefaults();
+    }
+
+    private function calculateProductsWeight(string $checkoutFormId): ?float
+    {
+        $cf = pSQL($checkoutFormId);
+        if ($cf === '') {
+            return null;
+        }
+
+        $sql = 'SELECT oi.quantity, oi.id_product, oi.id_product_attribute, p.weight AS product_weight, pa.weight AS attr_weight '
+            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order_item` oi '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product` p ON p.id_product = oi.id_product '
+            . 'LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` pa ON pa.id_product_attribute = oi.id_product_attribute '
+            . "WHERE oi.checkout_form_id='" . $cf . "'";
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        if (empty($rows)) {
+            return null;
+        }
+
+        $sum = 0.0;
+        foreach ($rows as $row) {
+            $qty = max(0.0, (float)($row['quantity'] ?? 0));
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $baseWeight = (float)($row['product_weight'] ?? 0);
+            $attrImpact = (float)($row['attr_weight'] ?? 0);
+            $itemWeight = $baseWeight + $attrImpact;
+            if ($itemWeight <= 0) {
+                continue;
+            }
+
+            $sum += ($itemWeight * $qty);
+        }
+
+        if ($sum <= 0) {
+            return null;
+        }
+
+        return round($sum, 3);
     }
 
     private function buildPayload($methodId, $order, $dims)

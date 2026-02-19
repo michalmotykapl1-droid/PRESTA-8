@@ -300,94 +300,90 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             }
 
             $checked++;
+            $resolvedAccountId = 0;
 
-            $matchedAccountId = 0;
-            foreach ($accountsToCheck as $activeAccount) {
-                $resp = $api->get($activeAccount, '/order/checkout-forms/' . rawurlencode($checkoutId));
-                if (empty($resp['ok'])) {
+            foreach ($accountsToCheck as $candidateId => $candidateAccount) {
+                if (empty($candidateAccount['access_token'])) {
                     continue;
                 }
 
-                $remoteId = isset($resp['json']['id']) ? (string)$resp['json']['id'] : '';
-                if ($remoteId !== $checkoutId) {
+                try {
+                    $resp = $api->get($candidateAccount, '/order/checkout-forms/' . rawurlencode($checkoutId));
+                } catch (\Throwable $e) {
                     continue;
                 }
 
-                $matchedAccountId = (int)$activeAccount['id_allegropro_account'];
-                break;
+                if (!empty($resp['ok'])) {
+                    $resolvedAccountId = (int)$candidateId;
+                    break;
+                }
             }
 
-            if ($matchedAccountId <= 0) {
+            if ($resolvedAccountId <= 0) {
                 $unresolved++;
                 continue;
             }
 
-            $db->update(
-                'allegropro_order',
-                ['id_allegropro_account' => $matchedAccountId],
-                "checkout_form_id = '" . pSQL($checkoutId) . "'"
-            );
-
-            $db->update(
-                'allegropro_shipment',
-                ['id_allegropro_account' => $matchedAccountId],
-                "checkout_form_id = '" . pSQL($checkoutId) . "'"
-            );
+            $updated = $this->repo->reassignCheckoutFormToAccount($checkoutId, (int)$resolvedAccountId);
+            if ($updated <= 0) {
+                continue;
+            }
 
             $reassigned++;
             $reassignedIds[] = $checkoutId;
 
-            $existingPsRow = $db->getRow(
-                'SELECT id_order_prestashop
-'
-                . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
-'
-                . "WHERE checkout_form_id = '" . pSQL($checkoutId) . "'
-"
-                . 'ORDER BY id_allegropro_order DESC'
-            );
-            $existingPsId = (int)($existingPsRow['id_order_prestashop'] ?? 0);
-
-            if ($existingPsId > 0) {
+            $orderRow = $this->repo->findByCheckoutFormId($checkoutId);
+            if (!$orderRow) {
                 continue;
             }
 
-            $paymentLookupIds = $this->getCheckoutIdCandidatesForPaymentLookup($checkoutId);
-            $quotedPaymentLookupIds = [];
-            foreach ($paymentLookupIds as $lookupId) {
-                $quotedPaymentLookupIds[] = "'" . pSQL($lookupId) . "'";
+            $idOrder = (int)($orderRow['id_order_prestashop'] ?? 0);
+            if ($idOrder <= 0) {
+                continue;
             }
 
-            $psOrderWhere = '';
-            if (!empty($quotedPaymentLookupIds)) {
-                $psOrderWhere = 'WHERE op.transaction_id IN (' . implode(',', $quotedPaymentLookupIds) . ')
-';
+            $psOrder = new Order($idOrder);
+            if (!Validate::isLoadedObject($psOrder)) {
+                continue;
             }
 
-            $psOrderRow = [];
-            if ($psOrderWhere !== '') {
-                $psOrderRow = $db->getRow(
-                    'SELECT o.id_order
-'
-                    . 'FROM `' . _DB_PREFIX_ . 'orders` o
-'
-                    . 'INNER JOIN `' . _DB_PREFIX_ . 'order_payment` op ON o.reference = op.order_reference
-'
-                    . $psOrderWhere
-                    . 'ORDER BY o.id_order DESC'
-                );
-            }
-            $psOrderId = (int)($psOrderRow['id_order'] ?? 0);
-
-            if ($psOrderId > 0) {
-                $db->update(
-                    'allegropro_order',
-                    ['id_order_prestashop' => $psOrderId],
-                    "checkout_form_id = '" . pSQL($checkoutId) . "'"
-                );
+            if ((int)$psOrder->id_carrier > 0) {
                 $prestaLinked++;
-                $prestaLinkedIds[] = $checkoutId . ' => PS#' . $psOrderId;
+                $prestaLinkedIds[] = $checkoutId;
+                continue;
             }
+
+            $carrierId = (int)Configuration::get('ALLEGROPRO_CARRIER_ID');
+            if ($carrierId <= 0) {
+                continue;
+            }
+
+            $carrier = new Carrier($carrierId);
+            if (!Validate::isLoadedObject($carrier) || $carrier->deleted) {
+                continue;
+            }
+
+            $idCarrierShop = (int)$carrier->id;
+            if (property_exists($carrier, 'id_reference') && (int)$carrier->id_reference > 0) {
+                $carrierShopId = (int)Carrier::getCarrierByReference((int)$carrier->id_reference);
+                if ($carrierShopId > 0) {
+                    $idCarrierShop = $carrierShopId;
+                }
+            }
+
+            $psOrder->id_carrier = $idCarrierShop;
+            $psOrder->update();
+
+            $prestaLinked++;
+            $prestaLinkedIds[] = $checkoutId;
+        }
+
+        $messageParts = [];
+        $messageParts[] = 'Sprawdzono: ' . $checked;
+        $messageParts[] = 'Przypisano: ' . $reassigned;
+        $messageParts[] = 'Powiązano z przewoźnikiem Presta: ' . $prestaLinked;
+        if ($unresolved > 0) {
+            $messageParts[] = 'Nierozpoznane: ' . $unresolved;
         }
 
         $this->ajaxDie(json_encode([
@@ -396,68 +392,32 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'reassigned_count' => $reassigned,
             'presta_linked_count' => $prestaLinked,
             'unresolved_count' => $unresolved,
-            'legacy_mode' => $onlyLegacyMode,
             'reassigned_ids' => $reassignedIds,
             'presta_linked_ids' => $prestaLinkedIds,
-            'message' => 'Zakończono reasocjację rekordów legacy.',
+            'message' => implode('. ', $messageParts) . '.',
         ]));
     }
 
-
-    // Krok R0: Czyszczenie rekordów osieroconych (id_order_prestashop = 0)
-    public function displayAjaxRefreshCleanupOrphans() {
+    // Krok R0: Czyszczenie osieroconych rekordów (id_order_prestashop = 0)
+    public function displayAjaxRefreshDeleteOrphans() {
         $account = $this->getValidAccountFromRequest();
         if (!$account) {
             $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
         }
 
-        $accountId = (int)$account['id_allegropro_account'];
-        $db = Db::getInstance();
+        $accId = (int)$account['id_allegropro_account'];
+        $ids = $this->repo->listOrphanCheckoutIdsForAccount($accId);
 
-        $rows = $db->executeS(
-            'SELECT checkout_form_id
-'
-            . 'FROM `' . _DB_PREFIX_ . 'allegropro_order`
-'
-            . 'WHERE id_allegropro_account = ' . $accountId . '
-'
-            . '  AND id_order_prestashop = 0'
-        ) ?: [];
-
-        $ids = [];
-        foreach ($rows as $r) {
-            $id = isset($r['checkout_form_id']) ? (string)$r['checkout_form_id'] : '';
-            if ($id !== '') {
-                $ids[] = $id;
-            }
-        }
-
-        $ids = array_values(array_unique($ids));
         if (empty($ids)) {
             $this->ajaxDie(json_encode([
                 'success' => true,
                 'deleted_count' => 0,
                 'ids' => [],
-                'message' => 'Brak osieroconych rekordów do usunięcia.',
+                'message' => 'Brak osieroconych rekordów (id_order_prestashop=0).',
             ]));
         }
 
-        $quoted = [];
-        foreach ($ids as $id) {
-            $quoted[] = "'" . pSQL($id) . "'";
-        }
-
-        $inList = implode(',', $quoted);
-
-        $db->delete('allegropro_order_item', 'checkout_form_id IN (' . $inList . ')');
-        $db->delete('allegropro_order_shipping', 'checkout_form_id IN (' . $inList . ')');
-        $db->delete('allegropro_order_payment', 'checkout_form_id IN (' . $inList . ')');
-        $db->delete('allegropro_order_invoice', 'checkout_form_id IN (' . $inList . ')');
-        $db->delete('allegropro_order_buyer', 'checkout_form_id IN (' . $inList . ')');
-        $db->delete(
-            'allegropro_order',
-            'id_allegropro_account = ' . $accountId . ' AND checkout_form_id IN (' . $inList . ') AND id_order_prestashop = 0'
-        );
+        $this->repo->deleteOrdersByCheckoutIdsForAccount($accId, $ids);
 
         $this->ajaxDie(json_encode([
             'success' => true,
@@ -465,6 +425,13 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             'ids' => $ids,
             'message' => 'Usunięto osierocone rekordy (id_order_prestashop=0).',
         ]));
+    }
+
+    /**
+     * Backward compatibility: starszy frontend używa akcji refresh_cleanup_orphans.
+     */
+    public function displayAjaxRefreshCleanupOrphans() {
+        $this->displayAjaxRefreshDeleteOrphans();
     }
 
     // Krok R1: Pobranie partii lokalnie zapisanych zamówień do aktualizacji
@@ -530,6 +497,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $cfId = (string)Tools::getValue('checkout_form_id');
         $sizeCode = (string)Tools::getValue('size_code');
         $weight = (string)Tools::getValue('weight');
+        $weightSource = (string)Tools::getValue('weight_source', 'MANUAL');
         $isSmart = (int)Tools::getValue('is_smart');
         $debug = in_array((string)Tools::getValue('debug', '0'), ['1', 'true', 'on', 'yes'], true);
 
@@ -556,6 +524,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         $res = $manager->createShipment($account, $cfId, [
             'size_code' => $sizeCode,
             'weight' => $weight,
+            'weight_source' => $weightSource,
             'smart' => $isSmart,
             'debug' => $debug ? 1 : 0,
         ]);
@@ -623,41 +592,22 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $this->ajaxDie(json_encode([
             'success' => false,
-            'message' => (string)($res['message'] ?? 'Błąd synchronizacji przesyłek.'),
+            'message' => (string)($res['message'] ?? 'Nie udało się zsynchronizować przesyłek.'),
             'debug_enabled' => $debug,
             'debug_lines' => is_array($res['debug_lines'] ?? null) ? array_values($res['debug_lines']) : [],
         ]));
     }
 
-    public function displayAjaxGetLabel() {
-        $shipmentId = (string)Tools::getValue('shipment_id');
+    // ============================================================
+    // AJAX: STATUS
+    // ============================================================
+
+    public function displayAjaxUpdateStatus() {
         $cfId = (string)Tools::getValue('checkout_form_id');
+        $newStatus = (string)Tools::getValue('new_status');
 
-        if ($shipmentId === '' || $cfId === '') {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak shipment_id lub checkout_form_id.']));
-        }
-
-        $account = $this->getValidAccountFromRequest();
-        if (!$account) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
-        }
-
-        $downloadUrl = $this->context->link->getAdminLink('AdminAllegroProOrders', true, [], [
-            'action' => 'download_label',
-            'id_allegropro_account' => (int)$account['id_allegropro_account'],
-            'checkout_form_id' => $cfId,
-            'shipment_id' => $shipmentId,
-        ]);
-
-        $this->ajaxDie(json_encode(['success' => true, 'url' => $downloadUrl]));
-    }
-
-    public function displayAjaxUpdateAllegroStatus() {
-        $cfId = (string)Tools::getValue('checkout_form_id');
-        $status = (string)Tools::getValue('new_status');
-
-        if ($cfId === '' || $status === '') {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak checkout_form_id lub statusu.']));
+        if ($cfId === '' || $newStatus === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak danych.']));
         }
 
         $account = $this->getValidAccountFromRequest();
@@ -667,381 +617,253 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $http = new HttpClient();
         $api = new AllegroApiClient($http, new AccountRepository());
-        $resp = $api->postJson($account, '/order/checkout-forms/' . $cfId . '/fulfillment', ['status' => $status]);
-        if ($resp['ok']) $this->ajaxDie(json_encode(['success' => true]));
-        else $this->ajaxDie(json_encode(['success' => false, 'message' => 'Błąd API']));
+
+        $payload = ['status' => $newStatus];
+        $res = $api->postJson($account, '/order/checkout-forms/' . rawurlencode($cfId) . '/status', $payload);
+
+        if (!$res['ok']) {
+            $msg = 'Błąd API Allegro (HTTP '.$res['code'].')';
+            if (isset($res['json']['errors'][0]['message'])) $msg = $res['json']['errors'][0]['message'];
+            $this->ajaxDie(json_encode(['success' => false, 'message' => $msg]));
+        }
+
+        $this->ajaxDie(json_encode(['success' => true, 'message' => 'Status na Allegro zaktualizowany.']));
     }
 
+    // ============================================================
+    // AJAX: POBIERANIE ETYKIETY / TRACKING
+    // ============================================================
 
-        public function displayAjaxGetTracking()
-    {
-        header('Content-Type: application/json');
+    public function displayAjaxGetLabel() {
+        $shipmentId = (string)Tools::getValue('shipment_id');
+        $cfId = (string)Tools::getValue('checkout_form_id');
 
-        $accountId = (int)Tools::getValue('id_allegropro_account');
-        $carrierId = (string)Tools::getValue('carrier_id'); // opcjonalny (UI może nie wysyłać)
-        $waybill = (string)Tools::getValue('tracking_number');
-
-        $carrierId = strtoupper(trim($carrierId));
-        $waybill = trim($waybill);
-
-        if ($accountId <= 0 || $waybill === '') {
-            $this->ajaxDie(json_encode([
-                'success' => false,
-                'message' => 'Brak danych: konto/numer przesyłki.',
-            ]));
+        if ($shipmentId === '' || $cfId === '') {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak danych.']));
         }
 
-        $accRepo = new AccountRepository();
-        $http = new HttpClient();
-        $api = new AllegroApiClient($http, $accRepo);
-
-        $account = $accRepo->get($accountId);
-        if (!is_array($account) || empty($account['access_token'])) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak autoryzacji Allegro dla konta.']));
-        }
-        if ((int)($account['active'] ?? 0) !== 1) {
-            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Konto Allegro jest nieaktywne.']));
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nieprawidłowe konto Allegro.']));
         }
 
-        // Fallback carrierIds (jeśli UI nie przekaże carrier_id)
-        $deliveryRepo = new \AllegroPro\Repository\DeliveryServiceRepository();
-        $fallbackCarrierIds = $deliveryRepo->listCarrierIdsForAccount($accountId);
-
-        if ($carrierId === '' && empty($fallbackCarrierIds)) {
-            $this->ajaxDie(json_encode([
-                'success' => false,
-                'message' => 'Brak carrier_id oraz brak listy przewoźników (delivery-services) do autodetekcji.',
-                'number' => $waybill,
-                'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
-            ]));
-        }
-
-        $svc = new AllegroCarrierTrackingService($api);
-        $res = $svc->fetch($account, $carrierId, $waybill, $fallbackCarrierIds);
-
-        if (empty($res['ok'])) {
-            $this->ajaxDie(json_encode([
-                'success' => false,
-                'message' => (string)($res['message'] ?? 'Nie udało się pobrać trackingu.'),
-                'carrier_id' => $carrierId,
-                'number' => $waybill,
-                'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
-            ]));
-        }
-
-        $statuses = $res['statuses'] ?? [];
-        if (!is_array($statuses)) {
-            $statuses = [];
-        }
-
-        // Sortujemy malejąco po occurredAt, żeby pierwszy event był "aktualny"
-        usort($statuses, function ($a, $b) {
-            $da = is_array($a) ? (string)($a['occurredAt'] ?? '') : '';
-            $db = is_array($b) ? (string)($b['occurredAt'] ?? '') : '';
-            return strcmp($db, $da);
-        });
-
-        // UI (admin_order_details.tpl) oczekuje: current + events[]
-        $events = [];
-        foreach ($statuses as $st) {
-            if (!is_array($st)) {
-                continue;
-            }
-
-            $occurredAt = (string)($st['occurredAt'] ?? '');
-            $code = (string)($st['code'] ?? '');
-            $desc = (string)($st['description'] ?? '');
-
-            $ui = $this->mapTrackingCodeToUi($code);
-            if ((($ui['label_pl'] ?? '') === '' || ($ui['label_pl'] ?? '') === $code) && trim($desc) !== '') {
-                $ui['label_pl'] = trim($desc);
-            }
-
-            $events[] = [
-                'status' => $code,
-                'occurred_at' => $occurredAt,
-                'occurred_at_formatted' => $this->formatTrackingDatePl($occurredAt),
-                'severity' => $ui['severity'] ?? 'secondary',
-                'short_pl' => $ui['short_pl'] ?? ($code ?: '—'),
-                'label_pl' => $ui['label_pl'] ?? ($code ?: '—'),
-            ];
-        }
-
-        $current = !empty($events) ? $events[0] : null;
+        // Link do streamu pliku (downloadLabelFile)
+        $url = $this->context->link->getAdminLink('AdminAllegroProOrders')
+            . '&ajax=1&action=downloadLabelFile'
+            . '&checkout_form_id=' . rawurlencode($cfId)
+            . '&shipment_id=' . rawurlencode($shipmentId)
+            . '&id_allegropro_account=' . (int)$account['id_allegropro_account'];
 
         $this->ajaxDie(json_encode([
             'success' => true,
-            'carrier_id' => (string)($res['carrierId'] ?? ($carrierId ?: ($fallbackCarrierIds[0] ?? ''))),
-            'number' => (string)($res['waybill'] ?? $waybill),
-            // format dla UI (modal)
-            'current' => $current,
-            'events' => $events,
-            // surowe dane (debug / kompatybilność)
-            'statuses' => $statuses,
-            'message' => (string)($res['message'] ?? ''),
-            'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($waybill),
+            'url' => $url
         ]));
     }
 
-    private function formatTrackingDatePl(string $iso): string
-    {
-        $iso = trim($iso);
-        if ($iso === '') {
-            return '';
+    public function displayAjaxDownloadLabelFile() {
+        $this->downloadLabelFile();
+    }
+
+    public function displayAjaxGetTracking() {
+        $trackingNo = trim((string)Tools::getValue('tracking_number'));
+        $cfId = trim((string)Tools::getValue('checkout_form_id'));
+
+        if ($trackingNo === '') {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Brak numeru nadania (tracking_number).'
+            ]));
+        }
+
+        $account = $this->getValidAccountFromRequest();
+        if (!$account) {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Nieprawidłowe konto Allegro.'
+            ]));
+        }
+
+        $accountId = (int)$account['id_allegropro_account'];
+        $carrierId = '';
+
+        // 1) Spróbuj z ostatniej przesyłki danego zamówienia i numeru
+        if ($cfId !== '') {
+            try {
+                $carrierId = (new ShipmentRepository())->findCarrierIdForTracking($accountId, $cfId, $trackingNo);
+            } catch (\Throwable $e) {
+                $carrierId = '';
+            }
+        }
+
+        // 2) Fallback po prefiksie numeru
+        if ($carrierId === '') {
+            if (preg_match('/^\d{24}$/', $trackingNo)) $carrierId = 'INPOST';
+            elseif (preg_match('/^\d{14}$/', $trackingNo)) $carrierId = 'DPD';
+            elseif (preg_match('/^[A-Z]{2}\d{9}PL$/i', $trackingNo)) $carrierId = 'POCZTA';
+            elseif (preg_match('/^1Z[0-9A-Z]{16}$/i', $trackingNo)) $carrierId = 'UPS';
+            elseif (preg_match('/^\d{10,20}$/', $trackingNo)) $carrierId = 'DHL';
+        }
+
+        // 3) Fallback po nazwie metody dostawy zamówienia
+        if ($carrierId === '' && $cfId !== '') {
+            $q = new DbQuery();
+            $q->select('method_name');
+            $q->from('allegropro_order_shipping');
+            $q->where("checkout_form_id = '".pSQL($cfId)."'");
+            $ship = Db::getInstance()->getRow($q);
+
+            $mn = strtolower((string)($ship['method_name'] ?? ''));
+            if (strpos($mn, 'inpost') !== false) $carrierId = 'INPOST';
+            elseif (strpos($mn, 'dpd') !== false) $carrierId = 'DPD';
+            elseif (strpos($mn, 'dhl') !== false) $carrierId = 'DHL';
+            elseif (strpos($mn, 'orlen') !== false) $carrierId = 'ORLEN';
+            elseif (strpos($mn, 'gls') !== false) $carrierId = 'GLS';
+            elseif (strpos($mn, 'ups') !== false) $carrierId = 'UPS';
+            elseif (strpos($mn, 'poczta') !== false) $carrierId = 'POCZTA';
+            elseif (strpos($mn, 'one') !== false) $carrierId = 'ALLEGRO';
+        }
+
+        if ($carrierId === '') {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Nie udało się ustalić przewoźnika dla numeru: ' . $trackingNo
+            ]));
         }
 
         try {
-            $dt = new \DateTime($iso);
-            return $dt->format('d.m.Y (H:i)');
-        } catch (\Exception $e) {
-            return $iso;
+            $svc = new AllegroCarrierTrackingService();
+            $res = $svc->getTracking($account, $carrierId, $trackingNo);
+
+            if (empty($res['ok'])) {
+                $this->ajaxDie(json_encode([
+                    'success' => false,
+                    'message' => (string)($res['message'] ?? 'Nie udało się pobrać trackingu.'),
+                    'carrier_id' => $carrierId,
+                    'debug' => $res['debug'] ?? null,
+                ]));
+            }
+
+            $this->ajaxDie(json_encode([
+                'success' => true,
+                'carrier_id' => $carrierId,
+                'number' => $trackingNo,
+                'url' => 'https://allegro.pl/allegrodelivery/sledzenie-paczki?numer=' . rawurlencode($trackingNo),
+
+                // UI (admin_order_details.tpl) oczekuje: current + events[]
+                'current' => $res['current'] ?? null,
+                'events' => $res['events'] ?? [],
+            ]));
+        } catch (\Throwable $e) {
+            $this->ajaxDie(json_encode([
+                'success' => false,
+                'message' => 'Błąd trackingu: ' . $e->getMessage(),
+                'carrier_id' => $carrierId
+            ]));
         }
     }
 
-    /**
-     * Mapowanie kodów trackingu (API Allegro) do UI (PL + kolor/severity).
-     * Nie jest kompletne dla wszystkich przewoźników, ale obejmuje najczęstsze przypadki.
-     */
-    private function mapTrackingCodeToUi(string $code): array
-    {
-        $c = strtoupper(trim($code));
-
-        $map = [
-            'DELIVERED' => ['severity' => 'success', 'short_pl' => 'Dostarczona', 'label_pl' => 'Przesyłka dostarczona'],
-            'AVAILABLE_FOR_PICKUP' => ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => 'Przesyłka gotowa do odbioru'],
-            'READY_FOR_PICKUP' => ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => 'Przesyłka gotowa do odbioru'],
-            'OUT_FOR_DELIVERY' => ['severity' => 'info', 'short_pl' => 'W doręczeniu', 'label_pl' => 'Przesyłka w doręczeniu'],
-            'RELEASED_FOR_DELIVERY' => ['severity' => 'info', 'short_pl' => 'W doręczeniu', 'label_pl' => 'Przesyłka w doręczeniu'],
-            'IN_TRANSIT' => ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => 'Przesyłka w drodze'],
-            'SENT' => ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => 'Przesyłka w drodze'],
-            'CREATED' => ['severity' => 'secondary', 'short_pl' => 'Utworzona', 'label_pl' => 'Utworzono przesyłkę'],
-            'PENDING' => ['severity' => 'secondary', 'short_pl' => 'Oczekuje', 'label_pl' => 'Oczekuje na nadanie'],
-            'READY_FOR_PROCESSING' => ['severity' => 'secondary', 'short_pl' => 'Oczekuje', 'label_pl' => 'Oczekuje na nadanie'],
-            'CANCELLED' => ['severity' => 'secondary', 'short_pl' => 'Anulowana', 'label_pl' => 'Przesyłka anulowana'],
-            'RETURNED' => ['severity' => 'secondary', 'short_pl' => 'Zwrócona', 'label_pl' => 'Przesyłka zwrócona'],
-            'RETURNED_TO_SENDER' => ['severity' => 'secondary', 'short_pl' => 'Zwrócona', 'label_pl' => 'Przesyłka zwrócona do nadawcy'],
-            'DELIVERY_FAILED' => ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => 'Problem z doręczeniem'],
-            'UNDELIVERED' => ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => 'Problem z doręczeniem'],
-            'LOST' => ['severity' => 'danger', 'short_pl' => 'Zagubiona', 'label_pl' => 'Przesyłka zagubiona'],
-        ];
-
-        if (isset($map[$c])) {
-            return $map[$c];
-        }
-
-        // Heurystyka dla nieznanych kodów
-        if (strpos($c, 'DELIVER') !== false) {
-            return ['severity' => 'info', 'short_pl' => 'Doręczenie', 'label_pl' => $code];
-        }
-        if (strpos($c, 'PICKUP') !== false) {
-            return ['severity' => 'warning', 'short_pl' => 'Do odbioru', 'label_pl' => $code];
-        }
-        if (strpos($c, 'TRANSIT') !== false || strpos($c, 'SENT') !== false) {
-            return ['severity' => 'info', 'short_pl' => 'W drodze', 'label_pl' => $code];
-        }
-        if (strpos($c, 'FAIL') !== false || strpos($c, 'ERROR') !== false || strpos($c, 'UNDEL') !== false || strpos($c, 'LOST') !== false) {
-            return ['severity' => 'danger', 'short_pl' => 'Problem', 'label_pl' => $code];
-        }
-
-        return ['severity' => 'secondary', 'short_pl' => ($code ?: '—'), 'label_pl' => ($code ?: '—')];
-    }
-
+    // ============================================================
+    // RENDER GŁÓWNEGO WIDOKU
+    // ============================================================
 
     public function initContent()
     {
-        if (Tools::getValue('action') === 'get_order_details') {
-            $this->ajaxGetOrderDetails();
-            return;
-        }
-
-        if (Tools::getValue('action') === 'download_label') {
-            $this->downloadLabelFile();
-            return;
-        }
-
         parent::initContent();
-    }
 
+        $accountRepo = new AccountRepository();
+        $accounts = $accountRepo->all();
 
-    private function mapModuleStatusLabel(string $status): string
-    {
-        $status = strtoupper(trim($status));
+        // Grupy statusów (checkboxy)
+        $statusGroups = $this->repo->getOrderStatusGroupsForFilters();
 
-        if (in_array($status, ['READY_FOR_PROCESSING', 'BOUGHT'], true)) {
-            return 'ALLEGRO PRO - OPŁACONE';
-        }
-
-        if ($status === 'FILLED_IN') {
-            return 'ALLEGRO PRO - BRAK WPŁATY';
-        }
-
-        if ($status === 'CANCELLED') {
-            return 'ALLEGRO PRO - ANULOWANE';
-        }
-
-        return 'ALLEGRO PRO - PRZETWARZANIE';
-    }
-
-
-
-    private function getModuleStatusGroups(array $rawStatuses): array
-    {
-        $groups = [
-            'PAID' => [
-                'label' => 'ALLEGRO PRO - OPŁACONE',
-                'raw' => [],
-            ],
-            'NO_PAYMENT' => [
-                'label' => 'ALLEGRO PRO - BRAK WPŁATY',
-                'raw' => [],
-            ],
-            'PROCESSING' => [
-                'label' => 'ALLEGRO PRO - PRZETWARZANIE',
-                'raw' => [],
-            ],
-            'CANCELLED' => [
-                'label' => 'ALLEGRO PRO - ANULOWANE',
-                'raw' => [],
-            ],
-        ];
-
-        foreach ($rawStatuses as $raw) {
-            $label = $this->mapModuleStatusLabel((string)$raw);
-            if ($label === 'ALLEGRO PRO - OPŁACONE') {
-                $groups['PAID']['raw'][] = (string)$raw;
-            } elseif ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
-                $groups['NO_PAYMENT']['raw'][] = (string)$raw;
-            } elseif ($label === 'ALLEGRO PRO - ANULOWANE') {
-                $groups['CANCELLED']['raw'][] = (string)$raw;
-            } else {
-                $groups['PROCESSING']['raw'][] = (string)$raw;
+        $statusRaw = Tools::getValue('status_code', []);
+        $statusCodes = [];
+        if (is_array($statusRaw)) {
+            foreach ($statusRaw as $code) {
+                $code = trim((string)$code);
+                if ($code !== '') {
+                    $statusCodes[] = $code;
+                }
+            }
+        } elseif (is_string($statusRaw) && trim($statusRaw) !== '') {
+            // Gdyby przyszło jako CSV
+            foreach (explode(',', $statusRaw) as $code) {
+                $code = trim((string)$code);
+                if ($code !== '') {
+                    $statusCodes[] = $code;
+                }
             }
         }
+        $statusCodes = array_values(array_unique($statusCodes));
 
-        foreach ($groups as $key => $meta) {
-            $groups[$key]['raw'] = array_values(array_unique($meta['raw']));
-        }
-
-        return $groups;
-    }
-
-    private function mapModuleStatusClass(string $label): string
-    {
-        if ($label === 'ALLEGRO PRO - OPŁACONE') {
-            return 'success';
-        }
-
-        if ($label === 'ALLEGRO PRO - ANULOWANE') {
-            return 'danger';
-        }
-
-        if ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
-            return 'default';
-        }
-
-        return 'warning';
-    }
-
-    public function renderList()
-    {
-        $accounts = (new AccountRepository())->all();
-
-        $perPage = (int)Tools::getValue('per_page', 50);
-        $allowedPerPage = [20, 50, 100, 200];
-        if (!in_array($perPage, $allowedPerPage, true)) {
-            $perPage = 50;
-        }
-
-        $page = (int)Tools::getValue('page', 1);
-        if ($page < 1) {
-            $page = 1;
-        }
-
-        $deliveryMethods = Tools::getValue('filter_delivery_methods', []);
-        if (!is_array($deliveryMethods)) {
-            $deliveryMethods = [$deliveryMethods];
-        }
-        $deliveryMethods = array_values(array_filter(array_map('trim', array_map('strval', $deliveryMethods))));
-
-        $statusCodes = Tools::getValue('filter_statuses', []);
-        if (!is_array($statusCodes)) {
-            $statusCodes = [$statusCodes];
-        }
-        $statusCodes = array_values(array_filter(array_map('trim', array_map('strval', $statusCodes))));
-
-        $statusGroups = $this->getModuleStatusGroups($this->repo->getDistinctStatuses());
-        $statuses = [];
-        foreach ($statusCodes as $code) {
-            if (!isset($statusGroups[$code])) {
-                continue;
-            }
-            foreach ($statusGroups[$code]['raw'] as $rawStatus) {
-                $statuses[] = (string)$rawStatus;
-            }
-        }
-        $statuses = array_values(array_unique($statuses));
-
-        $filters = [
-            'id_allegropro_account' => (int)Tools::getValue('filter_account'),
-            'date_from' => (string)Tools::getValue('filter_date_from'),
-            'date_to' => (string)Tools::getValue('filter_date_to'),
-            'delivery_methods' => $deliveryMethods,
-            'statuses' => $statuses,
-            'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id')),
-            // Globalne wyszukiwanie po całej bazie danych modułu (nie tylko po rekordach aktualnej strony).
-            // Implementacja w OrderRepository::applyFilters() obejmuje też powiązane tabele (buyer/shipping/items/payments/shipments/invoice).
-            'global_query' => trim((string)Tools::getValue('filter_global_query')),
-        ];
-
-        // Minimalna sanityzacja: jeśli użytkownik wklei same białe znaki, traktuj jako brak filtra.
-        if (isset($filters['global_query']) && $filters['global_query'] === '') {
-            unset($filters['global_query']);
-        }
-
-        if ($filters['id_allegropro_account'] <= 0) {
-            $filters['id_allegropro_account'] = 0;
-        }
-
-        if ($filters['date_from'] !== '' && strtotime($filters['date_from']) === false) {
-            $filters['date_from'] = '';
-        }
-
-        if ($filters['date_to'] !== '' && strtotime($filters['date_to']) === false) {
-            $filters['date_to'] = '';
-        }
-
-        $totalRows = $this->repo->countFiltered($filters);
-        $totalPages = max(1, (int)ceil($totalRows / $perPage));
-        if ($page > $totalPages) {
-            $page = $totalPages;
-        }
-
-        $offset = ($page - 1) * $perPage;
-        $orders = $this->repo->getPaginatedFiltered($filters, $perPage, $offset);
-        foreach ($orders as &$order) {
-            $order['module_status_label'] = $this->mapModuleStatusLabel((string)($order['status'] ?? ''));
-            $order['module_status_class'] = $this->mapModuleStatusClass((string)$order['module_status_label']);
-        }
-        unset($order);
-
+        // Ustal konto
         $selectedAccount = (int)Tools::getValue('id_allegropro_account');
-        if (!$selectedAccount && !empty($accounts)) {
+        if ($selectedAccount <= 0 && !empty($accounts)) {
             $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
         }
 
+        // Budowanie filtrów
+        $filters = [
+            'q' => trim((string)Tools::getValue('q')),
+            'buyer_email' => trim((string)Tools::getValue('buyer_email')),
+            'checkout_id' => trim((string)Tools::getValue('checkout_id')),
+            'delivery_method' => trim((string)Tools::getValue('delivery_method')),
+            'date_from' => trim((string)Tools::getValue('date_from')),
+            'date_to' => trim((string)Tools::getValue('date_to')),
+            'id_allegropro_account' => $selectedAccount > 0 ? $selectedAccount : null,
+            // wiele statusów
+            'status_codes' => $statusCodes,
+        ];
+
+        // page / pageSize
+        $page = (int)Tools::getValue('page', 1);
+        if ($page <= 0) $page = 1;
+
+        $pageSize = (int)Tools::getValue('page_size', 50);
+        if ($pageSize <= 0) $pageSize = 50;
+        if ($pageSize > 500) $pageSize = 500;
+
+        $offset = ($page - 1) * $pageSize;
+
+        $rows = $this->repo->searchWithFiltersPaged($filters, $pageSize, $offset);
+        $total = $this->repo->countWithFilters($filters);
+
+        $pages = max(1, (int)ceil($total / max(1, $pageSize)));
+
+        // mapowanie status -> label
+        $statusMap = [
+            'BOUGHT' => 'Kupione',
+            'FILLED_IN' => 'Wypełnione',
+            'READY_FOR_PROCESSING' => 'Do realizacji',
+            'PROCESSING' => 'W realizacji',
+            'SENT' => 'Wysłane',
+            'CANCELLED' => 'Anulowane',
+        ];
+
+        foreach ($rows as &$r) {
+            $st = (string)($r['status_allegro'] ?? '');
+            $r['status_allegro_label'] = $statusMap[$st] ?? $st;
+        }
+        unset($r);
+
+        // Pola filtrów dla smarty
         $this->context->smarty->assign([
-            'allegropro_orders' => $orders,
             'allegropro_accounts' => $accounts,
             'allegropro_selected_account' => $selectedAccount,
-            'allegropro_filters' => $filters,
-            'allegropro_pagination' => [
-                'page' => $page,
-                'per_page' => $perPage,
-                'total_rows' => $totalRows,
-                'total_pages' => $totalPages,
-                'allowed_per_page' => $allowedPerPage,
-            ],
-            'allegropro_delivery_options' => $this->repo->getDistinctDeliveryMethods(),
+
+            'allegropro_rows' => $rows,
+            'allegropro_total' => (int)$total,
+            'allegropro_page' => $page,
+            'allegropro_pages' => $pages,
+            'allegropro_page_size' => $pageSize,
+
+            'allegropro_filter_q' => $filters['q'],
+            'allegropro_filter_buyer_email' => $filters['buyer_email'],
+            'allegropro_filter_checkout_id' => $filters['checkout_id'],
+            'allegropro_filter_delivery_method' => $filters['delivery_method'],
+            'allegropro_filter_date_from' => $filters['date_from'],
+            'allegropro_filter_date_to' => $filters['date_to'],
+
             'allegropro_status_options' => $statusGroups,
             'allegropro_selected_status_codes' => $statusCodes,
             'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders'),

@@ -123,14 +123,22 @@
                                             {/foreach}
                                         </select>
                                     </div>
-                                    <div class="col-md-4 mb-2 mb-md-0">
+                                    <div class="col-md-3 mb-2 mb-md-0">
                                         <input type="text" id="shipment_weight_input" class="form-control" value="1.0" placeholder="Waga (kg)">
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3 mb-2 mb-md-0">
+                                        <select id="shipment_weight_source" class="form-control">
+                                            <option value="MANUAL" selected>Waga ręczna</option>
+                                            <option value="CONFIG">Waga z konfiguracji modułu</option>
+                                            <option value="PRODUCTS">Waga z produktów zamówienia</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
                                         <button class="btn btn-info btn-block" type="button" id="btnCreateShipment">Utwórz przesyłkę</button>
                                     </div>
                                 </div>
                                 <small class="form-text text-muted mb-2">{$allegro_data.shipment_size_options.help_text|default:'Dla gabarytów A/B/C Allegro użyje stałych wymiarów z backendu. Przy "Własny gabaryt" używana jest tylko waga.'|escape:'htmlall':'UTF-8'}</small>
+                                <small class="form-text text-muted mb-2">Źródło wagi: ręczna / konfiguracja modułu / suma wag produktów z zamówienia.</small>
                                 <small class="form-text text-muted mb-2" style="font-size:11px;">
                                     Źródło gabarytów: <strong>{$allegro_data.shipment_size_options.source|default:'fallback'|escape:'htmlall':'UTF-8'}</strong>
                                     | Profil: <strong>{$allegro_data.shipment_size_options.profile|default:'-'|escape:'htmlall':'UTF-8'}</strong>
@@ -383,6 +391,8 @@ document.addEventListener("DOMContentLoaded", function() {
             var weightInput = document.getElementById('shipment_weight_input');
             var sizeSelect = document.getElementById('shipment_size_select');
             var weight = weightInput ? weightInput.value : '';
+            var weightSourceSelect = document.getElementById('shipment_weight_source');
+            var weightSource = weightSourceSelect ? weightSourceSelect.value : 'MANUAL';
             var sizeCode = sizeSelect ? sizeSelect.value : 'CUSTOM';
             var isSmart = document.getElementById('is_smart_shipment').checked;
             var dbgToggle = document.getElementById('sync_shipments_debug');
@@ -395,6 +405,7 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append('checkout_form_id', cfId);
             formData.append('id_allegropro_account', accId);
             formData.append('weight', weight);
+            formData.append('weight_source', weightSource);
             formData.append('size_code', sizeCode);
             formData.append('is_smart', isSmart ? 1 : 0);
             formData.append('debug', debugEnabled ? 1 : 0);
@@ -429,17 +440,18 @@ document.addEventListener("DOMContentLoaded", function() {
 
     var sizeSelect = document.getElementById('shipment_size_select');
     var weightInput = document.getElementById('shipment_weight_input');
-    if (sizeSelect && weightInput) {
+    var weightSourceSelect = document.getElementById('shipment_weight_source');
+    if (weightInput && weightSourceSelect) {
         var updateWeightAvailability = function() {
-            var isCustom = sizeSelect.value === 'CUSTOM';
-            weightInput.disabled = !isCustom;
-            if (!isCustom) {
+            var isManual = weightSourceSelect.value === 'MANUAL';
+            weightInput.disabled = !isManual;
+            if (!isManual) {
                 weightInput.classList.add('bg-light');
             } else {
                 weightInput.classList.remove('bg-light');
             }
         };
-        sizeSelect.addEventListener('change', updateWeightAvailability);
+        weightSourceSelect.addEventListener('change', updateWeightAvailability);
         updateWeightAvailability();
     }
 
