@@ -21,9 +21,10 @@ class BillingSyncService
      * @param string $occurredAtGte ISO8601 Z
      * @param string $occurredAtLte ISO8601 Z
      * @param array $debug
+     * @param bool $forceUpdateAll Gdy TRUE: wymuś aktualizację wszystkich wpisów w DB (wolniej)
      * @return array{ok:bool,code:int,total:int,inserted:int,updated:int}
      */
-    public function syncRange(array $account, string $occurredAtGte, string $occurredAtLte, array &$debug = []): array
+    public function syncRange(array $account, string $occurredAtGte, string $occurredAtLte, array &$debug = [], bool $forceUpdateAll = false): array
     {
         $limit = 100;
         $offset = 0;
@@ -37,7 +38,7 @@ class BillingSyncService
         }
 
         for ($page = 1; $page <= 200; $page++) {
-            $step = $this->syncRangeStep($account, $occurredAtGte, $occurredAtLte, $offset, $limit, $debug);
+            $step = $this->syncRangeStep($account, $occurredAtGte, $occurredAtLte, $offset, $limit, $debug, $forceUpdateAll);
             if (empty($step['ok'])) {
                 return ['ok' => false, 'code' => (int)($step['code'] ?? 0), 'total' => $total, 'inserted' => $inserted, 'updated' => $updated];
             }
@@ -64,9 +65,10 @@ class BillingSyncService
      * @param int $offset
      * @param int $limit
      * @param array $debug
+     * @param bool $forceUpdateAll Gdy TRUE: aktualizuje każdy istniejący wpis (wolniej). Gdy FALSE: dogrywa tylko braki.
      * @return array{ok:bool,code:int,got:int,inserted:int,updated:int,next_offset:int,done:bool}
      */
-    public function syncRangeStep(array $account, string $occurredAtGte, string $occurredAtLte, int $offset, int $limit = 100, array &$debug = []): array
+    public function syncRangeStep(array $account, string $occurredAtGte, string $occurredAtLte, int $offset, int $limit = 100, array &$debug = [], bool $forceUpdateAll = false): array
     {
         $limit = max(1, min(200, (int)$limit));
         $offset = max(0, (int)$offset);
@@ -95,7 +97,7 @@ class BillingSyncService
             return ['ok' => true, 'code' => 200, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
         }
 
-        $res = $this->repo->upsertEntries($accountId, $list);
+        $res = $this->repo->upsertEntries($accountId, $list, $forceUpdateAll);
 
         $got = count($list);
         $done = $got < $limit;

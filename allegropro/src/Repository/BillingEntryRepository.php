@@ -77,17 +77,47 @@ class BillingEntryRepository
      * Upsert billing entries.
      * @return array{inserted:int,updated:int}
      */
-    public function upsertEntries(int $accountId, array $entries): array
+    public function upsertEntries(int $accountId, array $entries, bool $forceUpdateAll = false): array
     {
         $inserted = 0;
         $updated = 0;
+
+        // 1) Zbierz billing_entry_id z aktualnej paczki i pobierz istniejące rekordy jednym SELECT-em.
+        $idsSql = [];
+        foreach ($entries as $e) {
+            if (!is_array($e) || empty($e['id'])) {
+                continue;
+            }
+            $idsSql[] = "'" . pSQL((string)$e['id']) . "'";
+            if (count($idsSql) >= 220) {
+                // limit bezpieczeństwa — API zwraca zwykle 100/200
+                break;
+            }
+        }
+
+        $existingMap = [];
+        if (!empty($idsSql)) {
+            $sql = 'SELECT id_allegropro_billing_entry, billing_entry_id, id_allegropro_account, occurred_at, '
+                . 'type_id, type_name, offer_id, offer_name, order_id, '
+                . 'value_amount, value_currency, balance_amount, balance_currency, tax_percentage, tax_annotation, raw_json '
+                . 'FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` '
+                . 'WHERE billing_entry_id IN (' . implode(',', $idsSql) . ')';
+            $rows = Db::getInstance()->executeS($sql) ?: [];
+            foreach ($rows as $r) {
+                if (!empty($r['billing_entry_id'])) {
+                    $existingMap[(string)$r['billing_entry_id']] = $r;
+                }
+            }
+        }
 
         foreach ($entries as $e) {
             if (!is_array($e) || empty($e['id'])) {
                 continue;
             }
 
-            $billingId = pSQL((string)$e['id']);
+            $billingId = (string)$e['id'];
+            $billingIdEsc = pSQL($billingId);
+
             $occurredAt = $this->toMysqlDatetime((string)($e['occurredAt'] ?? ''));
             if ($occurredAt === null) {
                 continue;
@@ -109,39 +139,142 @@ class BillingEntryRepository
             $raw = pSQL(json_encode($e, JSON_UNESCAPED_UNICODE));
             $now = date('Y-m-d H:i:s');
 
-            // czy istnieje?
-            $exists = (int)Db::getInstance()->getValue('SELECT id_allegropro_billing_entry FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` WHERE billing_entry_id = \'' . $billingId . '\'');
+            $existsRow = $existingMap[$billingId] ?? null;
 
-            $row = [
-                'id_allegropro_account' => (int)$accountId,
-                'billing_entry_id' => $billingId,
-                'occurred_at' => $occurredAt,
-                'type_id' => $typeId ?: null,
-                'type_name' => $typeName ?: null,
-                'offer_id' => $offerId ?: null,
-                'offer_name' => $offerName ?: null,
-                'order_id' => $orderId ?: null,
-                'value_amount' => (float)$valAmount,
-                'value_currency' => $valCurrency ?: 'PLN',
-                'balance_amount' => $balAmount,
-                'balance_currency' => $balCurrency ?: null,
-                'tax_percentage' => $taxPerc,
-                'tax_annotation' => $taxAnn ?: null,
-                'raw_json' => $raw ?: null,
-                'updated_at' => $now,
-            ];
-
-            if ($exists) {
-                Db::getInstance()->update('allegropro_billing_entry', $row, 'id_allegropro_billing_entry = ' . (int)$exists);
-                $updated++;
-            } else {
-                $row['created_at'] = $now;
+            if (!$existsRow) {
+                // INSERT
+                $row = [
+                    'id_allegropro_account' => (int)$accountId,
+                    'billing_entry_id' => $billingIdEsc,
+                    'occurred_at' => $occurredAt,
+                    'type_id' => $typeId ?: null,
+                    'type_name' => $typeName ?: null,
+                    'offer_id' => $offerId ?: null,
+                    'offer_name' => $offerName ?: null,
+                    'order_id' => $orderId ?: null,
+                    'value_amount' => (float)$valAmount,
+                    'value_currency' => $valCurrency ?: 'PLN',
+                    'balance_amount' => $balAmount,
+                    'balance_currency' => $balCurrency ?: null,
+                    'tax_percentage' => $taxPerc,
+                    'tax_annotation' => $taxAnn ?: null,
+                    'raw_json' => $raw ?: null,
+                    'created_at' => pSQL($now),
+                    'updated_at' => pSQL($now),
+                ];
                 Db::getInstance()->insert('allegropro_billing_entry', $row);
                 $inserted++;
+                continue;
+            }
+
+            // UPDATE (tylko jeśli:
+            // - forceUpdateAll = TRUE
+            // - LUB w DB brakuje części danych, które już mamy z API)
+            $idPk = (int)($existsRow['id_allegropro_billing_entry'] ?? 0);
+            if (!$idPk) {
+                continue;
+            }
+
+            $upd = [];
+
+            if ($forceUpdateAll) {
+                $upd = [
+                    'id_allegropro_account' => (int)$accountId,
+                    'billing_entry_id' => $billingIdEsc,
+                    'occurred_at' => $occurredAt,
+                    'type_id' => $typeId ?: null,
+                    'type_name' => $typeName ?: null,
+                    'offer_id' => $offerId ?: null,
+                    'offer_name' => $offerName ?: null,
+                    'order_id' => $orderId ?: null,
+                    'value_amount' => (float)$valAmount,
+                    'value_currency' => $valCurrency ?: 'PLN',
+                    'balance_amount' => $balAmount,
+                    'balance_currency' => $balCurrency ?: null,
+                    'tax_percentage' => $taxPerc,
+                    'tax_annotation' => $taxAnn ?: null,
+                    'raw_json' => $raw ?: null,
+                ];
+            } else {
+                // dogrywaj tylko braki (oszczędza czas + nie generuje "aktualizacji" bez sensu)
+                $isEmpty = function ($v): bool {
+                    return $v === null || $v === '';
+                };
+
+                if ($isEmpty($existsRow['occurred_at'] ?? null) || (string)($existsRow['occurred_at'] ?? '') === '0000-00-00 00:00:00') {
+                    $upd['occurred_at'] = $occurredAt;
+                }
+
+                if ($isEmpty($existsRow['type_id'] ?? null) && $typeId !== '') {
+                    $upd['type_id'] = $typeId;
+                }
+                if ($isEmpty($existsRow['type_name'] ?? null) && $typeName !== '') {
+                    $upd['type_name'] = $typeName;
+                }
+
+                if ($isEmpty($existsRow['offer_id'] ?? null) && $offerId !== '') {
+                    $upd['offer_id'] = $offerId;
+                }
+                if ($isEmpty($existsRow['offer_name'] ?? null) && $offerName !== '') {
+                    $upd['offer_name'] = $offerName;
+                }
+
+                if ($isEmpty($existsRow['order_id'] ?? null) && $orderId !== '') {
+                    $upd['order_id'] = $orderId;
+                }
+
+                // wartości liczbowe: popraw tylko gdy ewidentnie puste/zerowe (po starym błędzie)
+                $dbVal = isset($existsRow['value_amount']) ? (float)$existsRow['value_amount'] : 0.0;
+                if (abs($dbVal) < 0.00001 && abs((float)$valAmount) > 0.00001) {
+                    $upd['value_amount'] = (float)$valAmount;
+                }
+                if ($isEmpty($existsRow['value_currency'] ?? null) && $valCurrency !== '') {
+                    $upd['value_currency'] = $valCurrency;
+                }
+
+                if ($existsRow['balance_amount'] === null && $balAmount !== null) {
+                    $upd['balance_amount'] = $balAmount;
+                }
+                if ($isEmpty($existsRow['balance_currency'] ?? null) && $balCurrency !== '') {
+                    $upd['balance_currency'] = $balCurrency;
+                }
+                if ($existsRow['tax_percentage'] === null && $taxPerc !== null) {
+                    $upd['tax_percentage'] = $taxPerc;
+                }
+                if ($isEmpty($existsRow['tax_annotation'] ?? null) && $taxAnn !== '') {
+                    $upd['tax_annotation'] = $taxAnn;
+                }
+                if ($isEmpty($existsRow['raw_json'] ?? null) && $raw !== '') {
+                    $upd['raw_json'] = $raw;
+                }
+            }
+
+            if (!empty($upd)) {
+                $upd['updated_at'] = pSQL($now);
+                Db::getInstance()->update('allegropro_billing_entry', $upd, 'id_allegropro_billing_entry = ' . $idPk);
+                $updated++;
             }
         }
 
         return ['inserted' => $inserted, 'updated' => $updated];
+    }
+
+    /**
+     * Max occurred_at w zakresie (dla szybkiej synchronizacji "tylko nowe").
+     */
+    public function getMaxOccurredAtInRange(int $accountId, string $dateFrom, string $dateTo): ?string
+    {
+        $from = pSQL($dateFrom . ' 00:00:00');
+        $to = pSQL($dateTo . ' 23:59:59');
+        $sql = "SELECT MAX(occurred_at) FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'";
+        $v = Db::getInstance()->getValue($sql);
+        if (!$v || !is_string($v)) {
+            return null;
+        }
+        $v = trim($v);
+        return $v !== '' ? $v : null;
     }
 
     /**
@@ -263,37 +396,6 @@ class BillingEntryRepository
             . "WHERE id_allegropro_account=" . (int)$accountId . "\n"
             . "  AND order_id IN (" . implode(',', $vals) . ")\n"
             . "  AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n"
-            . "  AND {$feeWhere}\n"
-            . "ORDER BY occurred_at DESC";
-
-        return Db::getInstance()->executeS($sql) ?: [];
-    }
-
-    /**
-     * Pobiera wpisy billingowe dla zamówienia (wiele kandydatów order_id) BEZ filtra daty.
-     * Używane w trybie: "Zamówienia z okresu" — opłaty mogą zostać zaksięgowane po wybranym okresie.
-     */
-    public function listForOrderCandidatesNoDate(int $accountId, array $orderIds): array
-    {
-        $vals = [];
-        foreach ($orderIds as $id) {
-            $id = trim((string)$id);
-            if ($id === '') {
-                continue;
-            }
-            $vals[] = "'" . pSQL($id) . "'";
-        }
-        if (empty($vals)) {
-            return [];
-        }
-
-        $tn = "LOWER(IFNULL(type_name,''))";
-        $feeWhere = $this->buildFeeWhereSql($tn);
-
-        $sql = "SELECT *\n"
-            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
-            . "WHERE id_allegropro_account=" . (int)$accountId . "\n"
-            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
             . "  AND {$feeWhere}\n"
             . "ORDER BY occurred_at DESC";
 
@@ -506,151 +608,6 @@ class BillingEntryRepository
         return $map;
     }
 
-
-    /**
-     * Sumuje opłaty (feeWhere) per order_id dla wskazanych orderId (bez filtra daty).
-     *
-     * Używane w trybie: "Zamówienia z okresu" — zakres dat dotyczy daty złożenia zamówienia,
-     * natomiast opłaty mogą zostać zaksięgowane później (mimo to są kosztem tego zamówienia).
-     *
-     * @param int[] $accountIds
-     * @param string[] $orderIds Lista identyfikatorów order_id (np. checkoutFormId) — może zawierać warianty (bez myślników).
-     * @return array<int, array<string, float>> mapa: [accountId][orderId] = suma value_amount
-     */
-    public function sumByOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
-    {
-        $orderIds = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $orderIds)))));
-        if (empty($orderIds)) {
-            return [];
-        }
-
-        $tn = "LOWER(IFNULL(type_name,''))";
-        $feeWhere = $this->buildFeeWhereSql($tn);
-        $accWhere = $this->buildAccountInWhere($accountIds);
-
-        $map = [];
-        $chunkSize = 500;
-
-        for ($i = 0; $i < count($orderIds); $i += $chunkSize) {
-            $chunk = array_slice($orderIds, $i, $chunkSize);
-            $vals = [];
-            foreach ($chunk as $id) {
-                if ($id === '') {
-                    continue;
-                }
-                $vals[] = "'" . pSQL($id) . "'";
-            }
-            if (empty($vals)) {
-                continue;
-            }
-
-            $sql = "SELECT id_allegropro_account, order_id, SUM(value_amount) AS sum_amount
-"
-                . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
-"
-                . "WHERE {$accWhere}
-"
-                . "  AND order_id IS NOT NULL AND order_id <> ''
-"
-                . "  AND order_id IN (" . implode(',', $vals) . ")
-"
-                . "  AND {$feeWhere}
-"
-                . "GROUP BY id_allegropro_account, order_id";
-
-            $rows = Db::getInstance()->executeS($sql) ?: [];
-            foreach ($rows as $r) {
-                $aid = (int)($r['id_allegropro_account'] ?? 0);
-                if ($aid <= 0) {
-                    continue;
-                }
-                if (!isset($map[$aid])) {
-                    $map[$aid] = [];
-                }
-                $oid = (string)($r['order_id'] ?? '');
-                if ($oid === '') {
-                    continue;
-                }
-                if (!isset($map[$aid][$oid])) {
-                    $map[$aid][$oid] = 0.0;
-                }
-                $map[$aid][$oid] += (float)($r['sum_amount'] ?? 0);
-            }
-        }
-
-        return $map;
-    }
-
-    /**
-     * Suma kategorii opłat dla wskazanych orderId (bez filtra daty).
-     *
-     * @param int[] $accountIds
-     * @param string[] $orderIds
-     * @return array{total:float,commission:float,smart:float,delivery:float,promotion:float,refunds:float}
-     */
-    public function getCategorySumsForOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
-    {
-        $orderIds = array_values(array_unique(array_filter(array_map('trim', array_map('strval', $orderIds)))));
-        if (empty($orderIds)) {
-            return ['total' => 0.0, 'commission' => 0.0, 'smart' => 0.0, 'delivery' => 0.0, 'promotion' => 0.0, 'refunds' => 0.0];
-        }
-
-        $tn = "LOWER(IFNULL(type_name,''))";
-        $feeWhere = $this->buildFeeWhereSql($tn);
-        $accWhere = $this->buildAccountInWhere($accountIds);
-
-        $out = ['total' => 0.0, 'commission' => 0.0, 'smart' => 0.0, 'delivery' => 0.0, 'promotion' => 0.0, 'refunds' => 0.0];
-
-        $chunkSize = 500;
-        for ($i = 0; $i < count($orderIds); $i += $chunkSize) {
-            $chunk = array_slice($orderIds, $i, $chunkSize);
-            $vals = [];
-            foreach ($chunk as $id) {
-                if ($id === '') {
-                    continue;
-                }
-                $vals[] = "'" . pSQL($id) . "'";
-            }
-            if (empty($vals)) {
-                continue;
-            }
-
-            $sql = "SELECT
-"
-                . "    SUM(value_amount) AS total,
-"
-                . "    SUM(CASE WHEN (type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN value_amount ELSE 0 END) AS commission,
-"
-                . "    SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN value_amount ELSE 0 END) AS smart,
-"
-                . "    SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN value_amount ELSE 0 END) AS delivery,
-"
-                . "    SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN value_amount ELSE 0 END) AS promotion,
-"
-                . "    SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN value_amount ELSE 0 END) AS refunds
-"
-                . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`
-"
-                . "WHERE {$accWhere}
-"
-                . "  AND order_id IS NOT NULL AND order_id <> ''
-"
-                . "  AND order_id IN (" . implode(',', $vals) . ")
-"
-                . "  AND {$feeWhere}";
-
-            $row = Db::getInstance()->getRow($sql) ?: [];
-            $out['total'] += (float)($row['total'] ?? 0);
-            $out['commission'] += (float)($row['commission'] ?? 0);
-            $out['smart'] += (float)($row['smart'] ?? 0);
-            $out['delivery'] += (float)($row['delivery'] ?? 0);
-            $out['promotion'] += (float)($row['promotion'] ?? 0);
-            $out['refunds'] += (float)($row['refunds'] ?? 0);
-        }
-
-        return $out;
-    }
-
     /**
      * Multi-account wariant countUnassigned().
      * @param int[] $accountIds
@@ -734,4 +691,147 @@ class BillingEntryRepository
 
         return (int)Db::getInstance()->getValue($sql);
     }
+
+
+    /**
+     * Pobiera wpisy billingowe dla zamówienia, ale akceptuje wiele kandydatów order_id.
+     * BEZ filtra daty (wszystkie operacje dla zamówienia).
+     */
+    public function listForOrderCandidatesNoDate(int $accountId, array $orderIds): array
+    {
+        $vals = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') {
+                continue;
+            }
+            $vals[] = "'" . pSQL($id) . "'";
+            if (count($vals) >= 2000) {
+                break;
+            }
+        }
+        if (empty($vals)) {
+            return [];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        $sql = "SELECT *\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+            . "WHERE id_allegropro_account=" . (int)$accountId . "\n"
+            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+            . "  AND {$feeWhere}\n"
+            . "ORDER BY occurred_at DESC";
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    /**
+     * Multi-account: suma opłat (feeWhere) dla podanych kandydatów order_id, BEZ filtra daty.
+     * @param int[] $accountIds
+     * @param string[] $orderIds
+     * @return array<int, array<string, float>>
+     */
+    public function sumByOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
+    {
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $vals = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') {
+                continue;
+            }
+            $vals[] = "'" . pSQL($id) . "'";
+            if (count($vals) >= 4000) {
+                break;
+            }
+        }
+        if (empty($vals)) {
+            return [];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        $sql = "SELECT id_allegropro_account, order_id, SUM(value_amount) AS sum_amount\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+            . "WHERE {$accWhere}\n"
+            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+            . "  AND {$feeWhere}\n"
+            . "GROUP BY id_allegropro_account, order_id";
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $map = [];
+        foreach ($rows as $r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            if (!isset($map[$aid])) {
+                $map[$aid] = [];
+            }
+            $map[$aid][(string)$r['order_id']] = (float)($r['sum_amount'] ?? 0);
+        }
+        return $map;
+    }
+
+    /**
+     * Multi-account: kategorie opłat (feeWhere) dla podanych kandydatów order_id, BEZ filtra daty.
+     * @param int[] $accountIds
+     * @param string[] $orderIds
+     */
+    public function getCategorySumsForOrderIdsMultiNoDate(array $accountIds, array $orderIds): array
+    {
+        $accWhere = $this->buildAccountInWhere($accountIds);
+
+        $vals = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') {
+                continue;
+            }
+            $vals[] = "'" . pSQL($id) . "'";
+            if (count($vals) >= 4000) {
+                break;
+            }
+        }
+        if (empty($vals)) {
+            return [
+                'total' => 0.0,
+                'commission' => 0.0,
+                'smart' => 0.0,
+                'delivery' => 0.0,
+                'promotion' => 0.0,
+                'refunds' => 0.0,
+            ];
+        }
+
+        $tn = "LOWER(IFNULL(type_name,''))";
+        $feeWhere = $this->buildFeeWhereSql($tn);
+
+        $sql = "SELECT\n"
+            . "    SUM(value_amount) AS total,\n"
+            . "    SUM(CASE WHEN (type_id='SUC' OR {$tn} LIKE '%prowiz%') THEN value_amount ELSE 0 END) AS commission,\n"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%smart%') THEN value_amount ELSE 0 END) AS smart,\n"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%dostaw%' OR {$tn} LIKE '%przesy%') THEN value_amount ELSE 0 END) AS delivery,\n"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%promow%' OR {$tn} LIKE '%reklam%') THEN value_amount ELSE 0 END) AS promotion,\n"
+            . "    SUM(CASE WHEN ({$tn} LIKE '%zwrot%' OR {$tn} LIKE '%rabat%' OR {$tn} LIKE '%korekt%' OR {$tn} LIKE '%rekompens%') THEN value_amount ELSE 0 END) AS refunds\n"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry`\n"
+            . "WHERE {$accWhere}\n"
+            . "  AND order_id IN (" . implode(',', $vals) . ")\n"
+            . "  AND {$feeWhere}";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+        return [
+            'total' => (float)($row['total'] ?? 0),
+            'commission' => (float)($row['commission'] ?? 0),
+            'smart' => (float)($row['smart'] ?? 0),
+            'delivery' => (float)($row['delivery'] ?? 0),
+            'promotion' => (float)($row['promotion'] ?? 0),
+            'refunds' => (float)($row['refunds'] ?? 0),
+        ];
+    }
+
 }

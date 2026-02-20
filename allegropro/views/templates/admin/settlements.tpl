@@ -72,6 +72,7 @@
                     <div class="alpro-ms__menu" role="menu">
                       <div class="alpro-ms__menuHead">
                         <span class="alpro-ms__hint">Wybierz konto</span>
+                      <input type="text" class="alpro-ms__search" placeholder="Szukaj konta…" />
                         <div class="alpro-ms__menuActions">
                           <a href="#" data-act="all">Wszystkie</a>
                           <a href="#" data-act="none">Wyczyść</a>
@@ -178,6 +179,7 @@
                   <div class="alpro-ms__menu" role="menu">
                     <div class="alpro-ms__menuHead">
                       <span class="alpro-ms__hint">Typy z wybranego okresu</span>
+                      <input type="text" class="alpro-ms__search" placeholder="Szukaj typu…" />
                       <div class="alpro-ms__menuActions">
                         <a href="#" data-act="all">Wszystkie</a>
                         <a href="#" data-act="none">Wyczyść</a>
@@ -223,7 +225,7 @@
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&fee_group={$smarty.get.fee_group|default:''|escape:'url'}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&fee_group={$fee_group|default:''|escape:'url'}{if isset($fee_types_selected) && $fee_types_selected|@count>0}{foreach from=$fee_types_selected item=ft}&fee_type[]={$ft|escape:'url'}{/foreach}{/if}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
@@ -238,7 +240,12 @@
             <input type="hidden" name="q" value="{$q|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="order_state" value="{$order_state|escape:'htmlall':'UTF-8'}" />
             <input type="hidden" name="cancelled_no_refund" value="{$cancelled_no_refund|intval}" />
-            <input type="hidden" name="fee_group" value="{$smarty.get.fee_group|default:''|escape:'htmlall':'UTF-8'}" />
+            <input type="hidden" name="fee_group" value="{$fee_group|default:''|escape:'htmlall':'UTF-8'}" />
+            {if isset($fee_types_selected) && $fee_types_selected|@count>0}
+              {foreach from=$fee_types_selected item=ft}
+                <input type="hidden" name="fee_type[]" value="{$ft|escape:'htmlall':'UTF-8'}" />
+              {/foreach}
+            {/if}
             <input type="hidden" name="page" value="{$page|intval}" />
             <input type="hidden" name="per_page" value="{$per_page|intval}" />
 
@@ -590,37 +597,89 @@
 </div>
 
 
-  {* Modal synchronizacji (pasek postępu + etapy) *}
+  {* Modal synchronizacji (Start -> postęp) *}
   <div class="modal fade" id="alproSyncModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-md" role="document">
+    <div class="modal-dialog modal-md alpro-sync-modal" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h4 class="modal-title">Synchronizacja rozliczeń</h4>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <div class="alpro-sync-title">
+            <div class="alpro-sync-title__icon">↻</div>
+            <div>
+              <div class="modal-title">Synchronizacja rozliczeń</div>
+              <div class="alpro-muted" id="alproSyncHeaderSub">Wybierz tryb i kliknij „Start”.</div>
+            </div>
+          </div>
+          <button type="button" class="close" id="alproSyncHeaderClose" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
         </div>
+
         <div class="modal-body">
-          <div class="alpro-sync-step">
-            <div class="alpro-sync-step__title">1) Pobieranie opłat (billing-entries)</div>
-            <div class="progress">
-              <div id="alproSyncBillingBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+
+          <div class="alpro-sync-overall">
+            <div class="alpro-sync-overall__row">
+              <div class="alpro-sync-overall__label">Postęp</div>
+              <div class="alpro-sync-overall__pct" id="alproSyncOverallPct">0%</div>
             </div>
-            <div id="alproSyncBillingText" class="alpro-muted">Oczekiwanie…</div>
+            <div class="progress alpro-progress">
+              <div id="alproSyncOverallBar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div class="alpro-sync-now">
+              <span class="k">Aktualnie:</span>
+              <span class="v" id="alproSyncNowText">Wybierz tryb i kliknij „Start”.</span>
+            </div>
           </div>
 
-          <hr />
-
-          <div class="alpro-sync-step">
-            <div class="alpro-sync-step__title">2) Uzupełnianie brakujących danych zamówień</div>
-            <div class="progress">
-              <div id="alproSyncEnrichBar" class="progress-bar" style="width:0%"></div>
+          <div class="alpro-sync-step" id="alproSyncModeBox">
+            <div class="alpro-sync-step__title">Tryb synchronizacji</div>
+            <div class="form-group mb-2">
+              <div class="custom-control custom-radio">
+                <input type="radio" id="alproSyncModeInc" name="alpro_sync_mode" class="custom-control-input" value="inc" checked>
+                <label class="custom-control-label" for="alproSyncModeInc">
+                  <strong>Szybka</strong> — tylko nowe wpisy + uzupełnij braki w zapisanych operacjach
+                </label>
+              </div>
+              <div class="custom-control custom-radio mt-2">
+                <input type="radio" id="alproSyncModeFull" name="alpro_sync_mode" class="custom-control-input" value="full">
+                <label class="custom-control-label" for="alproSyncModeFull">
+                  <strong>Pełna</strong> — pobierz i zaktualizuj wszystkie wpisy w zakresie dat (wolniej)
+                </label>
+              </div>
             </div>
-            <div id="alproSyncEnrichText" class="alpro-muted">Oczekiwanie…</div>
+            <div class="text-muted" style="font-size:12px;">Na co dzień wybieraj „Szybka”. „Pełna” tylko gdy podejrzewasz braki lub po zmianach w logice mapowania.</div>
           </div>
 
-          <div id="alproSyncLog" class="alpro-sync-log" style="display:none"></div>
+          <div id="alproSyncSteps" style="display:none">
+
+            <div class="alpro-sync-step">
+              <div class="alpro-sync-step__title">1) Pobieranie opłat (billing-entries)</div>
+              <div class="progress">
+                <div id="alproSyncBillingBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+              </div>
+              <div id="alproSyncBillingText" class="alpro-muted">Oczekiwanie…</div>
+            </div>
+
+            <div class="alpro-sync-step">
+              <div class="alpro-sync-step__title">2) Uzupełnianie brakujących danych zamówień</div>
+              <div class="progress">
+                <div id="alproSyncEnrichBar" class="progress-bar" style="width:0%"></div>
+              </div>
+              <div id="alproSyncEnrichText" class="alpro-muted">Oczekiwanie…</div>
+            </div>
+
+            <div class="alpro-sync-details">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="alproSyncToggleLog">Pokaż szczegóły techniczne</button>
+              <div id="alproSyncLogWrap" style="display:none">
+                <div id="alproSyncLog" class="alpro-sync-log"></div>
+              </div>
+            </div>
+
+          </div>
+
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" id="alproSyncCancel">Anuluj</button>
+
+        <div class="modal-footer alpro-sync-footer">
+          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" id="alproSyncDismiss">Zamknij</button>
+          <button type="button" class="btn btn-outline-secondary" id="alproSyncCancel" style="display:none">Anuluj</button>
+          <button type="button" class="btn btn-primary" id="alproSyncStart">Start</button>
           <button type="button" class="btn btn-primary" data-dismiss="modal" id="alproSyncClose" style="display:none">Zamknij</button>
         </div>
       </div>

@@ -189,8 +189,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $report = new SettlementsReportService($this->billingRepo);
         if (!empty($selectedAccountIds)) {
             $summary = ($mode === 'orders')
-                ? $report->getPeriodSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund)
-                : $report->getPeriodSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund);
+                ? $report->getPeriodSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
+                : $report->getPeriodSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
         } else {
             $summary = [];
         }
@@ -199,16 +199,16 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         // Liczba zamówień, z których wynika kwota „Sprzedaż brutto” (bez wpływu pola wyszukiwania)
         if (!empty($selectedAccountIds) && is_array($summary)) {
             $ordersCountForSales = ($mode === 'billing')
-                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund)
-                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund);
+                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
+                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, '', $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
             $summary['orders_count'] = (int)$ordersCountForSales;
         }
 
         $ordersTotal = 0;
         if (!empty($selectedAccountIds)) {
             $ordersTotal = ($mode === 'billing')
-                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund)
-                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund);
+                ? $report->countOrdersBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
+                : $report->countOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
         }
 
         $pages = (int)max(1, (int)ceil(($ordersTotal ?: 0) / max(1, $perPage)));
@@ -220,8 +220,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $ordersRows = [];
         if (!empty($selectedAccountIds)) {
             $ordersRows = ($mode === 'billing')
-                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund)
-                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund);
+                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
+                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
         }
 
         $billingCount = (!empty($selectedAccountIds) && $mode === 'billing')
@@ -233,8 +233,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $refundSummary = [];
         if (!empty($selectedAccountIds)) {
             $refundSummary = ($mode === 'billing')
-                ? $report->getRefundPendingSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund)
-                : $report->getRefundPendingSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund);
+                ? $report->getRefundPendingSummaryBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
+                : $report->getRefundPendingSummaryOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
         }
 
 
@@ -392,7 +392,34 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $mode = in_array($mode, ['billing', 'orders'], true) ? $mode : 'billing';
         $ignoreBillingDate = ($mode === 'orders');
 
-        $details = $report->getOrderDetails($accountId, $checkout, $dateFrom, $dateTo, $ignoreBillingDate);
+        // fee filters (z URL) — żeby modal był spójny z listą
+        $feeGroup = (string)Tools::getValue('fee_group', '');
+        $allowedFeeGroups = ['', 'commission', 'delivery', 'smart', 'promotion', 'refunds', 'other'];
+        if (!in_array($feeGroup, $allowedFeeGroups, true)) {
+            $feeGroup = '';
+        }
+
+        $feeTypesSelected = Tools::getValue('fee_type', []);
+        if (!is_array($feeTypesSelected)) {
+            $feeTypesSelected = [$feeTypesSelected];
+        }
+        $feeTypesSelectedClean = [];
+        foreach ($feeTypesSelected as $t) {
+            $t = trim((string)$t);
+            if ($t === '') {
+                continue;
+            }
+            if (Tools::strlen($t) > 160) {
+                $t = Tools::substr($t, 0, 160);
+            }
+            $feeTypesSelectedClean[$t] = $t;
+            if (count($feeTypesSelectedClean) >= 80) {
+                break;
+            }
+        }
+        $feeTypesSelected = array_values($feeTypesSelectedClean);
+
+        $details = $report->getOrderDetails($accountId, $checkout, $dateFrom, $dateTo, $ignoreBillingDate, $feeGroup, $feeTypesSelected);
 
         $order = is_array($details['order'] ?? null) ? $details['order'] : [];
         $cats = is_array($details['cats'] ?? null) ? $details['cats'] : [];
@@ -523,6 +550,14 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $offset = (int)Tools::getValue('offset', 0);
         $limit = (int)Tools::getValue('limit', 100);
 
+        // Tryb synchronizacji:
+        // - inc  => szybka: tylko nowe + uzupełnianie braków w istniejących wpisach
+        // - full => pełna: wymuś aktualizację wszystkich wpisów w zakresie (wolniej)
+        $syncMode = (string)Tools::getValue('sync_mode', 'inc');
+        $syncMode = in_array($syncMode, ['inc', 'full'], true) ? $syncMode : 'inc';
+        $effectiveDateFrom = (string)Tools::getValue('effective_date_from', '');
+        $effectiveDateFrom = $this->sanitizeYmd($effectiveDateFrom) ?: '';
+
         $acc = $this->accounts->get($accountId);
         if (!$accountId || !is_array($acc)) {
             $this->ajaxJson(['ok' => 0, 'error' => 'Brak konta.']);
@@ -533,14 +568,28 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $api = new AllegroApiClient($http, $this->accounts);
         $sync = new BillingSyncService($api, $this->billingRepo);
 
+        // W trybie "inc" przy pierwszym kroku zawężamy datę startową do "ostatnie 2 dni"
+        // od ostatniego istniejącego wpisu w bazie (w ramach wybranego zakresu).
+        // To znacząco ogranicza liczbę requestów i czas DB.
+        $dateFromUse = $dateFrom;
+        if ($syncMode === 'inc') {
+            if ($effectiveDateFrom !== '') {
+                $dateFromUse = $effectiveDateFrom;
+            } elseif ($offset === 0) {
+                $dateFromUse = $this->computeIncrementalDateFrom($accountId, $dateFrom, $dateTo);
+                $effectiveDateFrom = $this->sanitizeYmd($dateFromUse) ?: $effectiveDateFrom;
+            }
+        }
+
         $debug = [];
         $step = $sync->syncRangeStep(
             $acc,
-            $this->toIsoStart($dateFrom),
+            $this->toIsoStart($dateFromUse),
             $this->toIsoEnd($dateTo),
             $offset,
             $limit,
-            $debug
+            $debug,
+            $syncMode === 'full'
         );
 
         $this->ajaxJson([
@@ -551,8 +600,42 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'updated' => (int)($step['updated'] ?? 0),
             'next_offset' => (int)($step['next_offset'] ?? $offset),
             'done' => !empty($step['done']) ? 1 : 0,
+            'effective_date_from' => $effectiveDateFrom,
             'debug_tail' => array_slice($debug, -2),
         ]);
+    }
+
+    /**
+     * Szybka synchronizacja: jeśli w DB mamy już dane w zakresie, pobieraj tylko "końcówkę".
+     * Zostawiamy bufor 2 dni, bo korekty mogą się pojawić z lekkim opóźnieniem.
+     */
+    private function computeIncrementalDateFrom(int $accountId, string $dateFrom, string $dateTo): string
+    {
+        $dateFrom = $this->sanitizeYmd($dateFrom) ?: date('Y-m-01');
+        $dateTo = $this->sanitizeYmd($dateTo) ?: date('Y-m-d');
+
+        try {
+            $max = $this->billingRepo->getMaxOccurredAtInRange($accountId, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            $max = null;
+        }
+
+        if (!$max) {
+            return $dateFrom;
+        }
+
+        $ts = strtotime($max);
+        if (!$ts) {
+            return $dateFrom;
+        }
+
+        $buf = strtotime('-2 days', $ts);
+        $bufDate = date('Y-m-d', $buf ?: $ts);
+        // nie schodź poniżej wybranego date_from
+        if ($bufDate < $dateFrom) {
+            return $dateFrom;
+        }
+        return $bufDate;
     }
 
     private function normalizeIdSql(string $expr): string
@@ -577,8 +660,71 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         return "({$include} AND NOT {$exclude})";
     }
 
+    /**
+     * Tabela "blacklist" dla ID, których Allegro konsekwentnie nie zwraca (HTTP 404).
+     * Chroni przed zapętlaniem się enrichmentu i zaśmiecaniem logów.
+     */
+    private function ensureEnrichSkipSchema(): void
+    {
+        try {
+            $p = _DB_PREFIX_;
+            $engine = _MYSQL_ENGINE_;
+            $sql = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_order_enrich_skip` (
+                `id_allegropro_order_enrich_skip` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `id_allegropro_account` INT UNSIGNED NOT NULL,
+                `order_id` VARCHAR(64) NOT NULL,
+                `last_code` INT NULL,
+                `last_error` VARCHAR(255) NULL,
+                `last_attempt_at` DATETIME NOT NULL,
+                `attempts` INT UNSIGNED NOT NULL DEFAULT 1,
+                PRIMARY KEY (`id_allegropro_order_enrich_skip`),
+                UNIQUE KEY `uniq_acc_order` (`id_allegropro_account`,`order_id`),
+                KEY `idx_last_attempt` (`last_attempt_at`)
+            ) ENGINE={$engine} DEFAULT CHARSET=utf8mb4;";
+            Db::getInstance()->execute($sql);
+        } catch (\Throwable $e) {
+            // nie przerywamy
+        }
+    }
+
+    private function markEnrichSkip(int $accountId, string $orderId, int $code, string $error = ''): void
+    {
+        $orderId = trim($orderId);
+        if (!$accountId || $orderId === '') {
+            return;
+        }
+
+        $this->ensureEnrichSkipSchema();
+
+        $p = _DB_PREFIX_;
+        $now = pSQL(date('Y-m-d H:i:s'));
+        $orderEsc = pSQL($orderId);
+        $err = trim($error);
+        if ($err !== '' && Tools::strlen($err) > 255) {
+            $err = Tools::substr($err, 0, 255);
+        }
+        $errEsc = $err === '' ? 'NULL' : "'" . pSQL($err) . "'";
+
+        $sql = "INSERT INTO `{$p}allegropro_order_enrich_skip`
+                    (id_allegropro_account, order_id, last_code, last_error, last_attempt_at, attempts)
+                VALUES
+                    (" . (int)$accountId . ", '{$orderEsc}', " . (int)$code . ", {$errEsc}, '{$now}', 1)
+                ON DUPLICATE KEY UPDATE
+                    last_code=VALUES(last_code),
+                    last_error=VALUES(last_error),
+                    last_attempt_at=VALUES(last_attempt_at),
+                    attempts=attempts+1";
+        try {
+            Db::getInstance()->execute($sql);
+        } catch (\Throwable $e) {
+            // ignore
+        }
+    }
+
     private function countMissingOrders(int $accountId, string $dateFrom, string $dateTo): int
     {
+        $this->ensureEnrichSkipSchema();
+
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
@@ -586,6 +732,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
         $normO = $this->normalizeIdSql('o.checkout_form_id');
         $normB = $this->normalizeIdSql('b.order_id');
+
+        $normS = $this->normalizeIdSql('s.order_id');
 
         $sql = "SELECT COUNT(*) FROM (
                   SELECT b.order_id
@@ -595,10 +743,18 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
                       o.id_allegropro_account=b.id_allegropro_account
                       AND {$normO} = {$normB}
                     )
+                  LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
+                    ON (
+                      s.id_allegropro_account=b.id_allegropro_account
+                      AND {$normS} = {$normB}
+                      AND IFNULL(s.last_code,0)=404
+                      AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                    )
                   WHERE b.id_allegropro_account=" . (int)$accountId . "
                     AND b.order_id IS NOT NULL AND b.order_id <> ''
                     AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
                     AND {$feeWhere}
+                    AND s.id_allegropro_order_enrich_skip IS NULL
                   GROUP BY b.order_id
                   HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
                 ) t";
@@ -607,6 +763,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
     private function listMissingOrderIds(int $accountId, string $dateFrom, string $dateTo, int $limit, int $offset): array
     {
+        $this->ensureEnrichSkipSchema();
+
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
 
@@ -614,6 +772,7 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
         $normO = $this->normalizeIdSql('o.checkout_form_id');
         $normB = $this->normalizeIdSql('b.order_id');
+        $normS = $this->normalizeIdSql('s.order_id');
 
         $sql = "SELECT b.order_id, MAX(b.occurred_at) as last_at
                 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
@@ -622,10 +781,18 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
                     o.id_allegropro_account=b.id_allegropro_account
                     AND {$normO} = {$normB}
                   )
+                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
+                  ON (
+                    s.id_allegropro_account=b.id_allegropro_account
+                    AND {$normS} = {$normB}
+                    AND IFNULL(s.last_code,0)=404
+                    AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                  )
                 WHERE b.id_allegropro_account=" . (int)$accountId . "
                   AND b.order_id IS NOT NULL AND b.order_id <> ''
                   AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
                   AND {$feeWhere}
+                  AND s.id_allegropro_order_enrich_skip IS NULL
                 GROUP BY b.order_id
                 HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
                 ORDER BY last_at DESC
@@ -757,6 +924,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $http = new HttpClient();
         $api = new AllegroApiClient($http, $this->accounts);
 
+        $this->ensureEnrichSkipSchema();
+
         $updated = 0;
         $errors = [];
 
@@ -777,7 +946,11 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             continue;
         }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
-                $errors[] = ['id' => $rawId, 'code' => (int)($resp['code'] ?? 0)];
+                $code = (int)($resp['code'] ?? 0);
+                if ($code === 404) {
+                    $this->markEnrichSkip($accountId, $rawId, 404, 'checkout-form not found');
+                }
+                $errors[] = ['id' => $rawId, 'code' => $code];
                 continue;
             }
             $order = $resp['json'];

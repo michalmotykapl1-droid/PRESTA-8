@@ -860,7 +860,56 @@ document.addEventListener("DOMContentLoaded", function() {
                         lines.push('document.document_number=' + (data.document.document_number || ''));
                         lines.push('document.direct_url=' + (data.document.direct_url || ''));
                     }
+                    if (data.account) {
+                        lines.push('account.id_allegropro_account=' + (data.account.id_allegropro_account || ''));
+                        lines.push('account.login=' + (data.account.login || ''));
+                        lines.push('account.sandbox=' + (data.account.sandbox || 0));
+                    }
+                    if (data.me) {
+                        lines.push('me.id=' + (data.me.id || ''));
+                        lines.push('me.login=' + (data.me.login || ''));
+                    }
+                    if (data.checkout_seller) {
+                        lines.push('checkout_seller.id=' + (data.checkout_seller.id || ''));
+                        lines.push('checkout_seller.login=' + (data.checkout_seller.login || ''));
+       lines.push('checkout_seller.candidates=' + JSON.stringify(Array.isArray(data.checkout_seller.candidates) ? data.checkout_seller.candidates : []));
+                    }
+                    if (data.checkout_buyer) {
+                        lines.push('checkout_buyer.id=' + (data.checkout_buyer.id || ''));
+                        lines.push('checkout_buyer.login=' + (data.checkout_buyer.login || ''));                    }
+if (data.invoice_lookup) {
+                        lines.push('invoice_lookup.found_in_invoices_list=' + (data.invoice_lookup.found_in_invoices_list ? '1' : '0'));
+                        lines.push('invoice_lookup.invoice_id=' + (data.invoice_lookup.invoice_id || ''));
+                        lines.push('invoice_lookup.invoice_number=' + (data.invoice_lookup.invoice_number || ''));
+                        lines.push('invoice_lookup.file_name=' + (data.invoice_lookup.file_name || ''));
+                    }
+                    if (Array.isArray(data.diagnosis) && data.diagnosis.length) {
+                        lines.push('--- DIAGNOSIS ---');
+                        data.diagnosis.forEach(function(item, idx){
+                            lines.push((idx + 1) + '. ' + item);
+                        });
+                    }
+                    if (Array.isArray(data.attempts) && data.attempts.length) {
+                        lines.push('--- ATTEMPTS ---');
+                        data.attempts.forEach(function(at, idx){
+                            lines.push('#' + (idx + 1)
+                                + ' type=' + (at.type || '')
+                                + ' target=' + (at.target || '')
+                                + ' http=' + (typeof at.http_code !== 'undefined' ? at.http_code : '')
+                                + ' ok=' + (at.ok ? '1' : '0')
+                                + ' bytes=' + (typeof at.bytes !== 'undefined' ? at.bytes : '')
+                                + (at.error_code ? (' error_code=' + at.error_code) : '')
+                                + (at.error_user_message ? (' error_user_message=' + at.error_user_message) : ''));
+                        });
+                    }
+                    if (Array.isArray(data.next_steps) && data.next_steps.length) {
+                        lines.push('--- NEXT STEPS ---');
+                        data.next_steps.forEach(function(item, idx){
+                            lines.push((idx + 1) + '. ' + item);
+                        });
+                    }
                     if (Array.isArray(data.debug_lines) && data.debug_lines.length) {
+                        lines.push('--- DEBUG LINES ---');
                         lines = lines.concat(data.debug_lines);
                     }
 
@@ -871,16 +920,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (msgBox) {
                         msgBox.className = data.success ? 'text-info' : 'text-danger';
                         msgBox.innerText = data.success ? 'Debug pobrania zakończony (plik nie został pobrany).' : 'Debug pobrania zakończony błędem.';
-                    }
-                })
-                .catch(function(){
-                    if (debugBox) {
-                        debugBox.style.display = 'block';
-                        debugBox.innerText = 'Błąd połączenia podczas debugowania pobrania dokumentu.';
-                    }
-                    if (msgBox) {
-                        msgBox.className = 'text-danger';
-                        msgBox.innerText = 'Nie udało się pobrać danych debug dokumentu.';
                     }
                 });
         });

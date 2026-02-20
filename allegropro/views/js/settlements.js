@@ -59,6 +59,19 @@
       var hidden = ms.querySelector('.alpro-ms__hidden');
       var btnText = ms.querySelector('.alpro-ms__btnText');
       var checks = ms.querySelectorAll('input[type="checkbox"]');
+      var search = ms.querySelector('.alpro-ms__search');
+      var items = ms.querySelectorAll('.alpro-ms__item');
+
+      function applySearch() {
+        if (!search || !items) return;
+        var q = (search.value || '').trim().toLowerCase();
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          var lbl = it.querySelector('.alpro-ms__label');
+          var txt = (lbl ? lbl.textContent : it.textContent || '').toLowerCase();
+          it.style.display = (!q || txt.indexOf(q) !== -1) ? '' : 'none';
+        }
+      }
 
       function syncHidden() {
         if (!hidden) return;
@@ -91,6 +104,9 @@
         if (!menu) return;
         menu.classList.add('open');
         if (btn) btn.setAttribute('aria-expanded', 'true');
+        if (search) {
+          try { search.focus(); } catch (e) {}
+        }
       }
       function closeMenu() {
         if (!menu) return;
@@ -129,6 +145,12 @@
         });
       }
 
+      if (search) {
+        search.addEventListener('input', applySearch);
+        // keep menu from closing when clicking in search
+        search.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+
       for (var i = 0; i < checks.length; i++) {
         checks[i].addEventListener('change', syncHidden);
       }
@@ -156,6 +178,19 @@
       var hidden = ms.querySelector('.alpro-ms__hidden');
       var btnText = ms.querySelector('.alpro-ms__btnText');
       var checks = ms.querySelectorAll('input[type="checkbox"]');
+      var search = ms.querySelector('.alpro-ms__search');
+      var items = ms.querySelectorAll('.alpro-ms__item');
+
+      function applySearch() {
+        if (!search || !items) return;
+        var q = (search.value || '').trim().toLowerCase();
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          var lbl = it.querySelector('.alpro-ms__label');
+          var txt = (lbl ? lbl.textContent : it.textContent || '').toLowerCase();
+          it.style.display = (!q || txt.indexOf(q) !== -1) ? '' : 'none';
+        }
+      }
 
       function syncHidden() {
         if (!hidden) return;
@@ -186,6 +221,9 @@
         if (!menu) return;
         menu.classList.add('open');
         if (btn) btn.setAttribute('aria-expanded', 'true');
+        if (search) {
+          try { search.focus(); } catch (e) {}
+        }
       }
       function closeMenu() {
         if (!menu) return;
@@ -222,6 +260,11 @@
           }
           syncHidden();
         });
+      }
+
+      if (search) {
+        search.addEventListener('input', applySearch);
+        search.addEventListener('click', function (e) { e.stopPropagation(); });
       }
 
       for (var i = 0; i < checks.length; i++) {
@@ -642,6 +685,16 @@
         mode: cfg.mode
       };
 
+      // keep fee filters (fee_group + fee_type[]) so modal matches current view
+      try {
+        var sp = new URLSearchParams(window.location.search);
+        var fg = sp.get('fee_group') || '';
+        if (fg) { params.fee_group = fg; }
+        var ft = sp.getAll('fee_type[]');
+        if (!ft || !ft.length) { ft = sp.getAll('fee_type'); }
+        if (ft && ft.length) { params.fee_type = ft; }
+      } catch (e) {}
+
       // use jQuery if available (Presta BO), else fallback
       if (window.jQuery) {
         window.jQuery.get(cfg.ajaxUrl, params)
@@ -664,7 +717,21 @@
           });
       } else {
         var url = new URL(cfg.ajaxUrl, window.location.origin);
-        Object.keys(params).forEach(function (k) { url.searchParams.set(k, params[k]); });
+        Object.keys(params).forEach(function (k) {
+          var v = params[k];
+          if (Array.isArray(v)) {
+            v.forEach(function (item) {
+              // serialize arrays as fee_type[] etc (PHP)
+              if (k === 'fee_type') {
+                url.searchParams.append('fee_type[]', item);
+              } else {
+                url.searchParams.append(k + '[]', item);
+              }
+            });
+          } else {
+            url.searchParams.set(k, v);
+          }
+        });
         fetch(url.toString(), { credentials: 'same-origin' })
           .then(function (r) { return r.json(); })
           .then(function (resp) {
@@ -724,24 +791,16 @@
       if (!syncBtn) return;
 
       var cancelled = false;
+      var workflowStarted = false;
+      var overallPseudo = 0; // pseudo-progress for stage 1
+      var logLines = [];
+      var maxLogLines = 250;
+
+      function el(id){ return document.getElementById(id); }
 
       function showModal() {
-        cancelled = false;
-        var m = document.getElementById('alproSyncModal');
+        var m = el('alproSyncModal');
         if (!m) return;
-        // reset UI
-        var bBar = document.getElementById('alproSyncBillingBar');
-        var eBar = document.getElementById('alproSyncEnrichBar');
-        var bTxt = document.getElementById('alproSyncBillingText');
-        var eTxt = document.getElementById('alproSyncEnrichText');
-        var log = document.getElementById('alproSyncLog');
-        var closeBtn = document.getElementById('alproSyncClose');
-        if (bBar) { bBar.style.width = '100%'; bBar.classList.add('progress-bar-striped','progress-bar-animated'); }
-        if (eBar) { eBar.style.width = '0%'; }
-        if (bTxt) bTxt.textContent = 'Start…';
-        if (eTxt) eTxt.textContent = 'Oczekiwanie…';
-        if (log) { log.style.display='none'; log.textContent=''; }
-        if (closeBtn) closeBtn.style.display='none';
 
         if (window.jQuery && window.jQuery.fn && window.jQuery.fn.modal) {
           window.jQuery(m).modal({backdrop:'static', keyboard:false, show:true});
@@ -751,22 +810,138 @@
         }
       }
 
-      function appendLog(line) {
-        var log = document.getElementById('alproSyncLog');
-        if (!log) return;
-        log.style.display = 'block';
-        log.textContent += (line + "\n");
+      function setNow(text) {
+        var now = el('alproSyncNowText');
+        if (now) now.textContent = text;
+        var sub = el('alproSyncHeaderSub');
+        if (sub) sub.textContent = text;
       }
 
-      function hideModalFinish() {
-        var closeBtn = document.getElementById('alproSyncClose');
-        var cancelBtn = document.getElementById('alproSyncCancel');
-        if (cancelBtn) cancelBtn.style.display='none';
-        if (closeBtn) closeBtn.style.display='inline-block';
+      function setOverall(pct, animate) {
+        pct = Math.max(0, Math.min(100, Number(pct || 0)));
+        var bar = el('alproSyncOverallBar');
+        var pctEl = el('alproSyncOverallPct');
+        if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+        if (!bar) return;
+
+        bar.style.width = pct + '%';
+        if (animate) {
+          bar.classList.add('progress-bar-striped','progress-bar-animated');
+        } else {
+          bar.classList.remove('progress-bar-striped','progress-bar-animated');
+        }
+      }
+
+      function showLogToggle() {
+        var t = el('alproSyncToggleLog');
+        if (t) t.style.display = 'inline-block';
+      }
+
+      function appendLog(line) {
+        if (!line) return;
+        logLines.push(String(line));
+        if (logLines.length > maxLogLines) {
+          logLines = logLines.slice(logLines.length - maxLogLines);
+        }
+        var log = el('alproSyncLog');
+        if (log) log.textContent = logLines.join("\n");
+        showLogToggle();
+      }
+
+      function enableModeInputs(enabled) {
+        var modeInputs = document.querySelectorAll('input[name="alpro_sync_mode"]');
+        for (var mi=0; mi<modeInputs.length; mi++) {
+          modeInputs[mi].disabled = !enabled;
+        }
+      }
+
+      function resetUi() {
+        cancelled = false;
+        workflowStarted = false;
+        overallPseudo = 0;
+        logLines = [];
+
+        setOverall(0, false);
+        setNow('Wybierz tryb i kliknij „Start”.');
+
+        enableModeInputs(true);
+
+        var steps = el('alproSyncSteps');
+        if (steps) steps.style.display = 'none';
+
+        var bTxt = el('alproSyncBillingText');
+        var eTxt = el('alproSyncEnrichText');
+        var eBar = el('alproSyncEnrichBar');
+        var bBar = el('alproSyncBillingBar');
+
+        if (bTxt) bTxt.textContent = 'Oczekiwanie…';
+        if (eTxt) eTxt.textContent = 'Oczekiwanie…';
+        if (eBar) eBar.style.width = '0%';
+        if (bBar) {
+          bBar.style.width = '100%';
+          bBar.classList.add('progress-bar-striped','progress-bar-animated');
+        }
+
+        var toggle = el('alproSyncToggleLog');
+        var wrap = el('alproSyncLogWrap');
+        var log = el('alproSyncLog');
+        if (toggle) {
+          toggle.style.display = 'none';
+          toggle.textContent = 'Pokaż szczegóły techniczne';
+          toggle.setAttribute('data-open', '0');
+        }
+        if (wrap) wrap.style.display = 'none';
+        if (log) log.textContent = '';
+
+        var dismissBtn = el('alproSyncDismiss');
+        var startBtn = el('alproSyncStart');
+        var cancelBtn = el('alproSyncCancel');
+        var closeBtn = el('alproSyncClose');
+        var headerClose = el('alproSyncHeaderClose');
+
+        if (dismissBtn) dismissBtn.style.display = 'inline-block';
+        if (startBtn) { startBtn.style.display = 'inline-block'; startBtn.disabled = false; }
+        if (cancelBtn) { cancelBtn.style.display = 'none'; cancelBtn.disabled = false; }
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (headerClose) headerClose.style.display = 'inline-block';
+
+        syncBtn.disabled = false;
+      }
+
+      function setRunningUi() {
+        workflowStarted = true;
+
+        var steps = el('alproSyncSteps');
+        if (steps) steps.style.display = 'block';
+
+        var dismissBtn = el('alproSyncDismiss');
+        var startBtn = el('alproSyncStart');
+        var cancelBtn = el('alproSyncCancel');
+        var closeBtn = el('alproSyncClose');
+        var headerClose = el('alproSyncHeaderClose');
+
+        if (dismissBtn) dismissBtn.style.display = 'none';
+        if (startBtn) startBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (headerClose) headerClose.style.display = 'none';
+
+        enableModeInputs(false);
+      }
+
+      function setFinishedUi() {
+        var cancelBtn = el('alproSyncCancel');
+        var closeBtn = el('alproSyncClose');
+        var headerClose = el('alproSyncHeaderClose');
+
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (closeBtn) closeBtn.style.display = 'inline-block';
+        if (headerClose) headerClose.style.display = 'inline-block';
+
+        syncBtn.disabled = false;
       }
 
       function getSelectedAccountId() {
-        // z hidden inputs (po kliknięciu "Wybierz" strona już jest w kontekście wybranych kont)
         var hidden = document.querySelectorAll('#alproAccountsMs .alpro-ms__hidden input[name="id_allegropro_account[]"]');
         var ids = [];
         for (var i=0;i<hidden.length;i++){
@@ -806,56 +981,80 @@
       }
 
       function startWorkflow() {
-        if (syncBtn.disabled) return;
+        if (syncBtn.disabled) return false;
 
-        // tylko tryb billing
         if (cfg.mode !== 'billing') {
           alert('Synchronizacja działa w trybie "Księgowanie opłat". Przełącz tryb i spróbuj ponownie.');
-          return;
+          return false;
         }
 
         var accountId = getSelectedAccountId();
         if (!accountId) {
           alert('Synchronizacja działa dla jednego konta naraz. Wybierz jedno konto i kliknij "Wybierz".');
-          return;
+          return false;
         }
 
-        showModal();
+        setRunningUi();
         syncBtn.disabled = true;
 
-        var cancelBtn = document.getElementById('alproSyncCancel');
+        // odczytaj tryb
+        var syncMode = 'inc';
+        var modeEl = document.querySelector('input[name="alpro_sync_mode"]:checked');
+        if (modeEl && modeEl.value) syncMode = String(modeEl.value);
+        if (syncMode !== 'inc' && syncMode !== 'full') syncMode = 'inc';
+
+        // przycisk anuluj
+        var cancelBtn = el('alproSyncCancel');
         if (cancelBtn) {
-          cancelBtn.style.display='inline-block';
+          cancelBtn.disabled = false;
           cancelBtn.onclick = function(){
             cancelled = true;
             cancelBtn.disabled = true;
+            setNow('Anulowanie…');
           };
-          cancelBtn.disabled = false;
         }
 
-        var bTxt = document.getElementById('alproSyncBillingText');
-        var eTxt = document.getElementById('alproSyncEnrichText');
-        var eBar = document.getElementById('alproSyncEnrichBar');
+        var bTxt = el('alproSyncBillingText');
+        var eTxt = el('alproSyncEnrichText');
+        var eBar = el('alproSyncEnrichBar');
 
         var fetched = 0, inserted = 0, updated = 0;
+        var effectiveDateFrom = '';
+        overallPseudo = 0;
+
+        setOverall(5, true);
+        setNow('Start synchronizacji…');
+
+        function bumpStage1Progress() {
+          overallPseudo = Math.min(45, overallPseudo + 1);
+          setOverall(5 + overallPseudo, true);
+        }
 
         function stepBilling(offset) {
           if (cancelled) return finishCancelled();
 
-          if (bTxt) bTxt.textContent = 'Pobieranie opłat… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+          bumpStage1Progress();
+
+          var nowLine = 'Pobieranie opłat (billing-entries)… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+          if (syncMode === 'full') nowLine += ' (pełna)';
+          setNow(nowLine);
+          if (bTxt) bTxt.textContent = nowLine;
 
           ajax('BillingSyncStep', {
             account_id: accountId,
             date_from: cfg.dateFrom,
             date_to: cfg.dateTo,
+            sync_mode: syncMode,
+            effective_date_from: effectiveDateFrom,
             offset: offset,
             limit: 100
           }).then(function(res){
             if (!res || !res.ok) {
               appendLog('Błąd billing sync: ' + (res && res.code ? ('HTTP ' + res.code) : ''));
+              setNow('Błąd pobierania opłat.');
               if (bTxt) bTxt.textContent = 'Błąd pobierania opłat.';
-              syncBtn.disabled = false;
-              hideModalFinish();
+              setOverall(100, false);
+              setFinishedUi();
               return;
             }
 
@@ -863,31 +1062,38 @@
             inserted += Number(res.inserted || 0);
             updated += Number(res.updated || 0);
 
+            if (res.effective_date_from) effectiveDateFrom = String(res.effective_date_from);
+
             if (res.debug_tail && res.debug_tail.length) {
               for (var i=0;i<res.debug_tail.length;i++) appendLog(res.debug_tail[i]);
             }
 
-            if (bTxt) bTxt.textContent = 'Pobieranie opłat… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+            var t = 'Pobieranie opłat (billing-entries)… pobrano: ' + fetched + ', nowe: ' + inserted + ', aktualizacje: ' + updated;
+            if (syncMode === 'inc' && effectiveDateFrom) t += ' (od: ' + effectiveDateFrom + ')';
+            if (syncMode === 'full') t += ' (pełna)';
+            setNow(t);
+            if (bTxt) bTxt.textContent = t;
 
             if (Number(res.done || 0) === 1) {
-              // przejdź do etapu 1: enrichment
+              setOverall(50, false);
               startEnrich();
               return;
             }
 
-            // throttle
-            setTimeout(function(){ stepBilling(Number(res.next_offset || (offset+100))); }, 300);
+            setTimeout(function(){ stepBilling(Number(res.next_offset || (offset+100))); }, 280);
           }).catch(function(err){
             var msg = (err && err.message) ? err.message : String(err);
             appendLog('Błąd billing sync: ' + msg);
+            setNow('Błąd pobierania opłat.');
             if (bTxt) bTxt.textContent = 'Błąd pobierania opłat.';
-            syncBtn.disabled = false;
-            hideModalFinish();
+            setFinishedUi();
           });
         }
 
         function startEnrich() {
           if (cancelled) return finishCancelled();
+
+          setNow('Sprawdzam braki w zamówieniach…');
           if (eTxt) eTxt.textContent = 'Sprawdzam braki…';
 
           ajax('EnrichMissingCount', {
@@ -897,14 +1103,15 @@
           }).then(function(res){
             if (!res || !res.ok) {
               appendLog('Błąd: nie udało się policzyć braków.');
+              setNow('Błąd liczenia braków.');
               if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
-              syncBtn.disabled = false;
-              hideModalFinish();
+              setFinishedUi();
               return;
             }
 
             var missing = Number(res.missing || 0);
             if (!missing) {
+              setNow('Brak brakujących danych — OK.');
               if (eTxt) eTxt.textContent = 'Brak brakujących danych — OK.';
               finishOk();
               return;
@@ -916,7 +1123,9 @@
             function stepEnrich(offset) {
               if (cancelled) return finishCancelled();
 
-              if (eTxt) eTxt.textContent = 'Uzupełniam dane… ' + processed + '/' + missing;
+              var nowE = 'Uzupełnianie danych zamówień… ' + processed + '/' + missing;
+              setNow(nowE);
+              if (eTxt) eTxt.textContent = nowE;
 
               ajax('EnrichMissingStep', {
                 account_id: accountId,
@@ -927,9 +1136,9 @@
               }).then(function(r){
                 if (!r || !r.ok) {
                   appendLog('Błąd uzupełniania danych.');
+                  setNow('Błąd uzupełniania danych.');
                   if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
-                  syncBtn.disabled = false;
-                  hideModalFinish();
+                  setFinishedUi();
                   return;
                 }
 
@@ -944,20 +1153,27 @@
 
                 var pct = missing ? Math.min(100, Math.round((processed / missing) * 100)) : 100;
                 if (eBar) eBar.style.width = pct + '%';
-                if (eTxt) eTxt.textContent = 'Uzupełniam dane… ' + processed + '/' + missing + ' (uzupełnione: ' + filled + ')';
+
+                // overall: 50..100
+                var overall = 50 + (pct * 0.5);
+                setOverall(overall, false);
+
+                var t2 = 'Uzupełnianie danych zamówień… ' + processed + '/' + missing + ' (uzupełnione: ' + filled + ')';
+                setNow(t2);
+                if (eTxt) eTxt.textContent = t2;
 
                 if (Number(r.done || 0) === 1) {
                   finishOk();
                   return;
                 }
 
-                setTimeout(function(){ stepEnrich(Number(r.next_offset || (offset+10))); }, 700);
-          }).catch(function(err){
-            var msg = (err && err.message) ? err.message : String(err);
-            appendLog('Błąd uzupełniania: ' + msg);
+                setTimeout(function(){ stepEnrich(Number(r.next_offset || (offset+10))); }, 650);
+              }).catch(function(err){
+                var msg = (err && err.message) ? err.message : String(err);
+                appendLog('Błąd uzupełniania: ' + msg);
+                setNow('Błąd uzupełniania danych.');
                 if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
-                syncBtn.disabled = false;
-                hideModalFinish();
+                setFinishedUi();
               });
             }
 
@@ -965,37 +1181,95 @@
           }).catch(function(err){
             var msg = (err && err.message) ? err.message : String(err);
             appendLog('Błąd liczenia braków: ' + msg);
+            setNow('Błąd liczenia braków.');
             if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
-            syncBtn.disabled = false;
-            hideModalFinish();
+            setFinishedUi();
           });
         }
 
         function finishOk() {
-          var bTxt = document.getElementById('alproSyncBillingText');
-          var eTxt = document.getElementById('alproSyncEnrichText');
-          if (bTxt) bTxt.textContent = 'Etap 1 zakończony: pobrano ' + fetched + ' wpisów (nowe: ' + inserted + ', aktualizacje: ' + updated + ').';
-          if (eTxt && eTxt.textContent.indexOf('Błąd') === -1) eTxt.textContent = 'Etap 2 zakończony — gotowe.';
-          hideModalFinish();
+          setOverall(100, false);
 
-          // odśwież widok, żeby zobaczyć kwoty/login
+          var bTxt2 = el('alproSyncBillingText');
+          var eTxt2 = el('alproSyncEnrichText');
+          if (bTxt2) bTxt2.textContent = 'Etap 1 zakończony: pobrano ' + fetched + ' wpisów (nowe: ' + inserted + ', aktualizacje: ' + updated + ').';
+          if (eTxt2 && eTxt2.textContent.indexOf('Błąd') === -1) eTxt2.textContent = 'Etap 2 zakończony — gotowe.';
+          setNow('Zakończono — odświeżam widok…');
+
+          setFinishedUi();
+
           setTimeout(function(){ window.location.reload(); }, 900);
         }
 
         function finishCancelled() {
           appendLog('Anulowano przez użytkownika.');
-          hideModalFinish();
-          syncBtn.disabled = false;
+          setNow('Anulowano.');
+          setFinishedUi();
         }
 
         stepBilling(0);
+        return true;
       }
 
+      // toggle log
+      var toggleBtn = el('alproSyncToggleLog');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(){
+          var wrap = el('alproSyncLogWrap');
+          var open = toggleBtn.getAttribute('data-open') === '1';
+          if (!wrap) return;
+
+          if (open) {
+            wrap.style.display = 'none';
+            toggleBtn.textContent = 'Pokaż szczegóły techniczne';
+            toggleBtn.setAttribute('data-open', '0');
+          } else {
+            wrap.style.display = 'block';
+            toggleBtn.textContent = 'Ukryj szczegóły techniczne';
+            toggleBtn.setAttribute('data-open', '1');
+          }
+        });
+      }
+
+      // Start button inside modal
+      var startBtn = el('alproSyncStart');
+      if (startBtn) {
+        startBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          if (startBtn.disabled) return;
+          startBtn.disabled = true;
+          var startedOk = startWorkflow();
+          if (startedOk === false) startBtn.disabled = false;
+        });
+      }
+
+      // Open modal (setup) from main button
       syncBtn.addEventListener('click', function (e) {
-        // jeśli jest w formie submit, zatrzymaj default
         e.preventDefault();
-        startWorkflow();
+
+        if (cfg.mode !== 'billing') {
+          alert('Synchronizacja działa w trybie "Księgowanie opłat". Przełącz tryb i spróbuj ponownie.');
+          return false;
+        }
+
+        showModal();
+        resetUi();
+
+        // po otwarciu ponownie pozwól kliknąć start
+        var sb = el('alproSyncStart');
+        if (sb) sb.disabled = false;
       });
+
+      // jeśli ktoś zamknie modal w trakcie (np. brak jQuery), wyczyść stan
+      var dismissBtn = el('alproSyncDismiss');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', function(){
+          if (!workflowStarted) {
+            resetUi();
+          }
+        });
+      }
+
     })();
 
   });

@@ -731,15 +731,61 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             ]);
 
             $debugLines[] = sprintf('[DOCS] GET %s => HTTP %d ok=%d', $ep, (int)($res['code'] ?? 0), !empty($res['ok']) ? 1 : 0);
+            if (!empty($res['raw'])) {
+                $preview = preg_replace('/\s+/', ' ', trim((string)$res['raw']));
+                if (strlen($preview) > 380) {
+                    $preview = substr($preview, 0, 380) . '...';
+                }
+                $debugLines[] = '[DOCS] preview ' . $ep . '=' . $preview;
+            }
 
             if (empty($res['ok']) || !is_array($res['json'])) {
                 continue;
             }
 
-            $parsed = $this->extractOrderDocumentsFromPayload($res['json']);
+            $parsed = $this->extractOrderDocumentsFromPayload($res['json'], $ep);
+            $debugLines[] = '[DOCS] parsed from ' . $ep . ' => ' . count($parsed);
+
+            $invoiceMetaById = [];
+            if (strpos($ep, '/invoices') !== false && isset($res['json']['invoices']) && is_array($res['json']['invoices'])) {
+                foreach ($res['json']['invoices'] as $invoiceItem) {
+                    if (!is_array($invoiceItem)) {
+                        continue;
+                    }
+
+                    $invoiceId = trim((string)($invoiceItem['id'] ?? ''));
+                    if ($invoiceId === '') {
+                        continue;
+                    }
+
+                    $invoiceMetaById[$invoiceId] = [
+                        'invoiceNumber' => trim((string)($invoiceItem['invoiceNumber'] ?? '')),
+                        'status' => trim((string)($invoiceItem['status'] ?? ($invoiceItem['file']['securityVerification']['status'] ?? ''))),
+                    ];
+                }
+            }
+
             if (!empty($parsed)) {
                 foreach ($parsed as $row) {
                     $row['endpoint'] = $ep;
+
+                    if (strpos($ep, '/invoices') !== false) {
+                        $row['type'] = trim((string)($row['type'] ?? ''));
+                        if ($row['type'] === '' || strcasecmp($row['type'], 'DOKUMENT') === 0) {
+                            $row['type'] = 'FAKTURA';
+                        }
+
+                        $rowId = trim((string)($row['id'] ?? ''));
+                        if ($rowId !== '' && isset($invoiceMetaById[$rowId])) {
+                            if (trim((string)($row['number'] ?? '')) === '' && $invoiceMetaById[$rowId]['invoiceNumber'] !== '') {
+                                $row['number'] = $invoiceMetaById[$rowId]['invoiceNumber'];
+                            }
+                            if (trim((string)($row['status'] ?? '')) === '' && $invoiceMetaById[$rowId]['status'] !== '') {
+                                $row['status'] = $invoiceMetaById[$rowId]['status'];
+                            }
+                        }
+                    }
+
                     $documents[] = $row;
                 }
             }
@@ -953,7 +999,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 (array)Tools::getValue('filter_delivery_methods', [])
             ))),
         ];
-
         // mapowanie status -> label
         $statusMap = [
             'BOUGHT' => 'Kupione',
@@ -1010,7 +1055,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
     }
 
-    private function extractOrderDocumentsFromPayload(array $json): array
+    private function extractOrderDocumentsFromPayload(array $json, string $sourceEndpoint = ''): array
     {
         $containers = [];
 
@@ -1031,6 +1076,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $containers[] = $json;
         }
 
+        $isInvoicesEndpoint = (strpos($sourceEndpoint, '/invoices') !== false);
         $out = [];
         foreach ($containers as $list) {
             foreach ((array)$list as $item) {
@@ -1039,9 +1085,15 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                 }
 
                 $id = (string)($item['id'] ?? $item['documentId'] ?? $item['uuid'] ?? '');
-                $type = (string)($item['type'] ?? $item['kind'] ?? $item['documentType'] ?? 'DOKUMENT');
-                $number = (string)($item['number'] ?? $item['name'] ?? $item['documentNumber'] ?? '');
-                $status = (string)($item['status'] ?? '');
+
+                $isInvoiceLike = $isInvoicesEndpoint
+                    || isset($item['invoiceNumber'])
+                    || isset($item['invoiceType'])
+                    || isset($item['file']['securityVerification']);
+
+                $type = (string)($item['type'] ?? $item['kind'] ?? $item['documentType'] ?? ($isInvoiceLike ? 'FAKTURA' : 'DOKUMENT'));
+                $number = (string)($item['invoiceNumber'] ?? $item['number'] ?? $item['name'] ?? $item['documentNumber'] ?? '');
+                $status = (string)($item['status'] ?? ($item['file']['securityVerification']['status'] ?? ''));
                 $issuedAt = (string)($item['issuedAt'] ?? $item['createdAt'] ?? $item['created_at'] ?? '');
                 $downloadUrl = (string)($item['downloadUrl'] ?? $item['url'] ?? (($item['file']['url'] ?? '')));
 
@@ -1123,6 +1175,7 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 
         $api = new AllegroApiClient(new HttpClient(), new AccountRepository());
         $debugLines = [];
+        $attempts = [];
         $binary = '';
         $ok = false;
         $httpCode = 0;
@@ -1139,22 +1192,203 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             return $raw;
         };
 
-        $debugLines[] = '[DOC-DL] start checkout_form_id=' . $cfId . ', document_id=' . ($docId !== '' ? $docId : '-')
-            . ', document_type=' . ($docType !== '' ? $docType : '-') . ', document_number=' . ($docNumber !== '' ? $docNumber : '-');
+        $extractApiError = static function (string $raw): array {
+            $parsed = json_decode($raw, true);
+            if (!is_array($parsed) || empty($parsed['errors']) || !is_array($parsed['errors'])) {
+                return [];
+            }
 
+            $first = $parsed['errors'][0] ?? null;
+            if (!is_array($first)) {
+                return [];
+            }
+
+            return [
+                'code' => (string)($first['code'] ?? ''),
+                'message' => (string)($first['message'] ?? ''),
+                'userMessage' => (string)($first['userMessage'] ?? ''),
+            ];
+        };
+
+        $extractUrlFromPayload = static function (?array $json): string {
+            if (!is_array($json)) {
+                return '';
+            }
+
+            $candidates = [
+                $json['downloadUrl'] ?? null,
+                $json['url'] ?? null,
+                $json['file']['url'] ?? null,
+                $json['invoiceFile']['url'] ?? null,
+                $json['documentFile']['url'] ?? null,
+                $json['links']['download'] ?? null,
+                $json['links']['self'] ?? null,
+            ];
+
+            foreach ($candidates as $candidate) {
+                if (is_string($candidate) && preg_match('#^https?://#i', $candidate)) {
+                    return trim($candidate);
+                }
+            }
+
+            $lists = [];
+            foreach (['invoices', 'documents', 'salesDocuments', 'items'] as $k) {
+                if (isset($json[$k]) && is_array($json[$k])) {
+                    $lists[] = $json[$k];
+                }
+            }
+
+            foreach ($lists as $list) {
+                foreach ((array)$list as $item) {
+                    if (!is_array($item)) {
+                        continue;
+                    }
+                    foreach (['downloadUrl', 'url'] as $k) {
+                        if (isset($item[$k]) && is_string($item[$k]) && preg_match('#^https?://#i', $item[$k])) {
+                            return trim((string)$item[$k]);
+                        }
+                    }
+                    foreach (['file', 'invoiceFile', 'documentFile'] as $fk) {
+                        if (isset($item[$fk]['url']) && is_string($item[$fk]['url']) && preg_match('#^https?://#i', $item[$fk]['url'])) {
+                            return trim((string)$item[$fk]['url']);
+                        }
+                    }
+                }
+            }
+
+            return '';
+        };
+
+        $extractSellerFromCheckout = static function (?array $json): array {
+            if (!is_array($json)) {
+                return ['id' => '', 'login' => '', 'candidates' => []];
+            }
+
+            $candidates = [];
+            $isSellerPath = static function (string $path): bool {
+                if ($path === '') {
+                    return false;
+                }
+
+                // Tylko ścieżki jednoznacznie związane ze sprzedawcą/wystawcą.
+                if (preg_match('/(^|\.|\[)(seller|issuer|owner|merchant|invoiceIssuer)(\.|\]|$)/i', $path) !== 1) {
+                    return false;
+                }
+
+                // Odrzuć sekcje kupującego, nawet jeśli zawierają podobne pola.
+                if (preg_match('/(^|\.|\[)(buyer|billingAddress|delivery|recipient)(\.|\]|$)/i', $path) === 1) {
+                    return false;
+                }
+
+                return true;
+            };
+
+            $pushCandidate = static function (array &$candidates, $id, $login, string $path): void {
+                $id = is_scalar($id) ? trim((string)$id) : '';
+                $login = is_scalar($login) ? trim((string)$login) : '';
+                if ($id === '' && $login === '') {
+                    return;
+                }
+
+                $key = strtolower($id . '|' . $login . '|' . $path);
+                foreach ($candidates as $c) {
+                    if (strtolower(($c['id'] ?? '') . '|' . ($c['login'] ?? '') . '|' . ($c['path'] ?? '')) === $key) {
+                        return;
+                    }
+                }
+
+                $candidates[] = ['id' => $id, 'login' => $login, 'path' => $path];
+            };
+
+            $walk = static function ($node, string $path, callable $walk, callable $pushCandidate, callable $isSellerPath): void {
+                if (!is_array($node)) {
+                    return;
+                }
+
+                if ($isSellerPath($path)) {
+                    $pushCandidate($GLOBALS['__ap_seller_candidates'], $node['id'] ?? ($node['userId'] ?? null), $node['login'] ?? null, $path);
+                }
+
+                foreach ($node as $k => $v) {
+                    $nextPath = $path === '' ? (string)$k : ($path . '.' . (string)$k);
+                    if (is_array($v)) {
+                        $walk($v, $nextPath, $walk, $pushCandidate, $isSellerPath);
+                    }
+                }
+            };
+
+            $GLOBALS['__ap_seller_candidates'] = [];
+            $walk($json, '', $walk, $pushCandidate, $isSellerPath);
+            $candidates = $GLOBALS['__ap_seller_candidates'];
+            unset($GLOBALS['__ap_seller_candidates']);
+
+            $sellerId = '';
+            $sellerLogin = '';
+            foreach ($candidates as $c) {
+                if ($sellerId === '' && !empty($c['id'])) {
+                    $sellerId = (string)$c['id'];
+                }
+                if ($sellerLogin === '' && !empty($c['login'])) {
+                    $sellerLogin = (string)$c['login'];
+                }
+                if ($sellerId !== '' && $sellerLogin !== '') {
+                    break;
+                }
+            }
+
+            return ['id' => $sellerId, 'login' => $sellerLogin, 'candidates' => $candidates];
+        };
+
+
+        $extractBuyerFromCheckout = static function (?array $payload): array {
+            if (!is_array($payload)) {
+                return ['id' => '', 'login' => ''];
+            }
+
+            $buyer = isset($payload['buyer']) && is_array($payload['buyer']) ? $payload['buyer'] : [];
+
+            return [
+                'id' => trim((string)($buyer['id'] ?? '')),
+                'login' => trim((string)($buyer['login'] ?? '')),
+            ];
+        };
+
+        $recordAttempt = static function (array &$attempts, string $type, string $target, int $code, bool $okResp, int $bytes, string $errorCode = '', string $errorUserMessage = ''): void {
+            $attempts[] = [
+                'type' => $type,
+                'target' => $target,
+                'http_code' => $code,
+                'ok' => $okResp,
+                'bytes' => $bytes,
+                'error_code' => $errorCode,
+                'error_user_message' => $errorUserMessage,
+            ];
+        };
+
+        $debugLines[] = '[DOC-DL] start checkout_form_id=' . $cfId . ', document_id=' . ($docId !== '' ? $docId : '-')
+            . ', document_type=' . ($docType !== '' ? $docType : '-') . ', document_number=' . ($docNumber !== '' ? $docNumber : '-')
+            . ', account_id=' . (int)$account['id_allegropro_account'] . ', sandbox=' . (int)($account['sandbox'] ?? 0);
+
+        // 1) direct_url z listy dokumentów
         if ($directUrl !== '' && preg_match('#^https?://#i', $directUrl)) {
             $resp = $api->fetchPublicUrl($directUrl, ['Accept' => 'application/pdf,application/json,*/*']);
             $body = (string)($resp['body'] ?? '');
-            $debugLines[] = sprintf('[DOC-DL] direct url GET %s => HTTP %d ok=%d bytes=%d', $directUrl, (int)($resp['code'] ?? 0), !empty($resp['ok']) ? 1 : 0, strlen($body));
+            $httpCode = (int)($resp['code'] ?? 0);
+            $apiErr = $extractApiError($body);
+            $recordAttempt($attempts, 'direct_url', $directUrl, $httpCode, !empty($resp['ok']), strlen($body), (string)($apiErr['code'] ?? ''), (string)($apiErr['userMessage'] ?? ''));
+
+            $debugLines[] = sprintf('[DOC-DL] direct url GET %s => HTTP %d ok=%d bytes=%d', $directUrl, $httpCode, !empty($resp['ok']) ? 1 : 0, strlen($body));
 
             if ((string)($resp['error'] ?? '') !== '') {
                 $debugLines[] = '[DOC-DL] direct url curl_error=' . (string)$resp['error'];
+            }
+            if (!empty($apiErr)) {
+                $debugLines[] = '[DOC-DL] direct url api_error=' . ($apiErr['code'] ?? '-') . ' userMessage=' . ($apiErr['userMessage'] ?? '-');
             }
 
             if (!empty($resp['ok']) && $body !== '') {
                 $ok = true;
                 $binary = $body;
-                $httpCode = (int)$resp['code'];
                 $debugLines[] = '[DOC-DL] direct url accepted as binary payload.';
             } elseif ($body !== '') {
                 $debugLines[] = '[DOC-DL] direct url body-preview=' . $shortRaw($body);
@@ -1165,6 +1399,108 @@ class AdminAllegroProOrdersController extends ModuleAdminController
             $debugLines[] = '[DOC-DL] direct url not available in payload.';
         }
 
+        $invoiceLookup = [
+            'found_in_invoices_list' => false,
+            'invoice_id' => '',
+            'invoice_number' => '',
+            'file_name' => '',
+        ];
+
+        // 2) jeśli brak direct_url, spróbuj znaleźć URL pobierania przez endpointy JSON
+        if (!$ok && $docId !== '') {
+            $encodedCfId = rawurlencode($cfId);
+            $encodedDocId = rawurlencode($docId);
+
+            $jsonEndpoints = [
+                '/order/checkout-forms/' . $encodedCfId . '/invoices/' . $encodedDocId,
+                '/order/checkout-forms/' . $encodedCfId . '/documents/' . $encodedDocId,
+                '/order/checkout-forms/' . $encodedCfId . '/invoices',
+                '/order/checkout-forms/' . $encodedCfId . '/documents',
+            ];
+
+            foreach ($jsonEndpoints as $ep) {
+                $res = $api->getWithAcceptFallbacks($account, $ep, [], [
+                    'application/vnd.allegro.public.v1+json',
+                    'application/json',
+                ]);
+
+                $httpCode = (int)($res['code'] ?? 0);
+                $rawBody = (string)($res['raw'] ?? '');
+                $apiErr = $extractApiError($rawBody);
+                $recordAttempt($attempts, 'json_lookup', $ep, $httpCode, !empty($res['ok']), strlen($rawBody), (string)($apiErr['code'] ?? ''), (string)($apiErr['userMessage'] ?? ''));
+
+                $debugLines[] = sprintf('[DOC-DL] URL lookup %s => HTTP %d ok=%d', $ep, $httpCode, !empty($res['ok']) ? 1 : 0);
+
+                if (!empty($res['raw'])) {
+                    $debugLines[] = '[DOC-DL] URL lookup response-preview=' . $shortRaw((string)$res['raw']);
+                }
+                if (!empty($apiErr)) {
+                    $debugLines[] = '[DOC-DL] URL lookup api_error=' . ($apiErr['code'] ?? '-') . ' userMessage=' . ($apiErr['userMessage'] ?? '-');
+                }
+
+                if ($ep === ('/order/checkout-forms/' . $encodedCfId . '/invoices') && is_array($res['json']) && isset($res['json']['invoices']) && is_array($res['json']['invoices'])) {
+                    foreach ($res['json']['invoices'] as $invoiceItem) {
+                        if (!is_array($invoiceItem)) {
+                            continue;
+                        }
+
+                        $invoiceId = trim((string)($invoiceItem['id'] ?? ''));
+                        $invoiceNumber = trim((string)($invoiceItem['invoiceNumber'] ?? ''));
+                        $isMatch = false;
+
+                        if ($docId !== '' && $invoiceId !== '' && strcasecmp($invoiceId, $docId) === 0) {
+                            $isMatch = true;
+                        }
+                        if (!$isMatch && $docNumber !== '' && $invoiceNumber !== '' && strcasecmp($invoiceNumber, $docNumber) === 0) {
+                            $isMatch = true;
+                        }
+
+                        if (!$isMatch) {
+                            continue;
+                        }
+
+                        $invoiceLookup['found_in_invoices_list'] = true;
+                        $invoiceLookup['invoice_id'] = $invoiceId;
+                        $invoiceLookup['invoice_number'] = $invoiceNumber;
+                        $invoiceLookup['file_name'] = trim((string)($invoiceItem['file']['name'] ?? ''));
+                        $debugLines[] = '[DOC-DL] invoice list matched requested document: id=' . ($invoiceId !== '' ? $invoiceId : '-') . ', invoiceNumber=' . ($invoiceNumber !== '' ? $invoiceNumber : '-') . ', fileName=' . ($invoiceLookup['file_name'] !== '' ? $invoiceLookup['file_name'] : '-');
+                        break;
+                    }
+                }
+
+                $resolved = $extractUrlFromPayload($res['json'] ?? null);
+                if ($resolved === '') {
+                    continue;
+                }
+
+                $debugLines[] = '[DOC-DL] resolved direct_url from lookup=' . $resolved;
+                $resp = $api->fetchPublicUrl($resolved, ['Accept' => 'application/pdf,application/json,*/*']);
+                $body = (string)($resp['body'] ?? '');
+                $resolvedCode = (int)($resp['code'] ?? 0);
+                $resolvedErr = $extractApiError($body);
+                $recordAttempt($attempts, 'resolved_url', $resolved, $resolvedCode, !empty($resp['ok']), strlen($body), (string)($resolvedErr['code'] ?? ''), (string)($resolvedErr['userMessage'] ?? ''));
+
+                $debugLines[] = sprintf('[DOC-DL] resolved url GET => HTTP %d ok=%d bytes=%d', $resolvedCode, !empty($resp['ok']) ? 1 : 0, strlen($body));
+
+                if (!empty($resolvedErr)) {
+                    $debugLines[] = '[DOC-DL] resolved url api_error=' . ($resolvedErr['code'] ?? '-') . ' userMessage=' . ($resolvedErr['userMessage'] ?? '-');
+                }
+
+                if (!empty($resp['ok']) && $body !== '') {
+                    $ok = true;
+                    $binary = $body;
+                    $httpCode = $resolvedCode;
+                    $directUrl = $resolved;
+                    break;
+                }
+
+                if ($body !== '') {
+                    $debugLines[] = '[DOC-DL] resolved url body-preview=' . $shortRaw($body);
+                }
+            }
+        }
+
+        // 3) bezpośrednie endpointy /file
         if (!$ok && $docId !== '') {
             $encodedCfId = rawurlencode($cfId);
             $encodedDocId = rawurlencode($docId);
@@ -1179,8 +1515,14 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                     $resp = $api->get($account, $ep, [], $accept);
                     $raw = (string)($resp['raw'] ?? '');
                     $httpCode = (int)($resp['code'] ?? 0);
+                    $apiErr = $extractApiError($raw);
+                    $recordAttempt($attempts, 'file_endpoint', $ep . ' [Accept: ' . $accept . ']', $httpCode, !empty($resp['ok']), strlen($raw), (string)($apiErr['code'] ?? ''), (string)($apiErr['userMessage'] ?? ''));
 
                     $debugLines[] = sprintf('[DOC-DL] GET %s (Accept: %s) => HTTP %d ok=%d bytes=%d', $ep, $accept, $httpCode, !empty($resp['ok']) ? 1 : 0, strlen($raw));
+
+                    if (!empty($apiErr)) {
+                        $debugLines[] = '[DOC-DL] endpoint api_error=' . ($apiErr['code'] ?? '-') . ' userMessage=' . ($apiErr['userMessage'] ?? '-');
+                    }
 
                     if (!empty($resp['ok']) && $raw !== '') {
                         $binary = $raw;
@@ -1194,6 +1536,9 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                     }
 
                     if ($httpCode === 401 || $httpCode === 403 || $httpCode === 404) {
+                        if ($httpCode === 403) {
+                            $debugLines[] = '[DOC-DL] hint: HTTP 403 AccessDenied - token nie ma dostępu do pliku dokumentu (zweryfikuj owner zasobu i uprawnienia po stronie Allegro).';
+                        }
                         break;
                     }
                 }
@@ -1203,6 +1548,101 @@ class AdminAllegroProOrdersController extends ModuleAdminController
         }
 
         if (!$ok) {
+            $diagnosis = [];
+            $allErrorCodes = [];
+            foreach ($attempts as $a) {
+                $code = (string)($a['error_code'] ?? '');
+                if ($code !== '') {
+                    $allErrorCodes[$code] = true;
+                }
+            }
+
+            $context = [
+                'account' => [
+                    'id_allegropro_account' => (int)$account['id_allegropro_account'],
+                    'sandbox' => (int)($account['sandbox'] ?? 0),
+                    'login' => (string)($account['login'] ?? ''),
+                ],
+                'me' => ['id' => '', 'login' => ''],
+                'checkout_seller' => ['id' => '', 'login' => '', 'candidates' => []],
+                'checkout_buyer' => ['id' => '', 'login' => ''],
+            ];
+            $meResp = $api->getWithAcceptFallbacks($account, '/me', [], ['application/vnd.allegro.public.v1+json', 'application/json']);
+            $meCode = (int)($meResp['code'] ?? 0);
+            $meRaw = (string)($meResp['raw'] ?? '');
+            $meErr = $extractApiError($meRaw);
+            $recordAttempt($attempts, 'context_lookup', '/me', $meCode, !empty($meResp['ok']), strlen($meRaw), (string)($meErr['code'] ?? ''), (string)($meErr['userMessage'] ?? ''));
+            if (!empty($meRaw)) {
+                $debugLines[] = '[DOC-DL] context /me preview=' . $shortRaw($meRaw);
+            }
+            if (is_array($meResp['json'])) {
+                $context['me']['id'] = trim((string)($meResp['json']['id'] ?? ''));
+                $context['me']['login'] = trim((string)($meResp['json']['login'] ?? ''));
+            }
+
+            $cfResp = $api->getWithAcceptFallbacks($account, '/order/checkout-forms/' . rawurlencode($cfId), [], ['application/vnd.allegro.public.v1+json', 'application/json']);
+            $cfCode = (int)($cfResp['code'] ?? 0);
+            $cfRaw = (string)($cfResp['raw'] ?? '');
+            $cfErr = $extractApiError($cfRaw);
+            $recordAttempt($attempts, 'context_lookup', '/order/checkout-forms/' . rawurlencode($cfId), $cfCode, !empty($cfResp['ok']), strlen($cfRaw), (string)($cfErr['code'] ?? ''), (string)($cfErr['userMessage'] ?? ''));
+            if (!empty($cfRaw)) {
+                $debugLines[] = '[DOC-DL] context checkout-form preview=' . $shortRaw($cfRaw);
+            }
+            if (is_array($cfResp['json'])) {
+                $context['checkout_seller'] = $extractSellerFromCheckout($cfResp['json']);
+                $context['checkout_buyer'] = $extractBuyerFromCheckout($cfResp['json']);
+            }
+
+            $sellerUnknown = ($context['checkout_seller']['id'] === '' && $context['checkout_seller']['login'] === '');
+
+            if (isset($allErrorCodes['AccessDenied'])) {
+                $diagnosis[] = 'Allegro zwraca AccessDenied: token nie ma prawa pobrać tego pliku.';
+                if ($sellerUnknown && !empty($invoiceLookup['found_in_invoices_list'])) {
+                    $diagnosis[] = 'Dokument jest widoczny na liście invoices, ale /file zwraca AccessDenied i checkout-form nie ujawnia seller. To częsty przypadek ograniczenia dostępu do zasobu po stronie Allegro (niekoniecznie błąd mapowania konta).';
+                } else {
+                    $diagnosis[] = 'Sprawdź czy id_allegropro_account odpowiada kontu, które wystawiło fakturę.';
+                }
+            }
+            if (isset($allErrorCodes['NotFoundException'])) {
+                $diagnosis[] = 'Allegro zwraca NotFoundException dla części endpointów: nie wszystkie ścieżki są dostępne dla tego typu dokumentu/konta.';
+            }
+            if ($directUrl === '') {
+                $diagnosis[] = 'Brak direct_url w odpowiedzi listy dokumentów/invoices. API nie podało bezpośredniego linku do pliku.';
+            }
+            if ($context['me']['login'] !== '' && $context['checkout_seller']['login'] !== '' && $context['me']['login'] !== $context['checkout_seller']['login']) {
+                $diagnosis[] = 'Niezgodność kont: token należy do loginu ' . $context['me']['login'] . ', a checkout-form wskazuje sprzedawcę ' . $context['checkout_seller']['login'] . '.';
+            }
+
+            if ($sellerUnknown) {
+                $diagnosis[] = 'Nie udało się odczytać sprzedawcy z checkout-form (seller unknown). Sprawdź checkout_seller.candidates i surowy preview checkout-form.';
+                if ($context['checkout_buyer']['id'] !== '' || $context['checkout_buyer']['login'] !== '') {
+                    $diagnosis[] = 'Checkout-form ujawnia dane buyer (kupującego), ale nie ujawnia danych seller. To normalne dla części zamówień i nie oznacza automatycznie błędu mapowania.';
+                }
+            }
+
+            if (empty($diagnosis)) {
+                $diagnosis[] = 'Brak jednoznacznej przyczyny – sprawdź listę attempts/debug_lines.';
+            }
+
+            $nextSteps = [];
+            if ($sellerUnknown) {
+                $nextSteps[] = 'Checkout-form nie zwraca seller, więc nie porównasz loginów 1:1. Zweryfikuj właściciela faktury po numerze dokumentu bezpośrednio w panelu Allegro.';
+                if (!empty($invoiceLookup['found_in_invoices_list'])) {
+                    $nextSteps[] = 'Ponieważ invoice jest widoczny na /invoices, a /file zwraca AccessDenied, potraktuj to jako twardy dowód do zgłoszenia w Allegro Support (problem dostępu do pliku zasobu).';
+                }
+            } else {
+                $nextSteps[] = 'Sprawdź w sekcji account/me/checkout_seller czy to dokładnie to samo konto sprzedawcy.';
+                $nextSteps[] = 'Jeśli me.login różni się od checkout_seller.login, przepnij zamówienie na właściwe id_allegropro_account.';
+            }
+            if (empty($invoiceLookup['found_in_invoices_list'])) {
+                $nextSteps[] = 'Jeśli jest AccessDenied mimo zgodnego konta, skontaktuj się z Allegro Support i przekaż attempts + checkout_form_id + document_id.';
+            }
+            $nextSteps[] = 'Jeśli pojawi się direct_url, przetestuj ręcznie pobranie przez przeglądarkę (powinno zwrócić PDF).';
+
+            if (!empty($invoiceLookup['found_in_invoices_list'])) {
+                $nextSteps[] = 'Do zgłoszenia do Allegro Support przekaż: attempts + checkout_form_id + document_id + invoice_id + invoice_number + odpowiedź AccessDenied z /file.';
+            }
+
             if ($debug) {
                 header('Content-Type: application/json');
                 echo json_encode([
@@ -1216,6 +1656,14 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                         'document_number' => $docNumber,
                         'direct_url' => $directUrl,
                     ],
+                    'account' => $context['account'],
+                    'me' => $context['me'],
+                    'checkout_seller' => $context['checkout_seller'],
+                    'checkout_buyer' => $context['checkout_buyer'],
+                    'invoice_lookup' => $invoiceLookup,
+                    'diagnosis' => $diagnosis,
+                    'next_steps' => $nextSteps,
+                    'attempts' => $attempts,
                     'debug_lines' => $debugLines,
                 ]);
                 exit;
@@ -1246,6 +1694,12 @@ class AdminAllegroProOrdersController extends ModuleAdminController
                     'document_number' => $docNumber,
                     'direct_url' => $directUrl,
                 ],
+                'account' => [
+                    'id_allegropro_account' => (int)$account['id_allegropro_account'],
+                    'sandbox' => (int)($account['sandbox'] ?? 0),
+                    'login' => (string)($account['login'] ?? ''),
+                ],
+                'attempts' => $attempts,
                 'debug_lines' => $debugLines,
             ]);
             exit;

@@ -256,7 +256,19 @@
 .alpro-ms__chev{color:#6c757d;font-size:14px;flex:0 0 auto;}
 .alpro-ms__menu{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:14px;box-shadow:0 10px 26px rgba(0,0,0,.14);z-index:2000;display:none;}
 .alpro-ms__menu.open{display:block;}
-.alpro-ms__menuHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);} 
+.alpro-ms__menuHead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);} 
+.alpro-ms__menuHead .alpro-ms__hint{order:1;}
+.alpro-ms__menuHead .alpro-ms__menuActions{order:2;}
+.alpro-ms__menuHead .alpro-ms__search{order:3;flex:1 1 100%;width:100%;}
+
+.alpro-ms__search{
+  padding:7px 10px;
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:10px;
+  font-size:13px;
+  outline:none;
+}
+.alpro-ms__search:focus{border-color:rgba(0,0,0,.22);}
 .alpro-ms__hint{font-size:12px;color:#6c757d;}
 .alpro-ms__menuActions a{font-size:12px;color:#0b6aa2;text-decoration:none;margin-left:10px;}
 .alpro-ms__menuActions a:hover{text-decoration:underline;}
@@ -266,5 +278,34 @@
 
 
 /* Sync progress modal */
-.alpro-sync-step__title{font-weight:600;margin-bottom:8px;}
-.alpro-sync-log{margin-top:12px;max-height:160px;overflow:auto;padding:10px;border:1px solid rgba(0,0,0,.08);border-radius:10px;background:#fafafa;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,""Liberation Mono"",""Courier New"", monospace;font-size:12px;white-space:pre-wrap;}
+#alproSyncModal .modal-dialog.alpro-sync-modal{max-width:640px;}
+#alproSyncModal .modal-content{border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);border:1px solid rgba(0,0,0,.08);}
+#alproSyncModal .modal-header{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);}
+#alproSyncModal .modal-body{padding:14px 16px;}
+#alproSyncModal .modal-footer{padding:12px 16px;border-top:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);}
+#alproSyncModal .modal-title{font-weight:900;font-size:16px;line-height:1.1;}
+#alproSyncModal .close{opacity:.6;}
+#alproSyncModal .close:hover{opacity:.9;}
+
+.alpro-sync-title{display:flex;align-items:flex-start;gap:10px;}
+.alpro-sync-title__icon{width:34px;height:34px;border-radius:10px;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;font-weight:900;line-height:1;}
+
+.alpro-sync-overall{border:1px solid rgba(0,0,0,.08);background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:12px;}
+.alpro-sync-overall__row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.alpro-sync-overall__label{font-size:12px;color:#6c757d;}
+.alpro-sync-overall__pct{font-size:12px;font-weight:800;color:#495057;}
+
+.alpro-progress{height:10px;border-radius:999px;background:rgba(0,0,0,.06);overflow:hidden;}
+.alpro-progress .progress-bar{border-radius:999px;}
+
+.alpro-sync-now{margin-top:10px;font-size:13px;color:#495057;display:flex;gap:6px;flex-wrap:wrap;}
+.alpro-sync-now .k{font-weight:800;color:#6c757d;}
+.alpro-sync-now .v{font-weight:700;}
+
+.alpro-sync-step{border:1px solid rgba(0,0,0,.08);background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:12px;}
+.alpro-sync-step__title{font-weight:900;margin-bottom:8px;font-size:13px;}
+.alpro-sync-step .progress{height:10px;border-radius:999px;background:rgba(0,0,0,.06);}
+.alpro-sync-step .progress .progress-bar{border-radius:999px;}
+
+.alpro-sync-details{display:flex;flex-direction:column;gap:10px;margin-top:2px;}
+.alpro-sync-log{max-height:220px;overflow:auto;padding:10px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:#fafafa;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,"Liberation Mono","Courier New", monospace;font-size:12px;white-space:pre-wrap;}
