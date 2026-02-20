@@ -174,7 +174,35 @@ class AllegroApiClient
             'json' => is_array($json) ? $json : null,
         ];
     }
-    public function postBinary(array $account, string $path, array $payload, string $accept = 'application/octet-stream'): array
+    
+    public function putJson(array $account, string $path, array $payload, array $headersExtra = []): array
+    {
+        $account = $this->ensureAccessToken($account);
+        $base = $this->apiBaseForAccount($account);
+        $url = $base . $path;
+
+        $headers = [
+            'Authorization' => 'Bearer ' . (string)($account['access_token'] ?? ''),
+            'Accept' => 'application/vnd.allegro.public.v1+json',
+            'Content-Type' => 'application/vnd.allegro.public.v1+json',
+        ];
+        foreach ($headersExtra as $k => $v) {
+            $headers[$k] = $v;
+        }
+
+        $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $res = $this->http->request('PUT', $url, $headers, $body);
+
+        $json = json_decode($res['body'], true);
+        return [
+            'ok' => $res['ok'],
+            'code' => $res['code'],
+            'raw' => $res['body'],
+            'json' => is_array($json) ? $json : null,
+        ];
+    }
+
+public function postBinary(array $account, string $path, array $payload, string $accept = 'application/octet-stream'): array
     {
         $account = $this->ensureAccessToken($account);
         $base = $this->apiBaseForAccount($account);

@@ -793,6 +793,13 @@ class ShipmentCreatorService
                 if (isset($p['tracking']['number'])) {
                     $candidates[] = $p['tracking']['number'];
                 }
+                // Coraz częściej Allegro/InPost zwraca numer nadania jako "waybill" (a nie trackingNumber)
+                if (isset($p['waybill'])) {
+                    $candidates[] = $p['waybill'];
+                }
+                if (isset($p['tracking']['waybill'])) {
+                    $candidates[] = $p['tracking']['waybill'];
+                }
             }
         }
 

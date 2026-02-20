@@ -1,63 +1,210 @@
 <div class="card mt-2" id="allegropro_order_details">
-    <div class="card-header">
-        <h3 class="card-header-title">
-            <i class="material-icons">shopping_cart</i>
-            Allegro Pro - Szczegóły zamówienia ({$allegro_data.order.checkout_form_id})
-        </h3>
+    {* UI/UX: scoped styles for this block only (no global overrides) *}
+    <style>
+        {literal}
+        #allegropro_order_details{border-radius:12px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.06); border:1px solid rgba(0,0,0,.06); margin-bottom:18px;}
+        #allegropro_order_details .card-header{background:#fff; border-bottom:1px solid rgba(0,0,0,.06);}
+        #allegropro_order_details .card-header-title{display:flex; align-items:center; gap:8px; font-weight:700;}
+        #allegropro_order_details .card-body{background:#fff;}
+        #allegropro_order_details h4.text-muted{font-size:14px; font-weight:700; letter-spacing:.2px;}
+        #allegropro_order_details .text-muted{color:#6c757d !important;}
+        #allegropro_order_details .form-control[readonly]{background:#f7f9fb;}
+        #allegropro_order_details .table{background:#fff;}
+        #allegropro_order_details .table thead th{border-top:0; color:#516170; font-size:11px; letter-spacing:.4px; text-transform:uppercase;}
+        #allegropro_order_details .table td, #allegropro_order_details .table th{vertical-align:middle;}
+        #allegropro_order_details .table-responsive{border:1px solid rgba(0,0,0,.06); border-radius:10px; overflow:hidden;}
+        #allegropro_order_details .ap-subcard{border:1px solid rgba(0,0,0,.06) !important; border-radius:12px;}
+        #allegropro_order_details .ap-smart-banner{border-radius:12px;}
+        #allegropro_order_details .ap-header{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+        #allegropro_order_details .ap-header-sub{font-size:12px; margin-top:2px;}
+        #allegropro_order_details .ap-pill{display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; border:1px solid rgba(0,0,0,.08); background:#f8fafc; font-weight:700; font-size:12px; white-space:nowrap;}
+        #allegropro_order_details .ap-pill .material-icons{font-size:18px; color:#6c757d;}
+#allegropro_order_details .ap-pill--status{background:#eef6ff; border-color:rgba(11,114,133,.25);}
+#allegropro_order_details .ap-pill--status .material-icons{color:#0b7285;}
+        #allegropro_order_details .ap-topcards{margin-top:6px;}
+        #allegropro_order_details .ap-box{border:1px solid rgba(0,0,0,.06); border-radius:12px; background:#fff;}
+        #allegropro_order_details .ap-box-title{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:900; letter-spacing:.3px; text-transform:uppercase; color:#516170; margin-bottom:10px;}
+        #allegropro_order_details .ap-box-title .material-icons{font-size:18px; color:#6c757d;}
+        #allegropro_order_details .ap-kv{display:grid; grid-template-columns:150px 1fr; gap:6px 14px; align-items:center;}
+        #allegropro_order_details .ap-k{color:#6c757d; font-size:12px;}
+        #allegropro_order_details .ap-v{font-weight:700; font-size:13px;}
+        #allegropro_order_details .ap-divider{height:1px; background:rgba(0,0,0,.06); margin:12px 0;}
+        #allegropro_order_details .ap-help{font-size:12px; color:#6c757d;}
+        #allegropro_order_details .ap-tabs{margin-top:14px; border-bottom:1px solid rgba(0,0,0,.06); display:flex; gap:6px;}
+        #allegropro_order_details .ap-tabs .nav-link{display:flex; align-items:center; gap:6px; font-weight:800; color:#516170; border:0; border-bottom:2px solid transparent; padding:10px 14px;}
+        #allegropro_order_details .ap-tabs .nav-link .material-icons{font-size:18px; color:#6c757d;}
+        #allegropro_order_details .ap-tabs .nav-link.active{color:#0b7285; border-bottom-color:#0b7285; background:transparent;}
+        #allegropro_order_details .ap-tab-content{padding-top:6px;}
+	        #allegropro_order_details .ap-mini-box{border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:12px; background:#f8fafc; height:100%;}
+	        #allegropro_order_details .ap-mini-title{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:900; letter-spacing:.3px; text-transform:uppercase; color:#516170; margin-bottom:10px;}
+	        #allegropro_order_details .ap-mini-title .material-icons{font-size:18px; color:#6c757d;}
+	        #allegropro_order_details .ap-mini-box .form-text{font-size:12px;}
+	        #allegropro_order_details .ap-mini-box .btn{white-space:nowrap;}
+
+        @media (max-width: 991px){
+            #allegropro_order_details{box-shadow:none;}
+        }
+        {/literal}
+    </style>
+    <div class="card-header ap-header">
+        <div class="ap-header-left">
+            <div class="card-header-title">
+                <i class="material-icons">shopping_cart</i>
+                Allegro Pro — Szczegóły zamówienia
+            </div>
+            <div class="ap-header-sub text-muted">
+                Checkout form ID: <code>{$allegro_data.order.checkout_form_id|escape:'htmlall':'UTF-8'}</code>
+            </div>
+        </div>
+        <div class="ap-header-right">
+            <span class="ap-pill" title="Konto Allegro">
+                <i class="material-icons">account_circle</i>
+                {$allegro_data.order.account_label|default:'Nieznane'|escape:'htmlall':'UTF-8'}
+            </span>
+        </div>
     </div>
     <div class="card-body">
-        
-        <div class="row">
-            {* 1. Statusy i Konto *}
-            <div class="col-md-3">
-                <div class="form-group mb-2">
-                    <label class="text-muted">Status zamówienia (Sklep):</label>
-                    <input type="text" class="form-control" value="{$allegro_data.ps_status_name|escape:'htmlall':'UTF-8'}" readonly style="background:#f8f9fa; font-weight:bold;">
-                </div>
-                <div class="form-group mb-3">
-                    <label class="text-muted">Zmień status na Allegro:</label>
-                    <div class="input-group">
-                        <select id="allegropro_status_select" class="form-control custom-select">
-                            <option value="">-- Wybierz akcję --</option>
-                            {foreach from=$allegro_data.allegro_statuses key=k item=v}
-                                <option value="{$k}">{$v}</option>
-                            {/foreach}
-                        </select>
-                        <div class="input-group-append">
-                            <button class="btn btn-primary" type="button" id="btnUpdateAllegroStatus">Zaktualizuj</button>
+
+	        <div class="row ap-topcards">
+	            <div class="col-lg-4 mb-3 mb-lg-0">
+                <div class="ap-box p-3">
+                    <div class="ap-box-title"><i class="material-icons">person</i> Kupujący</div>
+                    {assign var='ap_buyer_fullname' value=($allegro_data.buyer.firstname|default:'')|cat:' '|cat:($allegro_data.buyer.lastname|default:'')}
+                    {assign var='ap_buyer_fullname' value=$ap_buyer_fullname|trim}
+                    {if !$ap_buyer_fullname}
+                        {assign var='ap_buyer_fullname' value=$allegro_data.shipping.addr_name|default:''|trim}
+                    {/if}
+                    <div class="row">
+                        <div class="col-12 mb-2">
+                            <div class="ap-k">Login</div>
+                            <div class="ap-v">{$allegro_data.buyer.login|default:'-'|escape:'htmlall':'UTF-8'}</div>
+                        </div>
+
+                        {if $ap_buyer_fullname}
+                            <div class="col-12 mb-2">
+                                <div class="ap-k">Imię i nazwisko</div>
+                                <div class="ap-v">{$ap_buyer_fullname|escape:'htmlall':'UTF-8'}</div>
+                            </div>
+                        {/if}
+
+                        <div class="col-12">
+                            <div class="ap-k">E-mail</div>
+                            <div class="ap-v" style="word-break:break-word; overflow-wrap:anywhere; white-space:normal;">
+                                {if isset($allegro_data.buyer.email) && $allegro_data.buyer.email}
+                                    <a style="word-break:break-word; overflow-wrap:anywhere; white-space:normal; display:inline-block; max-width:100%;" href="mailto:{$allegro_data.buyer.email|escape:'htmlall':'UTF-8'}">{$allegro_data.buyer.email|escape:'htmlall':'UTF-8'}</a>
+                                {else}
+                                    -
+                                {/if}
+                            </div>
                         </div>
                     </div>
-                    <small class="form-text text-muted" id="allegropro_status_msg"></small>
-                </div>
-                <p class="mb-1 text-muted">Konto Allegro:</p>
-                <strong>{$allegro_data.order.account_label|default:'Nieznane'}</strong>
-            </div>
-
-            {* 2. Kupujący *}
-            <div class="col-md-9">
-                <h4 class="text-muted mb-2">Kupujący</h4>
-                <div class="row mb-1">
-                    <div class="col-4 text-muted">Login:</div>
-                    <div class="col-8"><strong>{$allegro_data.buyer.login}</strong></div>
-                </div>
-                <div class="row mb-1">
-                    <div class="col-4 text-muted">E-mail:</div>
-                    <div class="col-8"><a href="mailto:{$allegro_data.buyer.email}">{$allegro_data.buyer.email}</a></div>
+                    {assign var='ap_buyer_phone' value=$allegro_data.buyer.phone_number|default:$allegro_data.shipping.addr_phone|default:''}
+                    {if $ap_buyer_phone}
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <div class="ap-k">Telefon</div>
+                            <div class="ap-v">
+                                <a href="tel:{$ap_buyer_phone|escape:'htmlall':'UTF-8'}">{$ap_buyer_phone|escape:'htmlall':'UTF-8'}</a>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
                 </div>
             </div>
 
+	            <div class="col-lg-8 mb-3 mb-lg-0">
+	                <div class="ap-box p-3">
+	                    <div class="ap-box-title"><i class="material-icons">tune</i> Statusy</div>
+
+{assign var='ap_status_code' value=$allegro_data.allegro_fulfillment_status|default:''}
+{assign var='ap_status_label' value=$allegro_data.allegro_fulfillment_label|default:''}
+{if !$ap_status_label}
+	{assign var='ap_status_label' value=$allegro_data.allegro_statuses[$ap_status_code]|default:$ap_status_code}
+{/if}
+{if !$ap_status_label}{assign var='ap_status_label' value='Brak danych'}{/if}
+
+	                    <div class="row">
+	                        <div class="col-md-6 mb-3 mb-md-0">
+	                            <div class="ap-mini-box">
+	                                <div class="ap-mini-title"><i class="material-icons">cloud</i> Allegro</div>
+
+	                                <div class="ap-k mb-1">Aktualny status</div>
+	                                <div class="ap-v mb-2" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+	                                    <span class="ap-pill ap-pill--status" id="apAllegroStatusPill" title="Aktualny status realizacji w Allegro (fulfillment.status)">
+	                                        <i class="material-icons">cloud</i>
+	                                        <span id="apAllegroStatusLabel">{$ap_status_label|escape:'htmlall':'UTF-8'}</span>
+	                                    </span>
+	                                    {if $ap_status_code}
+	                                        <span class="text-muted" id="apAllegroStatusCode" style="font-weight:800; font-size:12px;">{$ap_status_code|escape:'htmlall':'UTF-8'}</span>
+	                                    {/if}
+	                                </div>
+
+	                                <div class="form-group mb-0">
+	                                    <label class="text-muted mb-1">Zmień status (Allegro)</label>
+	                                    <div class="input-group">
+	                                        <select id="allegropro_status_select" class="form-control custom-select">
+	                                            <option value="">-- Wybierz nowy status --</option>
+	                                            {foreach from=$allegro_data.allegro_statuses key=k item=v}
+	                                                <option value="{$k}">{$v}</option>
+	                                            {/foreach}
+	                                        </select>
+	                                        <div class="input-group-append">
+	                                            <button class="btn btn-primary" type="button" id="btnUpdateAllegroStatus">Zaktualizuj</button>
+	                                        </div>
+	                                    </div>
+	                                    <small class="form-text text-muted" id="allegropro_status_msg"></small>
+	                                </div>
+	                            </div>
+	                        </div>
+
+	                        <div class="col-md-6">
+	                            <div class="ap-mini-box">
+	                                <div class="ap-mini-title"><i class="material-icons">store</i> Sklep (PrestaShop)</div>
+
+	                                <div class="ap-k mb-1">Aktualny status</div>
+	                                <div class="ap-v mb-2" id="apShopStatusCurrent">{$allegro_data.ps_status_name|escape:'htmlall':'UTF-8'}</div>
+
+	                                <div class="form-group mb-0">
+	                                    <label class="text-muted mb-1">Zmień status (Sklep)</label>
+	                                    <div class="input-group">
+	                                        <select id="apShopStatusSelect" class="form-control custom-select">
+                                            <option value="">-- Wybierz status --</option>
+                                            {foreach from=$allegro_data.shop_states item=st}
+                                                <option value="{$st.id_order_state|intval}" {if (int)$st.id_order_state == (int)$allegro_data.ps_status_id}selected{/if}>{$st.name|escape:'htmlall':'UTF-8'}</option>
+                                            {/foreach}
+                                        </select>
+	                                        <div class="input-group-append">
+	                                            <button class="btn btn-outline-primary" type="button" id="apBtnUpdateShopStatus">Ustaw</button>
+	                                        </div>
+	                                    </div>
+	                                    <small class="form-text text-muted" id="apShopStatusMsg">Zmiana statusu wykona się tak samo jak w panelu zamówienia.</small>
+	                                </div>
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
         </div>
 
-        <div class="row mt-3">
-            <div class="col-12">
-                {include file='./partials/documents_panel.tpl' allegro_data=$allegro_data}
-            </div>
-        </div>
+        <ul class="nav nav-tabs ap-tabs" id="apOrderTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="apTabShipmentsLink" data-toggle="tab" href="#apTabShipments" role="tab" aria-controls="apTabShipments" aria-selected="true">
+                    <i class="material-icons">local_shipping</i> Wysyłka
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="apTabDocsLink" data-toggle="tab" href="#apTabDocs" role="tab" aria-controls="apTabDocs" aria-selected="false">
+                    <i class="material-icons">description</i> Dokumenty
+                </a>
+            </li>
+        </ul>
 
-        <div class="row mt-3">
+        <div class="tab-content ap-tab-content" id="apOrderTabsContent">
+            <div class="tab-pane fade show active" id="apTabShipments" role="tabpanel" aria-labelledby="apTabShipmentsLink">
+<div class="row pt-3">
             {* 3. WYSYŁKA - PANEL STEROWANIA *}
             <div class="col-12">
-                <div class="card bg-light border-0">
+                <div class="card bg-light border-0 ap-subcard">
                     <div class="card-body p-3">
                         <h4 class="text-muted mb-3">Zarządzanie Wysyłką</h4>
                         {if isset($allegro_data.shipments_sync)}
@@ -92,7 +239,7 @@
                         
                         {* BANER SMART (zawsze widoczny) *}
                         {assign var=isSmartOrder value=(isset($allegro_data.shipping.is_smart) && $allegro_data.shipping.is_smart)}
-                        <div style="background-color:{if $isSmartOrder}#ffece5{else}#f7f7f7{/if}; border-left: 5px solid #ff5a00; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="ap-smart-banner" style="background-color:{if $isSmartOrder}#fff2ec{else}#f7f8fa{/if}; border: 1px solid {if $isSmartOrder}rgba(255,90,0,.25){else}rgba(0,0,0,.06){/if}; padding: 12px 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap:12px;">
                             <div>
                                 <strong style="color:{if $isSmartOrder}#ff5a00{else}#555{/if};"><i class="material-icons" style="font-size:14px;vertical-align:-2px;">local_shipping</i> ALLEGRO SMART!</strong><br>
                                 {if $isSmartOrder}
@@ -101,7 +248,7 @@
                                     <small>To nie jest wysyłka Smart (standardowa wysyłka).</small>
                                 {/if}
                             </div>
-                            <div style="text-align:right; border: 1px solid {if $isSmartOrder}#f4d5c6{else}#e1e1e1{/if}; padding: 5px 8px; background: {if $isSmartOrder}#fff4ef{else}#ffffff{/if};">
+                            <div style="text-align:right; border: 1px solid {if $isSmartOrder}rgba(255,90,0,.25){else}rgba(0,0,0,.08){/if}; padding: 6px 10px; background: #ffffff; border-radius:10px; min-width:120px;">
                                 <small style="display:block;color:#999;">POZOSTAŁO:</small>
                                 <strong style="font-size:22px; color:{if $isSmartOrder}#ff5a00{else}#555{/if};">{$allegro_data.smart_left} / {$allegro_data.smart_limit}</strong>
                             </div>
@@ -290,13 +437,77 @@
             </div>
         </div>
 
+            </div>
+
+            <div class="tab-pane fade" id="apTabDocs" role="tabpanel" aria-labelledby="apTabDocsLink">
+                <div class="pt-3">
+                    {include file='./partials/documents_panel.tpl' allegro_data=$allegro_data}
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
+(function() {
+  function apInitAllegroProOrderDetails() {
+    {literal}
+    // UI: move this block below the two-column layout to use full page width (without overlapping left column)
+    (function apMoveToFullWidth(){
+      try {
+        var root = document.getElementById('allegropro_order_details');
+        if (!root || root.getAttribute('data-ap-wide') === '1') return;
+        var rightCol = root.closest('.right-column');
+        if (!rightCol) return;
+        var mainRow = rightCol.closest('.row');
+        if (!mainRow || !mainRow.parentNode) return;
+
+        var wideRow = document.createElement('div');
+        wideRow.className = 'row';
+        wideRow.setAttribute('data-ap-wide-row', '1');
+        var wideCol = document.createElement('div');
+        wideCol.className = 'col-12';
+        wideRow.appendChild(wideCol);
+        wideCol.appendChild(root);
+        mainRow.parentNode.insertBefore(wideRow, mainRow.nextSibling);
+        root.setAttribute('data-ap-wide', '1');
+      } catch (e) {}
+    })();
+        // UI: also move the Payments block below AllegroPro to full width (align with this section)
+    (function apMovePaymentsToFullWidth(){
+      try {
+        var wideRow = document.querySelector('[data-ap-wide-row="1"]');
+        if (!wideRow) return;
+        var wideCol = wideRow.querySelector('.col-12');
+        if (!wideCol) return;
+
+        var payments = document.querySelector('#orderPayments, #orderPaymentsPanel, #order-payments, #order_payments, [data-role="order-payments"], .order-payments, .js-order-payments');
+        if (!payments) {
+          var cards = document.querySelectorAll('.card');
+          for (var i = 0; i < cards.length; i++) {
+            var h = cards[i].querySelector('.card-header');
+            var txt = (h ? h.textContent : '') || '';
+            if (/Płatnoś|Payments/i.test(txt)) { payments = cards[i]; break; }
+          }
+        }
+        if (!payments || payments.getAttribute('data-ap-wide') === '1') return;
+
+        payments.style.marginTop = '18px';
+        // keep visuals consistent with AllegroPro block
+        if (!payments.style.borderRadius) payments.style.borderRadius = '12px';
+        if (!payments.style.overflow) payments.style.overflow = 'hidden';
+
+        wideCol.appendChild(payments);
+        payments.setAttribute('data-ap-wide', '1');
+      } catch (e) {}
+    })();
+
+{/literal}
+
     var cfId = '{$allegro_data.order.checkout_form_id|escape:'javascript':'UTF-8'}';
     var accId = '{$allegro_data.order.id_allegropro_account|intval}';
+    var cfRev = '{$allegro_data.allegro_revision|default:''|escape:'javascript':'UTF-8'}';
 
     // --- 1. Statusy ---
     var btnStatus = document.getElementById('btnUpdateAllegroStatus');
@@ -319,6 +530,9 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append('checkout_form_id', cfId);
             formData.append('id_allegropro_account', accId);
             formData.append('new_status', newStatus);
+            if (typeof cfRev !== 'undefined' && cfRev) {
+                formData.append('checkout_form_revision', cfRev);
+            }
 
             fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=update_status&ajax=1', {
                 method: 'POST',
@@ -328,6 +542,18 @@ document.addEventListener("DOMContentLoaded", function() {
             .then(data => {
                 msg.className = data.success ? 'form-text text-success' : 'form-text text-danger';
                 msg.innerText = data.message || (data.success ? 'OK' : 'Błąd');
+
+                // odśwież widoczny status w panelu (bez reloadu)
+                if (data && data.success) {
+                    var lbl = document.getElementById('apAllegroStatusLabel');
+                    var code = document.getElementById('apAllegroStatusCode');
+                    if (lbl && data.current_status_label) {
+                        lbl.innerText = data.current_status_label;
+                    }
+                    if (code && data.current_status) {
+                        code.innerText = data.current_status;
+                    }
+                }
             })
             .catch(() => {
                 msg.className = 'form-text text-danger';
@@ -339,6 +565,89 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
     }
+
+	        // --- 1b. Zmiana statusu w sklepie (PrestaShop) ---
+    (function apInitShopStatusBox(){
+        var boxSelect = document.getElementById('apShopStatusSelect');
+        var boxBtn = document.getElementById('apBtnUpdateShopStatus');
+        var boxMsg = document.getElementById('apShopStatusMsg');
+        var boxCur = document.getElementById('apShopStatusCurrent');
+        if (!boxSelect || !boxBtn) return;
+
+        var psOrderId = parseInt('{$allegro_data.order.id_order_prestashop|intval}', 10) || 0;
+        if (!psOrderId) {
+            if (boxMsg) {
+                boxMsg.className = 'form-text text-danger';
+                boxMsg.textContent = 'Brak ID zamówienia w PrestaShop.';
+            }
+            boxSelect.disabled = true;
+            boxBtn.disabled = true;
+            return;
+        }
+
+        boxSelect.disabled = false;
+        boxBtn.disabled = false;
+
+        boxBtn.addEventListener('click', function(e){
+            e.preventDefault();
+            var newStateId = (boxSelect.value || '').toString();
+            if (!newStateId) {
+                if (boxMsg) {
+                    boxMsg.className = 'form-text text-danger';
+                    boxMsg.textContent = 'Wybierz status.';
+                }
+                return;
+            }
+
+            boxBtn.disabled = true;
+            var oldBtnText = boxBtn.textContent;
+            boxBtn.textContent = 'Ustawiam…';
+            if (boxMsg) {
+                boxMsg.className = 'form-text text-muted';
+                boxMsg.textContent = 'Zmieniam status w sklepie...';
+            }
+
+            var url = 'index.php?controller=AdminAllegroProOrders&token={getAdminToken tab="AdminAllegroProOrders"}&action=set_shop_status&ajax=1';
+            var fd = new FormData();
+            fd.append('id_order_prestashop', psOrderId);
+            fd.append('id_order_state', newStateId);
+
+            fetch(url, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (!d || !d.success) {
+                    if (boxMsg) {
+                        boxMsg.className = 'form-text text-danger';
+                        boxMsg.textContent = (d && d.message) ? d.message : 'Nie udało się zmienić statusu.';
+                    }
+                    return;
+                }
+                if (boxCur && d.current_status_name) {
+                    boxCur.textContent = d.current_status_name;
+                } else if (boxCur) {
+                    // fallback: aktualna nazwa z opcji select
+                    try {
+                        var opt = boxSelect.options[boxSelect.selectedIndex];
+                        if (opt) boxCur.textContent = opt.text;
+                    } catch (e) {}
+                }
+                if (boxMsg) {
+                    boxMsg.className = 'form-text text-success';
+                    boxMsg.textContent = d.message || 'Status w sklepie zaktualizowany.';
+                }
+            })
+            .catch(function(){
+                if (boxMsg) {
+                    boxMsg.className = 'form-text text-danger';
+                    boxMsg.textContent = 'Błąd połączenia.';
+                }
+            })
+            .finally(function(){
+                boxBtn.disabled = false;
+                boxBtn.textContent = oldBtnText || 'Ustaw';
+            });
+        });
+    })();;
 
     // --- 2. Tworzenie Przesyłki ---
     var btnCreate = document.getElementById('btnCreateShipment');
@@ -726,10 +1035,39 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
     // --- 4c. Dokumenty sprzedażowe z Allegro ---
+    // Uwaga: Allegro API często zwraca metadane faktury, ale NIE udostępnia PDF do pobrania (brak direct_url/links).
+    // Dlatego przy braku linku nie pokazujemy "Pobierz", tylko przycisk "PDF niedostępny" + modal z wyjaśnieniem.
+
     var initialOrderDocuments = {$allegro_data.documents_cache|default:[]|@json_encode nofilter};
 
     function apDocEsc(v) {
         return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function apDocHumanStatus(raw) {
+        var s = String(raw || '').toUpperCase();
+        if (!s) return '—';
+        if (s === 'ACCEPTED') return 'Zweryfikowana';
+        if (s === 'REJECTED') return 'Odrzucona';
+        if (s === 'PENDING' || s === 'IN_PROGRESS' || s === 'WAITING') return 'W trakcie weryfikacji';
+        if (s === 'CREATED' || s === 'NEW') return 'Utworzona';
+        return String(raw || '—');
+    }
+
+    function apDocFormatDate(raw) {
+        if (!raw) return '—';
+        try {
+            var d = new Date(String(raw));
+            if (isNaN(d.getTime())) return String(raw);
+            var dd = String(d.getDate()).padStart(2, '0');
+            var mm = String(d.getMonth() + 1).padStart(2, '0');
+            var yy = d.getFullYear();
+            var hh = String(d.getHours()).padStart(2, '0');
+            var mi = String(d.getMinutes()).padStart(2, '0');
+            return dd + '.' + mm + '.' + yy + ' ' + hh + ':' + mi;
+        } catch (e) {
+            return String(raw);
+        }
     }
 
     function apDocBuildDownloadUrl(doc) {
@@ -751,6 +1089,66 @@ document.addEventListener("DOMContentLoaded", function() {
         return 'index.php?' + p.join('&');
     }
 
+    function apEnsureDocInfoModal() {
+        if (document.getElementById('apDocInfoModal')) {
+            return;
+        }
+        var html = ''
+            + '<div class="modal fade" id="apDocInfoModal" tabindex="-1" role="dialog" aria-hidden="true">'
+            + '  <div class="modal-dialog modal-md" role="document">'
+            + '    <div class="modal-content" style="border-radius:14px; overflow:hidden;">'
+            + '      <div class="modal-header" style="background:#f8f9fa;">'
+            + '        <h5 class="modal-title" id="apDocInfoModalTitle" style="margin:0; font-weight:700;">Nie można pobrać PDF z Allegro</h5>'
+            + '        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>'
+            + '      </div>'
+            + '      <div class="modal-body" id="apDocInfoModalBody" style="font-size:13px; line-height:1.45;"></div>'
+            + '      <div class="modal-footer" style="background:#fff;">'
+            + '        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Zamknij</button>'
+            + '      </div>'
+            + '    </div>'
+            + '  </div>'
+            + '</div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function apShowDocInfoModal(docType, docNumber, extraLine) {
+        apEnsureDocInfoModal();
+
+        var titleEl = document.getElementById('apDocInfoModalTitle');
+        var bodyEl = document.getElementById('apDocInfoModalBody');
+
+        if (titleEl) {
+            titleEl.innerText = 'Nie można pobrać PDF z Allegro';
+        }
+
+        var lines = [];
+        lines.push('<div style="margin-bottom:8px;"><strong>' + apDocEsc(docType || 'Dokument') + '</strong>'
+            + (docNumber ? (' <span class="text-muted">(' + apDocEsc(docNumber) + ')</span>') : '')
+            + '</div>');
+
+        if (extraLine) {
+            lines.push('<div class="text-muted" style="margin-bottom:10px;">' + apDocEsc(extraLine) + '</div>');
+        }
+
+        lines.push('<div style="margin-bottom:8px;">Allegro API zwraca metadane dokumentu, ale nie udostępnia linku do pobrania PDF (brak <code>direct_url</code>/<code>links</code>).</div>');
+        lines.push('<div style="margin-top:10px;"><strong>Co możesz zrobić:</strong></div>');
+        lines.push('<ul style="margin:8px 0 0 18px;">'
+            + '<li>Dodaj link do faktury/e-paragonu przez <code>POST /order/&lt;orderId&gt;/billing-documents/links</code> (wtedy pojawi się w polu <code>links</code>).</li>'
+            + '<li>Pobierz fakturę z systemu, w którym ją wystawiłeś (Fakturownia/ERP/księgowość).</li>'
+            + '</ul>');
+
+        if (bodyEl) {
+            bodyEl.innerHTML = lines.join('');
+        }
+
+        if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
+            window.jQuery('#apDocInfoModal').modal('show');
+        } else {
+            var el = document.getElementById('apDocInfoModal');
+            if (el) { el.style.display = 'block'; }
+        }
+    }
+
     function apRenderOrderDocuments(docs) {
         var listBox = document.getElementById('order_documents_list');
         if (!listBox) {
@@ -758,41 +1156,155 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         if (!Array.isArray(docs) || !docs.length) {
-            listBox.innerHTML = '<div class="text-muted" style="font-size:12px;">Brak dokumentów do pobrania.</div>';
+            listBox.innerHTML = '<div class="text-muted" style="font-size:12px;">Brak dokumentów do wyświetlenia.</div>';
             return;
         }
 
         var header = '<div class="table-responsive"><table class="table table-sm table-striped" style="font-size:12px; margin-bottom:0;">'
             + '<thead><tr><th>Typ</th><th>Numer</th><th>Status</th><th>Data</th><th class="text-right">Akcja</th></tr></thead><tbody>';
         var footer = '</tbody></table></div>';
-        var chunks = [];
-        var batchSize = 50;
 
-        for (var i = 0; i < docs.length; i += batchSize) {
-            var batch = docs.slice(i, i + batchSize);
-            var rows = [];
+        var rows = [];
+        docs.forEach(function(doc){
+            var type = doc.type || 'Dokument';
+            var number = doc.number || '—';
+            var status = apDocHumanStatus(doc.status || '');
+            var issued = apDocFormatDate(doc.issued_at || '');
+            var canDownload = !!(doc.can_download || doc.direct_url);
+            var url = apDocBuildDownloadUrl(doc);
 
-            batch.forEach(function(doc){
-                var type = doc.type || 'Dokument';
-                var number = doc.number || '—';
-                var status = doc.status || '—';
-                var issued = doc.issued_at || '—';
-                var url = apDocBuildDownloadUrl(doc);
+            var actionHtml = '';
+            if (canDownload) {
+                actionHtml = '<a class="btn btn-xs btn-default ap-doc-download" href="' + apDocEsc(url) + '"'
+                    + ' data-doc-type="' + apDocEsc(type) + '" data-doc-number="' + apDocEsc(number) + '" target="_blank">Pobierz</a>';
+            } else {
+                actionHtml = '<button type="button" class="btn btn-xs btn-outline-secondary ap-doc-unavailable"'
+                    + ' data-doc-type="' + apDocEsc(type) + '" data-doc-number="' + apDocEsc(number) + '">'
+                    + '<i class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">info</i>'
+                    + 'PDF niedostępny</button>';
+            }
 
-                rows.push('<tr>'
-                    + '<td>' + apDocEsc(type) + '</td>'
-                    + '<td>' + apDocEsc(number) + '</td>'
-                    + '<td>' + apDocEsc(status) + '</td>'
-                    + '<td>' + apDocEsc(issued) + '</td>'
-                    + '<td class="text-right"><a class="btn btn-xs btn-default ap-doc-download" href="' + apDocEsc(url) + '" data-doc-type="' + apDocEsc(type) + '" data-doc-number="' + apDocEsc(number) + '" target="_blank">Pobierz</a></td>'
-                    + '</tr>');
-            });
+            rows.push('<tr>'
+                + '<td>' + apDocEsc(type) + '</td>'
+                + '<td>' + apDocEsc(number) + '</td>'
+                + '<td>' + apDocEsc(status) + '</td>'
+                + '<td>' + apDocEsc(issued) + '</td>'
+                + '<td class="text-right">' + actionHtml + '</td>'
+                + '</tr>');
+        });
 
-            chunks.push(rows.join(''));
+        listBox.innerHTML = header + rows.join('') + footer;
+    }
+
+    function apSafeParseJson(text) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Globalna funkcja (używana też w auto-fetch).
+    window.apFetchOrderDocuments = function(opts) {
+        opts = opts || {};
+        var silent = !!opts.silent;
+        var keepList = !!opts.keepList;
+
+        var msgBox = document.getElementById('order_documents_msg');
+        var listBox = document.getElementById('order_documents_list');
+        var debugToggle = document.getElementById('order_documents_debug');
+        var debugBox = document.getElementById('order_documents_debug_box');
+        var debugEnabled = !!(debugToggle && debugToggle.checked);
+
+        if (!keepList && listBox) {
+            listBox.innerHTML = '';
+        }
+        if (debugBox && !keepList) {
+            debugBox.style.display = 'none';
+            debugBox.innerText = '';
         }
 
-        listBox.innerHTML = header + chunks.join('') + footer;
-    }
+        if (msgBox && !silent) {
+            msgBox.className = 'text-muted';
+            msgBox.innerText = 'Pobieranie listy dokumentów z Allegro...';
+        }
+
+        var fd = new FormData();
+        fd.append('checkout_form_id', cfId);
+        fd.append('id_allegropro_account', accId);
+        fd.append('debug', debugEnabled ? 1 : 0);
+
+        var url = 'index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=getOrderDocuments&ajax=1';
+
+        var handlePayload = function(data, rawText) {
+            if (debugEnabled && debugBox && data && Array.isArray(data.debug_lines) && data.debug_lines.length) {
+                debugBox.style.display = 'block';
+                debugBox.innerText = data.debug_lines.join("\n");
+            } else if (debugEnabled && debugBox && rawText && (!data || !data.debug_lines)) {
+                debugBox.style.display = 'block';
+                debugBox.innerText = rawText;
+            }
+
+            if (!data || !data.success || !Array.isArray(data.documents)) {
+                if (msgBox && !silent) {
+                    msgBox.className = 'text-danger';
+                    msgBox.innerText = (data && data.message) ? data.message : 'Nie udało się pobrać dokumentów.';
+                }
+                return;
+            }
+
+            if (msgBox) {
+                msgBox.className = 'text-success';
+                msgBox.innerText = data.message || ('Pobrano listę dokumentów: ' + data.documents.length);
+            }
+
+            apRenderOrderDocuments(data.documents);
+        };
+
+        // fetch (z bezpiecznym parse) + fallback na jQuery
+        if (window.fetch) {
+            var fetchOpts = { method: 'POST', body: fd, credentials: 'same-origin' };
+            return fetch(url, fetchOpts)
+                .then(function(res){
+                    return res.text().then(function(t){
+                        var data = apSafeParseJson(t);
+                        handlePayload(data, t);
+                    });
+                })
+                .catch(function(err){
+                    if (msgBox && !silent) {
+                        msgBox.className = 'text-danger';
+                        msgBox.innerText = 'Błąd połączenia podczas pobierania dokumentów.';
+                    }
+                    if (debugEnabled && debugBox) {
+                        debugBox.style.display = 'block';
+                        debugBox.innerText = String(err || '');
+                    }
+                });
+        }
+
+        if (window.jQuery) {
+            return window.jQuery.ajax({
+                url: url,
+                method: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false
+            }).done(function(respText){
+                var data = (typeof respText === 'string') ? apSafeParseJson(respText) : respText;
+                handlePayload(data, (typeof respText === 'string') ? respText : '');
+            }).fail(function(xhr){
+                if (msgBox && !silent) {
+                    msgBox.className = 'text-danger';
+                    msgBox.innerText = 'Błąd połączenia podczas pobierania dokumentów.';
+                }
+                if (debugEnabled && debugBox) {
+                    debugBox.style.display = 'block';
+                    debugBox.innerText = (xhr && xhr.responseText) ? xhr.responseText : '';
+                }
+            });
+        }
+    };
 
     var orderDocsMsgBox = document.getElementById('order_documents_msg');
     if (Array.isArray(initialOrderDocuments) && initialOrderDocuments.length) {
@@ -803,11 +1315,22 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
+    // Obsługa klików w tabeli (download / debug / modal)
     var orderDocsListBox = document.getElementById('order_documents_list');
-    if (orderDocsListBox) {
+    if (orderDocsListBox && !orderDocsListBox.getAttribute('data-ap-docs-bound')) {
+        orderDocsListBox.setAttribute('data-ap-docs-bound', '1');
+
         orderDocsListBox.addEventListener('click', function(e){
-            var node = e.target;
-            var link = node ? node.closest('a.ap-doc-download') : null;
+            var target = e.target;
+
+            var unavailableBtn = target ? target.closest('button.ap-doc-unavailable') : null;
+            if (unavailableBtn) {
+                e.preventDefault();
+                apShowDocInfoModal(unavailableBtn.getAttribute('data-doc-type') || 'Dokument', unavailableBtn.getAttribute('data-doc-number') || '', '');
+                return;
+            }
+
+            var link = target ? target.closest('a.ap-doc-download') : null;
             if (!link) {
                 return;
             }
@@ -815,7 +1338,7 @@ document.addEventListener("DOMContentLoaded", function() {
             var debugToggle = document.getElementById('order_documents_debug');
             var debugEnabled = !!(debugToggle && debugToggle.checked);
             if (!debugEnabled) {
-                return;
+                return; // normalne pobieranie w nowej karcie
             }
 
             e.preventDefault();
@@ -838,162 +1361,83 @@ document.addEventListener("DOMContentLoaded", function() {
                 debugBox.innerText = 'Pobieranie danych debug dokumentu...';
             }
 
-            fetch(debugUrl)
-                .then(function(resp){ return resp.json(); })
-                .then(function(data){
-                    var lines = [];
-                    lines.push('success=' + (!!data.success ? '1' : '0'));
-                    lines.push('message=' + (data.message || 'brak'));
-                    if (typeof data.http_code !== 'undefined') {
-                        lines.push('http_code=' + data.http_code);
-                    }
-                    if (data.file_name) {
-                        lines.push('file_name=' + data.file_name);
-                    }
-                    if (typeof data.size !== 'undefined') {
-                        lines.push('size=' + data.size);
-                    }
-                    if (data.document) {
-                        lines.push('document.checkout_form_id=' + (data.document.checkout_form_id || ''));
-                        lines.push('document.document_id=' + (data.document.document_id || ''));
-                        lines.push('document.document_type=' + (data.document.document_type || ''));
-                        lines.push('document.document_number=' + (data.document.document_number || ''));
-                        lines.push('document.direct_url=' + (data.document.direct_url || ''));
-                    }
-                    if (data.account) {
-                        lines.push('account.id_allegropro_account=' + (data.account.id_allegropro_account || ''));
-                        lines.push('account.login=' + (data.account.login || ''));
-                        lines.push('account.sandbox=' + (data.account.sandbox || 0));
-                    }
-                    if (data.me) {
-                        lines.push('me.id=' + (data.me.id || ''));
-                        lines.push('me.login=' + (data.me.login || ''));
-                    }
-                    if (data.checkout_seller) {
-                        lines.push('checkout_seller.id=' + (data.checkout_seller.id || ''));
-                        lines.push('checkout_seller.login=' + (data.checkout_seller.login || ''));
-       lines.push('checkout_seller.candidates=' + JSON.stringify(Array.isArray(data.checkout_seller.candidates) ? data.checkout_seller.candidates : []));
-                    }
-                    if (data.checkout_buyer) {
-                        lines.push('checkout_buyer.id=' + (data.checkout_buyer.id || ''));
-                        lines.push('checkout_buyer.login=' + (data.checkout_buyer.login || ''));                    }
-if (data.invoice_lookup) {
-                        lines.push('invoice_lookup.found_in_invoices_list=' + (data.invoice_lookup.found_in_invoices_list ? '1' : '0'));
-                        lines.push('invoice_lookup.invoice_id=' + (data.invoice_lookup.invoice_id || ''));
-                        lines.push('invoice_lookup.invoice_number=' + (data.invoice_lookup.invoice_number || ''));
-                        lines.push('invoice_lookup.file_name=' + (data.invoice_lookup.file_name || ''));
-                    }
-                    if (Array.isArray(data.diagnosis) && data.diagnosis.length) {
-                        lines.push('--- DIAGNOSIS ---');
-                        data.diagnosis.forEach(function(item, idx){
-                            lines.push((idx + 1) + '. ' + item);
-                        });
-                    }
-                    if (Array.isArray(data.attempts) && data.attempts.length) {
-                        lines.push('--- ATTEMPTS ---');
-                        data.attempts.forEach(function(at, idx){
-                            lines.push('#' + (idx + 1)
-                                + ' type=' + (at.type || '')
-                                + ' target=' + (at.target || '')
-                                + ' http=' + (typeof at.http_code !== 'undefined' ? at.http_code : '')
-                                + ' ok=' + (at.ok ? '1' : '0')
-                                + ' bytes=' + (typeof at.bytes !== 'undefined' ? at.bytes : '')
-                                + (at.error_code ? (' error_code=' + at.error_code) : '')
-                                + (at.error_user_message ? (' error_user_message=' + at.error_user_message) : ''));
-                        });
-                    }
-                    if (Array.isArray(data.next_steps) && data.next_steps.length) {
-                        lines.push('--- NEXT STEPS ---');
-                        data.next_steps.forEach(function(item, idx){
-                            lines.push((idx + 1) + '. ' + item);
-                        });
-                    }
-                    if (Array.isArray(data.debug_lines) && data.debug_lines.length) {
-                        lines.push('--- DEBUG LINES ---');
-                        lines = lines.concat(data.debug_lines);
-                    }
-
-                    if (debugBox) {
-                        debugBox.style.display = 'block';
-                        debugBox.innerText = lines.join("\n");
-                    }
-                    if (msgBox) {
-                        msgBox.className = data.success ? 'text-info' : 'text-danger';
-                        msgBox.innerText = data.success ? 'Debug pobrania zakończony (plik nie został pobrany).' : 'Debug pobrania zakończony błędem.';
-                    }
-                });
+            // debug endpoint zwraca JSON
+            if (window.fetch) {
+                fetch(debugUrl, { credentials: 'same-origin' })
+                    .then(function(resp){ return resp.text(); })
+                    .then(function(t){
+                        var data = apSafeParseJson(t);
+                        if (!data) {
+                            if (debugBox) { debugBox.innerText = t; }
+                            return;
+                        }
+                        var lines = [];
+                        lines.push('success=' + (!!data.success ? '1' : '0'));
+                        lines.push('message=' + (data.message || 'brak'));
+                        if (typeof data.http_code !== 'undefined') { lines.push('http_code=' + data.http_code); }
+                        if (data.file_name) { lines.push('file_name=' + data.file_name); }
+                        if (data.document) {
+                            lines.push('document.checkout_form_id=' + (data.document.checkout_form_id || ''));
+                            lines.push('document.document_id=' + (data.document.document_id || ''));
+                            lines.push('document.document_type=' + (data.document.document_type || ''));
+                            lines.push('document.document_number=' + (data.document.document_number || ''));
+                            lines.push('document.direct_url=' + (data.document.direct_url || ''));
+                        }
+                        if (Array.isArray(data.diagnosis) && data.diagnosis.length) {
+                            lines.push('--- DIAGNOSIS ---');
+                            data.diagnosis.forEach(function(item, idx){ lines.push((idx + 1) + '. ' + item); });
+                        }
+                        if (Array.isArray(data.attempts) && data.attempts.length) {
+                            lines.push('--- ATTEMPTS ---');
+                            data.attempts.forEach(function(at, idx){
+                                lines.push('#' + (idx + 1)
+                                    + ' type=' + (at.type || '')
+                                    + ' target=' + (at.target || '')
+                                    + ' http=' + (typeof at.http_code !== 'undefined' ? at.http_code : '')
+                                    + ' ok=' + (at.ok ? '1' : '0')
+                                    + ' bytes=' + (typeof at.bytes !== 'undefined' ? at.bytes : '')
+                                    + (at.error_code ? (' error_code=' + at.error_code) : '')
+                                    + (at.error_user_message ? (' error_user_message=' + at.error_user_message) : ''));
+                            });
+                        }
+                        if (Array.isArray(data.debug_lines) && data.debug_lines.length) {
+                            lines.push('--- DEBUG LINES ---');
+                            lines = lines.concat(data.debug_lines);
+                        }
+                        if (debugBox) { debugBox.innerText = lines.join("\n"); }
+                    })
+                    .catch(function(err){
+                        if (debugBox) { debugBox.innerText = String(err || ''); }
+                    });
+            }
         });
     }
 
+    // Klik przycisku ręcznego pobrania listy
     var btnFetchDocs = document.getElementById('btnFetchOrderDocuments');
-    if (btnFetchDocs) {
+    if (btnFetchDocs && !btnFetchDocs.getAttribute('data-ap-docs-bound')) {
+        btnFetchDocs.setAttribute('data-ap-docs-bound', '1');
         btnFetchDocs.addEventListener('click', function(e){
             e.preventDefault();
-            var thisBtn = this;
-            var msgBox = document.getElementById('order_documents_msg');
-            var listBox = document.getElementById('order_documents_list');
-            var debugToggle = document.getElementById('order_documents_debug');
-            var debugBox = document.getElementById('order_documents_debug_box');
-            var debugEnabled = !!(debugToggle && debugToggle.checked);
+            btnFetchDocs.disabled = true;
 
-            if (msgBox) {
-                msgBox.className = 'text-muted';
-                msgBox.innerText = 'Pobieranie listy dokumentów z Allegro...';
+            var p = window.apFetchOrderDocuments({ silent: false, keepList: false });
+            if (p && typeof p.finally === 'function') {
+                p.finally(function(){ btnFetchDocs.disabled = false; });
+            } else {
+                setTimeout(function(){ btnFetchDocs.disabled = false; }, 1200);
             }
-            if (listBox) {
-                listBox.innerHTML = '';
-            }
-            if (debugBox) {
-                debugBox.style.display = 'none';
-                debugBox.innerText = '';
-            }
-
-            thisBtn.disabled = true;
-
-            var fd = new FormData();
-            fd.append('checkout_form_id', cfId);
-            fd.append('id_allegropro_account', accId);
-            fd.append('debug', debugEnabled ? 1 : 0);
-
-            fetch('index.php?controller=AdminAllegroProOrders&token={getAdminToken tab='AdminAllegroProOrders'}&action=getOrderDocuments&ajax=1', {
-                method: 'POST',
-                body: fd
-            })
-            .then(function(res){ return res.json(); })
-            .then(function(data){
-                if (debugEnabled && debugBox && Array.isArray(data.debug_lines) && data.debug_lines.length) {
-                    debugBox.style.display = 'block';
-                    debugBox.innerText = data.debug_lines.join("\n");
-                }
-
-                if (!data.success || !Array.isArray(data.documents)) {
-                    if (msgBox) {
-                        msgBox.className = 'text-danger';
-                        msgBox.innerText = data.message || 'Nie udało się pobrać dokumentów.';
-                    }
-                    return;
-                }
-
-                if (msgBox) {
-                    msgBox.className = 'text-success';
-                    msgBox.innerText = data.message || ('Pobrano dokumenty: ' + data.documents.length);
-                }
-
-                apRenderOrderDocuments(data.documents);
-            })
-            .catch(function(){
-                if (msgBox) {
-                    msgBox.className = 'text-danger';
-                    msgBox.innerText = 'Błąd połączenia podczas pobierania dokumentów.';
-                }
-            })
-            .finally(function(){
-                thisBtn.disabled = false;
-            });
         });
     }
 
-    // --- 5. TRACKING (modal z historią) ---
+    // AUTO: po wejściu w zamówienie – pobierz listę z Allegro
+    setTimeout(function(){
+        if (typeof window.apFetchOrderDocuments === 'function') {
+            window.apFetchOrderDocuments({ silent: true, keepList: true });
+        }
+    }, 250);
+
+// --- 5. TRACKING (modal z historią) ---
     function apShowTrackingModal() {
         if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
             window.jQuery('#apTrackingModal').modal('show');
@@ -1022,7 +1466,78 @@ if (data.invoice_lookup) {
         a.className = 'alert';
     }
 
-    function apRenderTracking(data) {
+{literal}
+    // --- Tracking: tłumaczenie EN -> PL (fallback po stronie UI, działa też dla danych z cache) ---
+    function apTrTrackLabel(input) {
+        var t = (input || '').toString().trim();
+        if (!t) return '—';
+        var up = t.toUpperCase();
+        var codeMap = { 
+            'DELIVERED': 'Dostarczona',
+            'OUT_FOR_DELIVERY': 'W doręczeniu',
+            'READY_FOR_PICKUP': 'Gotowa do odbioru',
+            'AVAILABLE_FOR_PICKUP': 'Gotowa do odbioru',
+            'PLACED_IN_PICKUP_PARCEL_LOCKER': 'Umieszczono w paczkomacie (gotowa do odbioru)',
+            'IN_TRANSIT': 'W drodze',
+            'ACCEPTED': 'Przyjęto w oddziale',
+            'ACCEPTED_AT_INPOST_DELIVERY_CENTER': 'Przyjęto w oddziale InPost',
+            'PREPARED_BY_SENDER': 'Przygotowana przez nadawcę',
+            'CREATED': 'Utworzona',
+            'RETURNED': 'Zwrócona',
+            'CANCELLED': 'Anulowana',
+            'FAILED': 'Nieudana próba doręczenia'
+        };
+        if (codeMap[up]) return codeMap[up];
+
+        var low = t.toLowerCase();
+        var phraseMap = { 
+            'delivered': 'Dostarczona',
+            'placed in pick-up parcel locker': 'Umieszczono w paczkomacie (gotowa do odbioru)',
+            'ready for pickup': 'Gotowa do odbioru',
+            'available for pickup': 'Gotowa do odbioru',
+            'handed over for delivery': 'Przekazano do doręczenia',
+            'out for delivery': 'W doręczeniu',
+            'accepted at inpost delivery center': 'Przyjęto w oddziale InPost',
+            'accepted at delivery center': 'Przyjęto w oddziale',
+            'in transit': 'W drodze',
+            'prepared by sender': 'Przygotowana przez nadawcę',
+            'prepared by the sender': 'Przygotowana przez nadawcę',
+            'shipment created': 'Utworzona',
+            'returned to sender': 'Zwrócona do nadawcy',
+            'delivery failed': 'Nieudana próba doręczenia'
+        };
+        for (var needle in phraseMap) {
+            if (!Object.prototype.hasOwnProperty.call(phraseMap, needle)) continue;
+            if (low.indexOf(needle) !== -1) return phraseMap[needle];
+        }
+        return t; // jeśli brak mapowania — pokaż oryginał
+    }
+
+    function apTrTrackSeverity(code, labelPl) {
+        var c = (code || '').toString().toUpperCase();
+        var l = (labelPl || '').toString().toLowerCase();
+        if (c.indexOf('DELIVER') !== -1 || l.indexOf('dostarcz') !== -1) return 'success';
+        if (/FAILED|ERROR|EXCEPTION|LOST|DAMAGED|RETURN|CANCEL/.test(c) || l.indexOf('nieudan') !== -1 || l.indexOf('zwro') !== -1) return 'danger';
+        if (/OUT_FOR_DELIVERY|READY|PICKUP|COLLECT|AWAIT|WAIT/.test(c) || l.indexOf('odbior') !== -1 || l.indexOf('doręcze') !== -1 || l.indexOf('dorecze') !== -1) return 'warning';
+        if (c) return 'info';
+        return 'secondary';
+    }
+
+    function apTrTrackShort(labelPl) {
+        var l = (labelPl || '').toString();
+        var low = l.toLowerCase();
+        if (low.indexOf('paczkomac') !== -1 || low.indexOf('odbioru') !== -1) return 'Do odbioru';
+        if (low.indexOf('w doręczeniu') !== -1 || low.indexOf('w doreczeniu') !== -1) return 'W doręczeniu';
+        if (low.indexOf('w drodze') !== -1) return 'W drodze';
+        if (low.indexOf('dostarcz') !== -1) return 'Dostarczona';
+        if (low.indexOf('przyję') !== -1 || low.indexOf('przyje') !== -1) return 'Przyjęta';
+        if (low.indexOf('przygotowan') !== -1) return 'Przygot.';
+        if (l.length > 24) return l.slice(0, 23) + '…';
+        return l || '—';
+    }
+{/literal}
+
+function apRenderTracking(data) {
         var box = document.getElementById('apTrackingContent');
         if (!box) return;
         box.innerHTML = '';
@@ -1035,12 +1550,13 @@ if (data.invoice_lookup) {
         var current = data.current || null;
         var events = Array.isArray(data.events) ? data.events : [];
 
-        var severity = (current && current.severity) ? current.severity : 'secondary';
-        var shortPl = (current && current.short_pl) ? current.short_pl : '—';
-        var labelPl = (current && current.label_pl) ? current.label_pl : '';
+        // Weź cokolwiek mamy (PL z backendu lub EN z cache) i przetłumacz po stronie UI
+        var currentBase = (current && (current.label_pl || current.label || current.status)) ? (current.label_pl || current.label || current.status) : '';
+        var labelPl = apTrTrackLabel(currentBase);
+        var shortPl = apTrTrackShort(labelPl);
         var dt = (current && current.occurred_at_formatted) ? current.occurred_at_formatted : '';
-
-        var header = document.createElement('div');
+        var severity = apTrTrackSeverity((current && current.status) ? current.status : '', labelPl);
+var header = document.createElement('div');
         header.className = 'ap-track-statusline';
 
         var badge = document.createElement('span');
@@ -1074,7 +1590,9 @@ if (data.invoice_lookup) {
         tl.className = 'ap-track-timeline';
 
         events.forEach(function(ev, idx){
-            var sev = ev.severity || 'secondary';
+            var base = (ev && (ev.label_pl || ev.label || ev.status)) ? (ev.label_pl || ev.label || ev.status) : '';
+            var labelEvPl = apTrTrackLabel(base);
+            var sev = apTrTrackSeverity(ev.status || '', labelEvPl);
             var item = document.createElement('div');
             item.className = 'ap-track-item ap-sev-' + sev + (idx === 0 ? ' ap-track-item--current' : '');
 
@@ -1091,7 +1609,7 @@ if (data.invoice_lookup) {
 
             var text = document.createElement('div');
             text.className = 'ap-track-text';
-            text.textContent = ev.label_pl || ev.status || '';
+            text.textContent = labelEvPl || base || '';
 
             card.appendChild(date);
             card.appendChild(text);
@@ -1140,5 +1658,12 @@ if (data.invoice_lookup) {
             apFetchTracking(num);
         });
     });
-});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apInitAllegroProOrderDetails);
+  } else {
+    apInitAllegroProOrderDetails();
+  }
+})();
 </script>

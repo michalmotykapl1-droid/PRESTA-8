@@ -20,53 +20,6 @@ class AdminAllegroProOrdersController extends ModuleAdminController
 {
     private $repo;
 
-    /**
-     * PrestaShop 8 (widok zamówienia Symfony) potrafi wywołać ten kontroler w ścieżce typu
-     * /sell/orders/{id}/index.php?... i wtedy standardowa ścieżka AJAX bywa pomijana.
-     *
-     * Żeby tracking / dokumenty nie kończyły się renderowaniem orders.tpl (HTML zamiast JSON),
-     * robimy ręczne, bezpieczne rozpoznanie akcji AJAX.
-     */
-    public function postProcess()
-    {
-        $isAjax = (bool)Tools::getValue('ajax');
-        $action = (string)Tools::getValue('action');
-
-        if ($isAjax && $action !== '') {
-            // 1) Standard: action=getTracking -> displayAjaxGetTracking
-            $candidates = [];
-            $candidates[] = Tools::ucfirst($action);
-
-            // 2) Kompatybilność: action=update_status -> displayAjaxUpdateStatus
-            if (strpos($action, '_') !== false) {
-                $parts = array_filter(array_map('trim', explode('_', $action)), static function($v){ return $v !== ''; });
-                if (!empty($parts)) {
-                    $camel = '';
-                    foreach ($parts as $p) {
-                        $camel .= Tools::ucfirst($p);
-                    }
-                    $candidates[] = $camel;
-                }
-            }
-
-            foreach ($candidates as $uc) {
-                $m1 = 'displayAjax' . $uc;
-                if (method_exists($this, $m1)) {
-                    $this->$m1();
-                    return;
-                }
-
-                $m2 = 'ajaxProcess' . $uc;
-                if (method_exists($this, $m2)) {
-                    $this->$m2();
-                    return;
-                }
-            }
-        }
-
-        parent::postProcess();
-    }
-
     public function __construct()
     {
         $this->bootstrap = true;
@@ -759,7 +712,52 @@ function displayAjaxUpdateStatus() {
         ]));
     }
 
-    // ============================================================
+    
+
+// ============================================================
+// AJAX: STATUS W SKLEPIE (PRESTA)
+// ============================================================
+public function displayAjaxUpdateShopStatus() {
+    $idOrder = (int)Tools::getValue('id_order');
+    $idState = (int)Tools::getValue('id_order_state');
+
+    if (!$idOrder || !$idState) {
+        $this->ajaxDie(json_encode(['success' => false, 'message' => 'Brak danych (id_order / id_order_state).']));
+    }
+
+    $order = new Order($idOrder);
+    if (!Validate::isLoadedObject($order)) {
+        $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nie znaleziono zamówienia w PrestaShop.']));
+    }
+
+    try {
+        // tak jak w panelu zamówienia: tworzy wpis historii i aktualizuje status
+        $order->setCurrentState($idState, (int)($this->context->employee->id ?? 0));
+    } catch (Exception $e) {
+        $this->ajaxDie(json_encode(['success' => false, 'message' => 'Nie udało się zmienić statusu w sklepie: ' . $e->getMessage()]));
+    }
+
+    $label = (string)$idState;
+    try {
+        $os = new OrderState($idState, (int)$this->context->language->id);
+        if (Validate::isLoadedObject($os)) {
+            if (is_array($os->name)) {
+                $label = (string)($os->name[(int)$this->context->language->id] ?? reset($os->name));
+            } else {
+                $label = (string)$os->name;
+            }
+        }
+    } catch (Exception $e) {}
+
+    $this->ajaxDie(json_encode([
+        'success' => true,
+        'message' => 'Status w sklepie zaktualizowany.',
+        'ps_status_id' => $idState,
+        'ps_status_name' => $label,
+    ]));
+}
+
+// ============================================================
     // AJAX: POBIERANIE ETYKIETY / TRACKING
     // ============================================================
 
@@ -965,7 +963,11 @@ function displayAjaxUpdateStatus() {
             $q->where("checkout_form_id = '".pSQL($cfId)."'");
             $ship = Db::getInstance()->getRow($q);
 
-            $mn = strtolower((string)($ship['method_name'] ?? ''));
+            // PHP8: Db::getRow() może zwrócić false -> zabezpieczenie przed warningiem "array offset on bool"
+            $mn = '';
+            if (is_array($ship)) {
+                $mn = strtolower((string)($ship['method_name'] ?? ''));
+            }
             if (strpos($mn, 'inpost') !== false) $carrierId = 'INPOST';
             elseif (strpos($mn, 'dpd') !== false) $carrierId = 'DPD';
             elseif (strpos($mn, 'dhl') !== false) $carrierId = 'DHL';
@@ -1204,8 +1206,6 @@ function displayAjaxUpdateStatus() {
 
         // Pola filtrów dla smarty
         $this->context->smarty->assign([
-            // used by views/templates/admin/orders.tpl (tabs)
-            'allegropro_view' => (string)Tools::getValue('view', 'orders'),
             'allegropro_accounts' => $accounts,
             'allegropro_selected_account' => $selectedAccount,
             'allegropro_filters' => $smartyFilters,

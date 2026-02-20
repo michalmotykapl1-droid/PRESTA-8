@@ -315,7 +315,7 @@ class SettlementsReportService
             $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
         }
 
-        $inner = "SELECT b.id_allegropro_account, b.order_id, o.status AS order_status, IFNULL(bf.neg_sum,0) AS neg_sum, IFNULL(bf.pos_sum,0) AS pos_sum
+        $inner = "SELECT b.id_allegropro_account, b.order_id, o.status AS order_status, MAX(IFNULL(b.order_filled,0)) AS order_filled, IFNULL(bf.neg_sum,0) AS neg_sum, IFNULL(bf.pos_sum,0) AS pos_sum
 "
             . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
 "
@@ -345,7 +345,7 @@ class SettlementsReportService
 "
             . "  COUNT(*) AS orders_total,
 "
-            . "  SUM(CASE WHEN order_status IS NULL OR order_status='' THEN 1 ELSE 0 END) AS missing_orders,
+            . "    SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN 1 ELSE 0 END) AS missing_orders,
 "
             . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN 1 ELSE 0 END) AS expected_orders,
 "

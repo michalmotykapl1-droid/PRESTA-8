@@ -46,28 +46,28 @@
             #allegropro_order_details .ap-shipment-card .ap-create-col .btn {
                 width: 100%;
                 max-width: 340px;
-                height: 62px;
+                height: 54px;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 2px;
+                gap: 1px;
                 font-weight: 700;
                 line-height: 1.05;
-                padding: 8px 10px;
+                padding: 6px 10px;
                 white-space: normal;
-                margin-right: -12px;
+                margin-right: 0;
             }
             #allegropro_order_details .ap-shipment-card .ap-create-main {
                 display: block;
-                font-size: 20px;
-                letter-spacing: 1.1px;
+                font-size: 16px;
+                letter-spacing: .8px;
                 text-transform: uppercase;
             }
             #allegropro_order_details .ap-shipment-card .ap-create-sub {
                 display: block;
-                font-size: 20px;
-                letter-spacing: 1.1px;
+                font-size: 14px;
+                letter-spacing: .7px;
                 text-transform: uppercase;
             }
             #allegropro_order_details .ap-shipment-card .ap-weight-layout {

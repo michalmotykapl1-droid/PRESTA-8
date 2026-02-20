@@ -336,7 +336,7 @@ class AzadaAbro
             $targetStock = $rawStock;
             $targetPrice = $rawPrice;
             $minimumLogistic = '';
-            $requiredPack = '';
+            $requiredPack = 'False';
             $packQtyValue = '';
             $conversionApplied = 0;
             $conversionNote = 'Brak przeliczenia: multiplier pusty/0.';
@@ -345,7 +345,7 @@ class AzadaAbro
                 $targetStock = floor($rawStock / $packQty);
                 $targetPrice = $rawPrice * $packQty;
                 $minimumLogistic = '1';
-                $requiredPack = '1';
+                $requiredPack = 'True';
                 $packQtyValue = (string)$packQty;
                 $conversionApplied = 1;
                 $conversionNote = 'Przeliczono po opakowaniu: stan=floor(stock/multiplier), cena=price*multiplier.';

@@ -862,12 +862,23 @@
         logLines = [];
 
         setOverall(0, false);
-        setNow('Wybierz tryb i kliknij „Start”.');
+        setNow('Wybierz tryb i kliknij „Rozpocznij”.');
 
         enableModeInputs(true);
 
         var steps = el('alproSyncSteps');
         if (steps) steps.style.display = 'none';
+
+        var modeBox = el('alproSyncModeBox');
+        if (modeBox) modeBox.style.display = 'block';
+
+        var summary = el('alproSyncSummary');
+        if (summary) summary.style.display = 'none';
+        var sumNote = el('alproSyncSummaryNote');
+        if (sumNote) sumNote.textContent = '';
+
+        var refreshBtn = el('alproSyncRefresh');
+        if (refreshBtn) refreshBtn.style.display = 'none';
 
         var bTxt = el('alproSyncBillingText');
         var eTxt = el('alproSyncEnrichText');
@@ -878,8 +889,8 @@
         if (eTxt) eTxt.textContent = 'Oczekiwanie…';
         if (eBar) eBar.style.width = '0%';
         if (bBar) {
-          bBar.style.width = '100%';
-          bBar.classList.add('progress-bar-striped','progress-bar-animated');
+          bBar.style.width = '0%';
+          bBar.classList.remove('progress-bar-striped','progress-bar-animated','is-indeterminate');
         }
 
         var toggle = el('alproSyncToggleLog');
@@ -914,6 +925,15 @@
         var steps = el('alproSyncSteps');
         if (steps) steps.style.display = 'block';
 
+        var modeBox = el('alproSyncModeBox');
+        if (modeBox) modeBox.style.display = 'none';
+
+        var bBar = el('alproSyncBillingBar');
+        if (bBar) {
+          bBar.style.width = '0%';
+          bBar.classList.add('is-indeterminate');
+        }
+
         var dismissBtn = el('alproSyncDismiss');
         var startBtn = el('alproSyncStart');
         var cancelBtn = el('alproSyncCancel');
@@ -930,12 +950,18 @@
       }
 
       function setFinishedUi() {
+        var dismissBtn = el('alproSyncDismiss');
+        var startBtn = el('alproSyncStart');
         var cancelBtn = el('alproSyncCancel');
         var closeBtn = el('alproSyncClose');
+        var refreshBtn = el('alproSyncRefresh');
         var headerClose = el('alproSyncHeaderClose');
 
+        if (dismissBtn) dismissBtn.style.display = 'none';
+        if (startBtn) startBtn.style.display = 'none';
         if (cancelBtn) cancelBtn.style.display = 'none';
         if (closeBtn) closeBtn.style.display = 'inline-block';
+        if (refreshBtn) refreshBtn.style.display = 'none';
         if (headerClose) headerClose.style.display = 'inline-block';
 
         syncBtn.disabled = false;
@@ -1019,6 +1045,12 @@
         var eBar = el('alproSyncEnrichBar');
 
         var fetched = 0, inserted = 0, updated = 0;
+        // etap 2 (enrich)
+        var filled = 0;
+        var missingTotal = 0;
+        var processedTotal = 0;
+        var skippedTotal = 0;
+        var errorTotal = 0;
         var effectiveDateFrom = '';
         overallPseudo = 0;
 
@@ -1075,6 +1107,11 @@
             if (bTxt) bTxt.textContent = t;
 
             if (Number(res.done || 0) === 1) {
+              var bBarDone2 = el('alproSyncBillingBar');
+              if (bBarDone2) {
+                bBarDone2.classList.remove('is-indeterminate');
+                bBarDone2.style.width = '100%';
+              }
               setOverall(50, false);
               startEnrich();
               return;
@@ -1093,8 +1130,21 @@
         function startEnrich() {
           if (cancelled) return finishCancelled();
 
-          setNow('Sprawdzam braki w zamówieniach…');
-          if (eTxt) eTxt.textContent = 'Sprawdzam braki…';
+          // reset liczniki etapu 2
+          missingTotal = 0;
+          processedTotal = 0;
+          filled = 0;
+          skippedTotal = 0;
+          errorTotal = 0;
+
+          if (eBar) {
+            eBar.style.width = '0%';
+            eBar.classList.add('is-indeterminate');
+          }
+
+          var countMsg = 'Krok 2/2: liczę braki w zamówieniach…';
+          setNow(countMsg);
+          if (eTxt) eTxt.textContent = countMsg;
 
           ajax('EnrichMissingCount', {
             account_id: accountId,
@@ -1105,107 +1155,215 @@
               appendLog('Błąd: nie udało się policzyć braków.');
               setNow('Błąd liczenia braków.');
               if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
+              if (eBar) {
+                eBar.classList.remove('is-indeterminate');
+                eBar.style.width = '0%';
+              }
               setFinishedUi();
               return;
             }
 
-            var missing = Number(res.missing || 0);
-            if (!missing) {
-              setNow('Brak brakujących danych — OK.');
-              if (eTxt) eTxt.textContent = 'Brak brakujących danych — OK.';
+            missingTotal = Number(res.missing || 0);
+
+            if (eBar) {
+              eBar.classList.remove('is-indeterminate');
+            }
+
+            // Jeżeli nie ma braków — jasno to komunikujemy i wypełniamy pasek
+            if (!missingTotal) {
+              if (eBar) eBar.style.width = '100%';
+              var ok0 = 'Etap 2 zakończony: brak brakujących danych (0).';
+              setNow(ok0);
+              if (eTxt) eTxt.textContent = ok0;
               finishOk();
               return;
             }
 
-            var processed = 0;
-            var filled = 0;
+            // Start właściwego uzupełniania
+            if (eBar) eBar.style.width = '1%';
 
-            function stepEnrich(offset) {
+            var startMsg = 'Etap 2: wykryto braki w ' + missingTotal + ' zamówieniach — rozpoczynam uzupełnianie…';
+            setNow(startMsg);
+            if (eTxt) eTxt.textContent = startMsg;
+
+            // Cursor-based paging (stabilne — bez OFFSET na zmieniającym się zbiorze)
+            var cursorLastAt = '';
+            var cursorOrderId = '';
+            var lastCursorKey = '';
+
+            function renderLine() {
+              var parts = [];
+              parts.push('braki: ' + missingTotal);
+              parts.push('sprawdzono: ' + processedTotal + '/' + missingTotal);
+              parts.push('uzupełniono: ' + filled);
+              if (skippedTotal) parts.push('pominięto: ' + skippedTotal);
+              if (errorTotal) parts.push('błędy: ' + errorTotal);
+              return 'Etap 2: ' + parts.join(' | ');
+            }
+
+            function stepEnrich() {
               if (cancelled) return finishCancelled();
 
-              var nowE = 'Uzupełnianie danych zamówień… ' + processed + '/' + missing;
-              setNow(nowE);
-              if (eTxt) eTxt.textContent = nowE;
+              var l0 = renderLine();
+              setNow(l0);
+              if (eTxt) eTxt.textContent = l0;
 
               ajax('EnrichMissingStep', {
                 account_id: accountId,
                 date_from: cfg.dateFrom,
                 date_to: cfg.dateTo,
-                offset: offset,
-                limit: 10
+                // offset pozostaje dla zgodności (ignorowany gdy jest kursor)
+                offset: 0,
+                limit: 10,
+                cursor_last_at: cursorLastAt,
+                cursor_order_id: cursorOrderId
               }).then(function(r){
                 if (!r || !r.ok) {
                   appendLog('Błąd uzupełniania danych.');
                   setNow('Błąd uzupełniania danych.');
                   if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
+                  if (eBar) eBar.style.width = '100%';
                   setFinishedUi();
                   return;
                 }
 
-                processed += Number(r.processed || 0);
+                processedTotal += Number(r.processed || 0);
                 filled += Number(r.updated_orders || 0);
+
+                // update cursor (stabilne stronicowanie)
+                if (r.next_cursor_last_at) {
+                  cursorLastAt = String(r.next_cursor_last_at);
+                  cursorOrderId = String(r.next_cursor_order_id || '');
+                }
+                var ck = cursorLastAt + '|' + cursorOrderId;
+                if (ck && ck === lastCursorKey && Number(r.done || 0) !== 1) {
+                  appendLog('WARN: kursor nie przesunął się — przerywam, aby uniknąć pętli.');
+                  if (eBar) eBar.style.width = '100%';
+                  finishOk();
+                  return;
+                }
+                lastCursorKey = ck;
 
                 if (r.errors && r.errors.length) {
                   for (var i=0;i<r.errors.length;i++) {
-                    appendLog('ERR ' + (r.errors[i].id || '') + ' ' + (r.errors[i].code || '') + ' ' + (r.errors[i].error || ''));
+                    var er = r.errors[i] || {};
+                    var code = Number(er.code || 0);
+                    if (code === 404) skippedTotal++; else errorTotal++;
+                    appendLog('ERR ' + (er.id || '') + ' ' + (er.code || '') + ' ' + (er.error || ''));
                   }
                 }
 
-                var pct = missing ? Math.min(100, Math.round((processed / missing) * 100)) : 100;
+                var pct = missingTotal ? Math.min(100, Math.round((processedTotal / missingTotal) * 100)) : 100;
                 if (eBar) eBar.style.width = pct + '%';
 
                 // overall: 50..100
                 var overall = 50 + (pct * 0.5);
                 setOverall(overall, false);
 
-                var t2 = 'Uzupełnianie danych zamówień… ' + processed + '/' + missing + ' (uzupełnione: ' + filled + ')';
-                setNow(t2);
-                if (eTxt) eTxt.textContent = t2;
+                var l1 = renderLine();
+                setNow(l1);
+                if (eTxt) eTxt.textContent = l1;
 
-                if (Number(r.done || 0) === 1) {
+                // done
+                if (Number(r.done || 0) === 1 || processedTotal >= missingTotal) {
+                  if (eBar) eBar.style.width = '100%';
                   finishOk();
                   return;
                 }
 
-                setTimeout(function(){ stepEnrich(Number(r.next_offset || (offset+10))); }, 650);
+                setTimeout(function(){ stepEnrich(); }, 450);
               }).catch(function(err){
                 var msg = (err && err.message) ? err.message : String(err);
                 appendLog('Błąd uzupełniania: ' + msg);
                 setNow('Błąd uzupełniania danych.');
                 if (eTxt) eTxt.textContent = 'Błąd uzupełniania danych.';
+                if (eBar) eBar.style.width = '100%';
                 setFinishedUi();
               });
             }
 
-            stepEnrich(0);
+            stepEnrich();
           }).catch(function(err){
             var msg = (err && err.message) ? err.message : String(err);
             appendLog('Błąd liczenia braków: ' + msg);
             setNow('Błąd liczenia braków.');
             if (eTxt) eTxt.textContent = 'Błąd liczenia braków.';
+            if (eBar) {
+              eBar.classList.remove('is-indeterminate');
+              eBar.style.width = '0%';
+            }
             setFinishedUi();
           });
         }
+function finishOk() {
+          // zakończ etap 1 (billing) jako 100%
+          var bBarDone = el('alproSyncBillingBar');
+          if (bBarDone) {
+            bBarDone.classList.remove('is-indeterminate');
+            bBarDone.style.width = '100%';
+          }
 
-        function finishOk() {
           setOverall(100, false);
 
           var bTxt2 = el('alproSyncBillingText');
           var eTxt2 = el('alproSyncEnrichText');
           if (bTxt2) bTxt2.textContent = 'Etap 1 zakończony: pobrano ' + fetched + ' wpisów (nowe: ' + inserted + ', aktualizacje: ' + updated + ').';
-          if (eTxt2 && eTxt2.textContent.indexOf('Błąd') === -1) eTxt2.textContent = 'Etap 2 zakończony — gotowe.';
-          setNow('Zakończono — odświeżam widok…');
+          var eBarDone = el('alproSyncEnrichBar');
+          if (eBarDone) {
+            eBarDone.classList.remove('is-indeterminate');
+            eBarDone.style.width = '100%';
+          }
+
+          if (eTxt2 && eTxt2.textContent.indexOf('Błąd') === -1) {
+            if (!missingTotal) {
+              eTxt2.textContent = 'Etap 2 zakończony: brak brakujących danych (0).';
+            } else {
+              var msg2 = 'Etap 2 zakończony: braki: ' + missingTotal + ', sprawdzono: ' + processedTotal + '/' + missingTotal + ', uzupełniono: ' + filled;
+              if (skippedTotal) msg2 += ', pominięto: ' + skippedTotal;
+              if (errorTotal) msg2 += ', błędy: ' + errorTotal;
+              msg2 += '.';
+              eTxt2.textContent = msg2;
+            }
+          }
+
+          // podsumowanie
+          var summary = el('alproSyncSummary');
+          if (summary) summary.style.display = 'block';
+          var sf = el('alproSumFetched'); if (sf) sf.textContent = String(fetched);
+          var si = el('alproSumInserted'); if (si) si.textContent = String(inserted);
+          var su = el('alproSumUpdated'); if (su) su.textContent = String(updated);
+          var so = el('alproSumOrdersFilled'); if (so) so.textContent = String(filled || 0);
+
+          var note = el('alproSyncSummaryNote');
+          if (note) {
+            var modeLabel = (syncMode === 'full') ? 'Pełna' : 'Szybka';
+            var extra = (syncMode === 'inc' && effectiveDateFrom) ? (' (pobrano od: ' + effectiveDateFrom + ')') : '';
+            note.textContent = 'Tryb: ' + modeLabel + extra + '.';
+          }
+
+          setNow('Zakończono — sprawdź podsumowanie poniżej.');
 
           setFinishedUi();
 
-          setTimeout(function(){ window.location.reload(); }, 900);
+          var refreshBtn = el('alproSyncRefresh');
+          if (refreshBtn) refreshBtn.style.display = 'inline-block';
+
+          var closeBtn = el('alproSyncClose');
+          if (closeBtn) closeBtn.style.display = 'inline-block';
         }
+
+
 
         function finishCancelled() {
           appendLog('Anulowano przez użytkownika.');
-          setNow('Anulowano.');
+          setNow('Anulowano — możesz zamknąć okno.');
+
+          var bBarDone = el('alproSyncBillingBar');
+          if (bBarDone) bBarDone.classList.remove('is-indeterminate');
+
           setFinishedUi();
         }
+
 
         stepBilling(0);
         return true;
@@ -1231,7 +1389,17 @@
         });
       }
 
-      // Start button inside modal
+      
+      // Refresh button (manual reload after completion)
+      var refreshBtn = el('alproSyncRefresh');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          window.location.reload();
+        });
+      }
+
+// Start button inside modal
       var startBtn = el('alproSyncStart');
       if (startBtn) {
         startBtn.addEventListener('click', function(e){

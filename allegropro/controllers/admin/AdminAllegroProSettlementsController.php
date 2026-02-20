@@ -22,8 +22,17 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
     {
         parent::setMedia($isNewTheme);
         if (!empty($this->module)) {
-            $this->addCSS($this->module->getPathUri() . 'views/css/settlements.css');
-            $this->addJS($this->module->getPathUri() . 'views/js/settlements.js');
+            $cssLocal = $this->module->getLocalPath() . 'views/css/settlements.css';
+            $jsLocal = $this->module->getLocalPath() . 'views/js/settlements.js';
+
+            $cssVer = @filemtime($cssLocal);
+            $jsVer = @filemtime($jsLocal);
+
+            if (!$cssVer) { $cssVer = time(); }
+            if (!$jsVer) { $jsVer = time(); }
+
+            $this->addCSS($this->module->getPathUri() . 'views/css/settlements.css?v=' . (int)$cssVer);
+            $this->addJS($this->module->getPathUri() . 'views/js/settlements.js?v=' . (int)$jsVer);
         }
     }
 
@@ -544,6 +553,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
     public function ajaxProcessBillingSyncStep(): void
     {
+        // ensure billing schema (columns/indexes) also for AJAX
+        $this->billingRepo->ensureSchema();
         $accountId = (int)Tools::getValue('account_id', 0);
         $dateFrom = (string)Tools::getValue('date_from', '');
         $dateTo = (string)Tools::getValue('date_to', '');
@@ -721,91 +732,181 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         }
     }
 
-    private function countMissingOrders(int $accountId, string $dateFrom, string $dateTo): int
-    {
-        $this->ensureEnrichSkipSchema();
+    
+    /**
+     * Backfill flag order_filled for billing entries in given range:
+     * - order_id empty => not applicable => order_filled=1
+     * - if local order data is complete (status/buyer/total + items/shipping/buyer tables present) => order_filled=1
+     * This makes missing-order checks fast (WHERE order_filled=0).
+     */
+    
+/**
+ * Backfill flag order_filled for billing entries (global, not limited to date range):
+ * - rows with empty order_id => order_filled=1 (N/A)
+ * - if local order data is complete (status/buyer/total + items/shipping/buyer tables present) => order_filled=1
+ *
+ * Uwaga: To jest świadomie globalne, żeby etap 2 zawsze dogrywał stare braki (order_filled=0),
+ * nawet gdy pobieranie billing-entries jest wykonywane tylko dla "końcówki" zakresu.
+ * Dzięki indeksom (id_allegropro_account, order_filled, ...) update dotyka tylko order_filled=0.
+ */
+private function prepareOrderFilledRange(int $accountId, string $dateFrom, string $dateTo): void
+{
+    $p = _DB_PREFIX_;
 
-        $from = pSQL($dateFrom . ' 00:00:00');
-        $to = pSQL($dateTo . ' 23:59:59');
+    // 1) N/A rows (no order_id) => mark as filled
+    try {
+        Db::getInstance()->execute(
+            "UPDATE `{$p}allegropro_billing_entry`
+             SET order_filled=1
+             WHERE id_allegropro_account=" . (int)$accountId . "
+               AND order_filled=0
+               AND (order_id IS NULL OR order_id='')"
+        );
+    } catch (\Throwable $e) {
+        // ignore
+    }
 
-        $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
+    // 2) Orders that are already complete locally => mark as filled (use EXISTS to avoid join explosion)
+    $normB = $this->normalizeIdSql('b.order_id');
+    $normO = $this->normalizeIdSql('o.checkout_form_id');
+    $normOi = $this->normalizeIdSql('oi.checkout_form_id');
+    $normSh = $this->normalizeIdSql('sh.checkout_form_id');
+    $normOb = $this->normalizeIdSql('ob.checkout_form_id');
 
-        $normO = $this->normalizeIdSql('o.checkout_form_id');
-        $normB = $this->normalizeIdSql('b.order_id');
-
-        $normS = $this->normalizeIdSql('s.order_id');
-
-        $sql = "SELECT COUNT(*) FROM (
-                  SELECT b.order_id
-                  FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
-                  LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                    ON (
-                      o.id_allegropro_account=b.id_allegropro_account
+    $sql = "UPDATE `{$p}allegropro_billing_entry` b
+            SET b.order_filled=1
+            WHERE b.id_allegropro_account=" . (int)$accountId . "
+              AND b.order_filled=0
+              AND b.order_id IS NOT NULL AND b.order_id <> ''
+              AND EXISTS (
+                    SELECT 1 FROM `{$p}allegropro_order` o
+                    WHERE o.id_allegropro_account=b.id_allegropro_account
                       AND {$normO} = {$normB}
-                    )
-                  LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
-                    ON (
-                      s.id_allegropro_account=b.id_allegropro_account
-                      AND {$normS} = {$normB}
-                      AND IFNULL(s.last_code,0)=404
-                      AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-                    )
-                  WHERE b.id_allegropro_account=" . (int)$accountId . "
-                    AND b.order_id IS NOT NULL AND b.order_id <> ''
-                    AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
-                    AND {$feeWhere}
-                    AND s.id_allegropro_order_enrich_skip IS NULL
-                  GROUP BY b.order_id
-                  HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
-                ) t";
-        return (int)Db::getInstance()->getValue($sql);
-    }
+                      AND IFNULL(o.total_amount,0) > 0
+                      AND IFNULL(o.buyer_login,'') <> ''
+                      AND IFNULL(o.status,'') <> ''
+              )
+              AND EXISTS (SELECT 1 FROM `{$p}allegropro_order_item` oi WHERE {$normOi} = {$normB} LIMIT 1)
+              AND EXISTS (SELECT 1 FROM `{$p}allegropro_order_shipping` sh WHERE {$normSh} = {$normB} LIMIT 1)
+              AND EXISTS (SELECT 1 FROM `{$p}allegropro_order_buyer` ob WHERE {$normOb} = {$normB} LIMIT 1)";
 
-    private function listMissingOrderIds(int $accountId, string $dateFrom, string $dateTo, int $limit, int $offset): array
+    try {
+        Db::getInstance()->execute($sql);
+    } catch (\Throwable $e) {
+        // ignore
+    }
+}
+
+
+    private function markBillingOrderFilled(int $accountId, string $orderId): void
     {
-        $this->ensureEnrichSkipSchema();
-
-        $from = pSQL($dateFrom . ' 00:00:00');
-        $to = pSQL($dateTo . ' 23:59:59');
-
-        $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
-
-        $normO = $this->normalizeIdSql('o.checkout_form_id');
-        $normB = $this->normalizeIdSql('b.order_id');
-        $normS = $this->normalizeIdSql('s.order_id');
-
-        $sql = "SELECT b.order_id, MAX(b.occurred_at) as last_at
-                FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
-                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order` o
-                  ON (
-                    o.id_allegropro_account=b.id_allegropro_account
-                    AND {$normO} = {$normB}
-                  )
-                LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
-                  ON (
-                    s.id_allegropro_account=b.id_allegropro_account
-                    AND {$normS} = {$normB}
-                    AND IFNULL(s.last_code,0)=404
-                    AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-                  )
-                WHERE b.id_allegropro_account=" . (int)$accountId . "
-                  AND b.order_id IS NOT NULL AND b.order_id <> ''
-                  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
-                  AND {$feeWhere}
-                  AND s.id_allegropro_order_enrich_skip IS NULL
-                GROUP BY b.order_id
-                HAVING (MAX(o.id_allegropro_order) IS NULL OR MAX(IFNULL(o.total_amount,0))<=0 OR MAX(IFNULL(o.buyer_login,''))='')
-                ORDER BY last_at DESC
-                LIMIT " . (int)$offset . ", " . (int)$limit;
-        $rows = Db::getInstance()->executeS($sql) ?: [];
-        $ids = [];
-        foreach ($rows as $r) {
-            if (!empty($r['order_id'])) {
-                $ids[] = (string)$r['order_id'];
-            }
+        $orderId = trim($orderId);
+        if (!$accountId || $orderId === '') {
+            return;
         }
-        return $ids;
+        $p = _DB_PREFIX_;
+        $norm = preg_replace('/[^0-9a-z]/i', '', strtolower($orderId));
+        if ($norm === '') {
+            return;
+        }
+        $normEsc = pSQL($norm);
+        $sql = "UPDATE `{$p}allegropro_billing_entry`
+                SET order_filled=1
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND order_filled=0
+                  AND " . $this->normalizeIdSql('order_id') . " = '{$normEsc}'";
+        try {
+            Db::getInstance()->execute($sql);
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
+
+
+private function countMissingOrders(int $accountId, string $dateFrom, string $dateTo): int
+{
+    $this->ensureEnrichSkipSchema();
+    $this->prepareOrderFilledRange($accountId, $dateFrom, $dateTo);
+
+    $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
+
+    $normS = $this->normalizeIdSql('s.order_id');
+    $normB = $this->normalizeIdSql('b.order_id');
+
+    $sql = "SELECT COUNT(DISTINCT b.order_id) AS cnt
+            FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+            LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
+              ON (s.id_allegropro_account=b.id_allegropro_account AND {$normS} = {$normB}
+                  AND IFNULL(s.last_code,0)=404 AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+            WHERE b.id_allegropro_account=" . (int)$accountId . "
+              AND b.order_filled=0
+              AND b.order_id IS NOT NULL AND b.order_id <> ''
+              AND {$feeWhere}
+              AND s.id_allegropro_order_enrich_skip IS NULL";
+
+    $row = Db::getInstance()->getRow($sql) ?: [];
+    return (int)($row['cnt'] ?? 0);
+}
+
+
+    /**
+     * Zwraca brakujące ID zamówień w stabilny sposób.
+     *
+     * WAŻNE: nie używamy OFFSET na zmieniającym się zbiorze (po uzupełnieniu danych liczba braków spada,
+     * a OFFSET powodował pomijanie części rekordów). Zamiast tego stosujemy kursor (last_at + order_id).
+     */
+    
+private function listMissingOrderRows(int $accountId, string $dateFrom, string $dateTo, int $limit, int $offset = 0, string $cursorLastAt = '', string $cursorOrderId = ''): array
+{
+    $this->ensureEnrichSkipSchema();
+    $this->prepareOrderFilledRange($accountId, $dateFrom, $dateTo);
+
+    $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
+
+    $normS = $this->normalizeIdSql('s.order_id');
+    $normB = $this->normalizeIdSql('b.order_id');
+
+    // Cursor-based pagination (stable on shrinking set)
+    $cursorCond = '';
+    $cursorLastAt = trim($cursorLastAt);
+    $cursorOrderId = trim($cursorOrderId);
+    if ($cursorLastAt !== '' && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $cursorLastAt)) {
+        $cAt = pSQL($cursorLastAt);
+        if ($cursorOrderId !== '') {
+            $cId = pSQL($cursorOrderId);
+            $cursorCond = " AND (MAX(b.occurred_at) < '{$cAt}' OR (MAX(b.occurred_at) = '{$cAt}' AND b.order_id < '{$cId}'))";
+        } else {
+            $cursorCond = " AND MAX(b.occurred_at) < '{$cAt}'";
+        }
+    } else {
+        $cursorLastAt = '';
+    }
+
+    $limit = max(1, min(50, (int)$limit));
+    $offset = max(0, (int)$offset);
+
+    $limitSql = ($cursorLastAt !== '')
+        ? "LIMIT " . (int)$limit
+        : "LIMIT " . (int)$offset . ", " . (int)$limit;
+
+    $sql = "SELECT b.order_id, MAX(b.occurred_at) as last_at
+            FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+            LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
+              ON (s.id_allegropro_account=b.id_allegropro_account AND {$normS} = {$normB}
+                  AND IFNULL(s.last_code,0)=404 AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+            WHERE b.id_allegropro_account=" . (int)$accountId . "
+              AND b.order_filled=0
+              AND b.order_id IS NOT NULL AND b.order_id <> ''
+              AND {$feeWhere}
+              AND s.id_allegropro_order_enrich_skip IS NULL
+            GROUP BY b.order_id
+            HAVING 1=1{$cursorCond}
+            ORDER BY last_at DESC, b.order_id DESC
+            {$limitSql}";
+
+    return Db::getInstance()->executeS($sql) ?: [];
+}
+
 
     private function normalizeCheckoutFormIdForApi(string $id): string
     {
@@ -874,6 +975,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
     public function ajaxProcessEnrichMissingCount(): void
     {
+        // ensure billing schema (columns/indexes) also for AJAX
+        $this->billingRepo->ensureSchema();
         $accountId = (int)Tools::getValue('account_id', 0);
         $dateFrom = (string)Tools::getValue('date_from', '');
         $dateTo = (string)Tools::getValue('date_to', '');
@@ -895,6 +998,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
     public function ajaxProcessEnrichMissingStep(): void
     {
+        // ensure billing schema (columns/indexes) also for AJAX
+        $this->billingRepo->ensureSchema();
         $accountId = (int)Tools::getValue('account_id', 0);
         $dateFrom = (string)Tools::getValue('date_from', '');
         $dateTo = (string)Tools::getValue('date_to', '');
@@ -910,16 +1015,42 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $limit = max(1, min(25, (int)$limit));
         $offset = max(0, (int)$offset);
 
+        $cursorLastAt = trim((string)Tools::getValue('cursor_last_at', ''));
+        $cursorOrderId = trim((string)Tools::getValue('cursor_order_id', ''));
+        if ($cursorLastAt !== '' && !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $cursorLastAt)) {
+            $cursorLastAt = '';
+        }
+
         try {
-            $ids = $this->listMissingOrderIds($accountId, $dateFrom, $dateTo, $limit, $offset);
+            $rows = $this->listMissingOrderRows($accountId, $dateFrom, $dateTo, $limit, $offset, $cursorLastAt, $cursorOrderId);
         } catch (\Throwable $e) {
             $this->ajaxJson(['ok' => 0, 'error' => 'SQL: ' . $e->getMessage()]);
             return;
         }
-        if (empty($ids)) {
-            $this->ajaxJson(['ok' => 1, 'processed' => 0, 'updated_orders' => 0, 'errors' => [], 'next_offset' => $offset, 'done' => 1]);
+
+        if (empty($rows)) {
+            $this->ajaxJson([
+                'ok' => 1,
+                'processed' => 0,
+                'updated_orders' => 0,
+                'errors' => [],
+                'next_offset' => $offset,
+                'next_cursor_last_at' => $cursorLastAt,
+                'next_cursor_order_id' => $cursorOrderId,
+                'done' => 1
+            ]);
             return;
         }
+
+        $ids = [];
+        foreach ($rows as $r) {
+            if (!empty($r['order_id'])) {
+                $ids[] = (string)$r['order_id'];
+            }
+        }
+        $last = end($rows);
+        $nextCursorLastAt = !empty($last['last_at']) ? (string)$last['last_at'] : '';
+        $nextCursorOrderId = !empty($last['order_id']) ? (string)$last['order_id'] : '';
 
         $http = new HttpClient();
         $api = new AllegroApiClient($http, $this->accounts);
@@ -965,13 +1096,14 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
             try {
                 $this->orderRepo->saveFullOrder($order);
+                $this->markBillingOrderFilled($accountId, $rawId);
                 $updated++;
             } catch (\Throwable $e) {
                 $errors[] = ['id' => $rawId, 'error' => $e->getMessage()];
             }
         }
 
-        $done = count($ids) < $limit;
+        $done = count($rows) < $limit;
 
         $this->ajaxJson([
             'ok' => 1,
@@ -979,6 +1111,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'updated_orders' => (int)$updated,
             'errors' => $errors,
             'next_offset' => $offset + $limit,
+            'next_cursor_last_at' => $nextCursorLastAt,
+            'next_cursor_order_id' => $nextCursorOrderId,
             'done' => $done ? 1 : 0,
         ]);
     }

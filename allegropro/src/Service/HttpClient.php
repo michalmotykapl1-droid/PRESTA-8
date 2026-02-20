@@ -3,14 +3,23 @@ namespace AllegroPro\Service;
 
 class HttpClient
 {
+    private int $timeout;
+    private int $connectTimeout;
+
+    public function __construct(int $timeout = 60, int $connectTimeout = 20)
+    {
+        $this->timeout = max(1, (int)$timeout);
+        $this->connectTimeout = max(1, (int)$connectTimeout);
+    }
+
     public function request(string $method, string $url, array $headers = [], ?string $body = null): array
     {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->connectTimeout);
 
         if ($body !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);

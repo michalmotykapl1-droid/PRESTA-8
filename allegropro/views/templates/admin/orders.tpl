@@ -1,6 +1,12 @@
 <div class="panel">
   <h3><i class="icon icon-shopping-cart"></i> Zamówienia (Baza danych modułu)</h3>
 
+  <ul class="nav nav-tabs" style="margin:10px 0 15px 0;">
+    <li class="{if $allegropro_view == 'orders'}active{/if}"><a href="{$admin_link|escape:'htmlall':'UTF-8'}">Zamówienia</a></li>
+    <li class="{if $allegropro_view == 'issues'}active{/if}"><a href="{$admin_link|escape:'htmlall':'UTF-8'}&view=issues">Do wyjaśnienia{if $allegropro_issues_badge_count|intval > 0} <span class="badge" style="background:#d9534f;">{$allegropro_issues_badge_count|intval}</span>{/if}</a></li>
+  </ul>
+
+
   <div class="row" style="margin-bottom:20px;">
     <div class="col-md-12">
       <div class="alert alert-info" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-radius:12px;border:1px solid #bfe3f6;background:#eef8fe;">

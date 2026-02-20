@@ -4,13 +4,25 @@ require_once(dirname(__FILE__) . '/../../classes/AzadaRawData.php');
 
 class AdminAzadaProductListController extends ModuleAdminController
 {
+    private $availableRawTables = [];
+    private $selectedWholesalers = [];
+    private $globalSearchQuery = '';
+    private $onlyMinimalQty = false;
+
     public function __construct()
     {
         $this->bootstrap = true;
         $this->context = Context::getContext();
 
-        // Domyślna tabela źródłowa dla poczekalni
-        $this->table = 'azada_raw_bioplanet';
+        $this->availableRawTables = $this->getAvailableRawTables();
+        $this->selectedWholesalers = $this->normalizeSelectedWholesalers(Tools::getValue('azada_wholesalers', []));
+        $this->globalSearchQuery = trim((string)Tools::getValue('azada_q', ''));
+        $this->onlyMinimalQty = (Tools::getValue('azada_only_min_qty', '0') === '1');
+
+        $this->buildGlobalSearchIndexTable();
+
+        // Źródłem listy jest indeks z wybranych hurtowni (lub wszystkich)
+        $this->table = 'azada_raw_search_index';
         $this->identifier = 'id_raw';
         $this->className = 'AzadaRawData';
         $this->list_no_link = true;
@@ -18,6 +30,139 @@ class AdminAzadaProductListController extends ModuleAdminController
         parent::__construct();
 
         $this->buildReadableList();
+    }
+
+    private function normalizeSelectedWholesalers($raw)
+    {
+        $selected = [];
+        if (!is_array($raw)) {
+            $raw = [$raw];
+        }
+
+        foreach ($raw as $table) {
+            $table = trim((string)$table);
+            if ($table === '') {
+                continue;
+            }
+
+            if (isset($this->availableRawTables[$table])) {
+                $selected[$table] = $table;
+            }
+        }
+
+        return array_values($selected);
+    }
+
+    private function getAvailableRawTables()
+    {
+        $tables = [];
+        $db = Db::getInstance();
+        $prefix = pSQL(_DB_PREFIX_);
+        $rows = $db->executeS("SHOW TABLES LIKE '".$prefix."azada_raw_%'");
+
+        if (empty($rows)) {
+            return $tables;
+        }
+
+        foreach ($rows as $row) {
+            $fullName = (string)reset($row);
+            $table = preg_replace('/^'.preg_quote(_DB_PREFIX_, '/').'/', '', $fullName);
+
+            if ($table === 'azada_raw_search_index') {
+                continue;
+            }
+
+            if (preg_match('/_(source|conversion)$/', $table)) {
+                continue;
+            }
+
+            $tables[$table] = $table;
+        }
+
+        ksort($tables);
+        return $tables;
+    }
+
+    private function getTablesForIndex()
+    {
+        // Wyszukiwarka globalna ma być niezależna od filtrów hurtowni.
+        if ($this->globalSearchQuery !== '') {
+            return array_values($this->availableRawTables);
+        }
+
+        if (!empty($this->selectedWholesalers)) {
+            return $this->selectedWholesalers;
+        }
+
+        return array_values($this->availableRawTables);
+    }
+
+    private function buildGlobalSearchIndexTable()
+    {
+        $db = Db::getInstance();
+        $target = _DB_PREFIX_ . 'azada_raw_search_index';
+
+        $db->execute("CREATE TABLE IF NOT EXISTS `$target` (
+            `id_raw` INT(11) NOT NULL AUTO_INCREMENT,
+            `source_table` VARCHAR(64) NULL,
+            `zdjecieglownelinkurl` TEXT NULL,
+            `nazwa` TEXT NULL,
+            `kod_kreskowy` TEXT NULL,
+            `produkt_id` TEXT NULL,
+            `marka` TEXT NULL,
+            `kategoria` TEXT NULL,
+            `jednostkapodstawowa` TEXT NULL,
+            `ilosc` TEXT NULL,
+            `wymagane_oz` TEXT NULL,
+            `ilosc_w_opakowaniu` TEXT NULL,
+            `NaStanie` TEXT NULL,
+            `cenaporabacienetto` TEXT NULL,
+            `vat` TEXT NULL,
+            `LinkDoProduktu` TEXT NULL,
+            `data_aktualizacji` DATETIME NULL,
+            PRIMARY KEY (`id_raw`)
+        ) ENGINE="._MYSQL_ENGINE_." DEFAULT CHARSET=utf8");
+
+        $db->execute("TRUNCATE TABLE `$target`");
+
+        $tablesToIndex = $this->getTablesForIndex();
+        if (empty($tablesToIndex)) {
+            return;
+        }
+
+        $columnsToCopy = [
+            'zdjecieglownelinkurl', 'nazwa', 'kod_kreskowy', 'produkt_id', 'marka', 'kategoria',
+            'jednostkapodstawowa', 'ilosc', 'wymagane_oz', 'ilosc_w_opakowaniu', 'NaStanie',
+            'cenaporabacienetto', 'vat', 'LinkDoProduktu', 'data_aktualizacji',
+        ];
+
+        foreach ($tablesToIndex as $table) {
+            $full = _DB_PREFIX_ . $table;
+            $cols = $db->executeS("SHOW COLUMNS FROM `$full`");
+            if (empty($cols)) {
+                continue;
+            }
+
+            $exists = [];
+            foreach ($cols as $c) {
+                $exists[$c['Field']] = true;
+            }
+
+            $selectParts = ["'".pSQL($table)."' AS source_table"];
+            foreach ($columnsToCopy as $col) {
+                if (isset($exists[$col])) {
+                    $selectParts[] = "`$col`";
+                } else {
+                    if ($col === 'data_aktualizacji') {
+                        $selectParts[] = 'NULL AS `data_aktualizacji`';
+                    } else {
+                        $selectParts[] = "'' AS `$col`";
+                    }
+                }
+            }
+
+            $db->execute("INSERT INTO `$target` (`source_table`, `".implode('`, `', $columnsToCopy)."`) SELECT ".implode(', ', $selectParts)." FROM `$full`");
+        }
     }
 
     /**
@@ -46,7 +191,12 @@ class AdminAzadaProductListController extends ModuleAdminController
             }
         }
 
+        $this->applyListFilters($existing);
+        $this->prepareRequiredOzSupport($existing);
+        $this->applyGlobalSearchFilter($existing);
+
         $preferredOrder = [
+            'source_table',
             'zdjecieglownelinkurl',
             'nazwa',
             'kod_kreskowy',
@@ -55,6 +205,7 @@ class AdminAzadaProductListController extends ModuleAdminController
             'kategoria',
             'jednostkapodstawowa',
             'ilosc',
+            'wymagane_oz',
             'NaStanie',
             'cenaporabacienetto',
             'vat',
@@ -72,44 +223,6 @@ class AdminAzadaProductListController extends ModuleAdminController
             $params = $this->getReadableFieldParams($field);
             $this->fields_list[$field] = $params;
         }
-
-        // Fallback: jeżeli żadna preferowana kolumna nie istnieje,
-        // pokazujemy dynamicznie wszystkie (jak dawniej).
-        if (empty($this->fields_list)) {
-            foreach ($columns as $col) {
-                $field = $col['Field'];
-                if ($field === 'id_raw') {
-                    continue;
-                }
-
-                $params = [
-                    'title' => $this->humanize($field),
-                    'align' => 'center',
-                    'havingFilter' => true,
-                ];
-
-                if (strpos($field, 'zdjecie') !== false || strpos($field, 'foto') !== false) {
-                    $params['title'] = 'FOTO';
-                    $params['callback'] = 'displayImageThumb';
-                    $params['search'] = false;
-                    $params['havingFilter'] = false;
-                    $params['width'] = 70;
-                } elseif ($field === 'opis' || strpos($field, 'nazwa') !== false) {
-                    $params['callback'] = 'displayShortText';
-                    $params['width'] = 250;
-                } elseif (strpos($field, 'cena') !== false || strpos($field, 'netto') !== false || strpos($field, 'brutto') !== false || strpos($field, 'vat') !== false) {
-                    $params['callback'] = 'displayRawNumber';
-                    $params['align'] = 'right';
-                    $params['width'] = 80;
-                } elseif (strpos($field, 'stan') !== false || strpos($field, 'ilosc') !== false || strpos($field, 'minimum') !== false) {
-                    $params['type'] = 'int';
-                    $params['callback'] = 'displayStockColor';
-                    $params['width'] = 60;
-                }
-
-                $this->fields_list[$field] = $params;
-            }
-        }
     }
 
     private function getReadableFieldParams($field)
@@ -119,6 +232,16 @@ class AdminAzadaProductListController extends ModuleAdminController
             'align' => 'center',
             'havingFilter' => true,
         ];
+
+        if ($field === 'source_table') {
+            return [
+                'title' => 'Hurtownia',
+                'align' => 'center',
+                'width' => 130,
+                'callback' => 'displayWholesalerName',
+                'havingFilter' => true,
+            ];
+        }
 
         if ($field === 'zdjecieglownelinkurl') {
             return [
@@ -164,6 +287,7 @@ class AdminAzadaProductListController extends ModuleAdminController
             $base['width'] = 110;
             return $base;
         }
+
         if ($field === 'marka') {
             $base['title'] = 'Marka';
             $base['width'] = 120;
@@ -184,6 +308,17 @@ class AdminAzadaProductListController extends ModuleAdminController
                 'callback' => 'displayStockColor',
                 'width' => 75,
                 'havingFilter' => true,
+            ];
+        }
+
+        if ($field === 'wymagane_oz') {
+            return [
+                'title' => 'Wymagane OŻ',
+                'align' => 'center',
+                'callback' => 'displayRequiredOzInfo',
+                'width' => 120,
+                'havingFilter' => false,
+                'search' => false,
             ];
         }
 
@@ -241,6 +376,77 @@ class AdminAzadaProductListController extends ModuleAdminController
         return $base;
     }
 
+    private function prepareRequiredOzSupport(array $existing)
+    {
+        if (!isset($existing['wymagane_oz']) || !isset($existing['ilosc_w_opakowaniu'])) {
+            return;
+        }
+
+        if (trim((string)$this->_select) === '') {
+            $this->_select = 'a.`ilosc_w_opakowaniu`';
+            return;
+        }
+
+        $this->_select .= ', a.`ilosc_w_opakowaniu`';
+    }
+
+    private function applyListFilters(array $existing)
+    {
+        $conditions = [];
+
+        if (isset($existing['vat'])) {
+            $conditions[] = "CAST(REPLACE(REPLACE(TRIM(vat), '%', ''), ',', '.') AS DECIMAL(10,2)) IN (5, 8, 23)";
+        }
+
+        if ($this->onlyMinimalQty && isset($existing['wymagane_oz'])) {
+            $conditions[] = "LOWER(REPLACE(TRIM(wymagane_oz), ' ', '')) IN ('true', 'min')";
+
+            if (isset($existing['ilosc_w_opakowaniu'])) {
+                $conditions[] = "CAST(REPLACE(TRIM(ilosc_w_opakowaniu), ',', '.') AS DECIMAL(10,2)) > 0";
+            }
+        }
+
+        if (!empty($conditions)) {
+            $this->_where .= ' AND ' . implode(' AND ', $conditions);
+        }
+    }
+
+    private function applyGlobalSearchFilter(array $existing)
+    {
+        if ($this->globalSearchQuery === '') {
+            return;
+        }
+
+        $query = pSQL($this->globalSearchQuery);
+        $searchable = ['nazwa', 'kod_kreskowy', 'produkt_id', 'marka', 'kategoria', 'LinkDoProduktu'];
+        $conditions = [];
+
+        foreach ($searchable as $col) {
+            if (isset($existing[$col])) {
+                $conditions[] = "`$col` LIKE '%$query%'";
+            }
+        }
+
+        if (!empty($conditions)) {
+            $this->_where .= ' AND (' . implode(' OR ', $conditions) . ')';
+        }
+    }
+
+    public function displayWholesalerName($value, $row)
+    {
+        return $this->getWholesalerDisplayName((string)$value);
+    }
+
+    private function getWholesalerDisplayName($table)
+    {
+        $name = str_replace('azada_raw_', '', trim((string)$table));
+        if ($name === '') {
+            return '-';
+        }
+
+        return ucfirst($name);
+    }
+
     public function displayRawNumber($value, $row)
     {
         if ($value === '' || $value === null) {
@@ -277,6 +483,212 @@ class AdminAzadaProductListController extends ModuleAdminController
         }
 
         return '<span class="badge badge-danger" style="background:#e74c3c; color:white;">False</span>';
+    }
+
+    public function displayRequiredOzInfo($value, $row)
+    {
+        $requiredRaw = trim((string)$value);
+        $requiredNormalized = preg_replace('/\s+/', '', $requiredRaw);
+        $requiredLower = strtolower($requiredNormalized);
+
+        $isRequired = in_array($requiredLower, ['true', 'min'], true);
+        if (!$isRequired) {
+            return '-';
+        }
+
+        $packQty = '';
+        if (isset($row['ilosc_w_opakowaniu'])) {
+            $packQty = trim((string)$row['ilosc_w_opakowaniu']);
+        }
+
+        if ($packQty === '') {
+            return '-';
+        }
+
+        $packQty = str_replace(',', '.', $packQty);
+        return 'min (' . rtrim(rtrim(number_format((float)$packQty, 2, '.', ''), '0'), '.') . ')';
+    }
+
+    public function renderList()
+    {
+        $baseAction = self::$currentIndex . '&token=' . $this->token;
+        $action = $baseAction;
+        $query = htmlspecialchars($this->globalSearchQuery, ENT_QUOTES, 'UTF-8');
+        $isMinQtyChecked = $this->onlyMinimalQty ? ' checked="checked"' : '';
+
+        $html = '';
+
+        // Niezależny pasek wyszukiwania na samej górze
+        $html .= '<div class="panel"><h3><i class="icon-search"></i> Wyszukiwanie globalne</h3>';
+        $html .= '<form method="get" action="'.$action.'" class="form-inline">';
+        $html .= '<input type="hidden" name="controller" value="'.htmlspecialchars($this->controller_name, ENT_QUOTES, 'UTF-8').'" />';
+        $html .= '<input type="hidden" name="token" value="'.htmlspecialchars($this->token, ENT_QUOTES, 'UTF-8').'" />';
+        $html .= '<input type="hidden" name="azada_only_min_qty" value="'.($this->onlyMinimalQty ? '1' : '0').'" />';
+        $html .= '<div class="form-group" style="margin-right:10px;">';
+        $html .= '<input type="text" name="azada_q" value="'.$query.'" class="form-control" style="min-width:420px;" placeholder="Szukaj we wszystkich hurtowniach: nazwa, EAN, SKU, marka..." />';
+        $html .= '</div>';
+        $html .= '<button type="submit" class="btn btn-primary"><i class="icon-search"></i> Szukaj</button> ';
+        $html .= '<a class="btn btn-default" href="'.$action.'"><i class="icon-eraser"></i> Wyczyść</a>';
+        $html .= '</form></div>';
+
+        // Multi-select hurtowni + przycisk Wybierz (styl dropdown z wyszukiwaniem)
+        $selectedLabels = [];
+        foreach ($this->selectedWholesalers as $selectedTable) {
+            $selectedLabels[] = $this->getWholesalerDisplayName($selectedTable);
+        }
+
+        $selectedSummary = empty($selectedLabels)
+            ? 'Wszystkie hurtownie'
+            : implode(', ', $selectedLabels);
+
+        $selectedSummaryEscaped = htmlspecialchars($selectedSummary, ENT_QUOTES, 'UTF-8');
+        $html .= '<div class="panel"><h3><i class="icon-filter"></i> Filtry hurtowni</h3>';
+        $html .= '<form method="get" action="'.$action.'">';
+        $html .= '<input type="hidden" name="controller" value="'.htmlspecialchars($this->controller_name, ENT_QUOTES, 'UTF-8').'" />';
+        $html .= '<input type="hidden" name="token" value="'.htmlspecialchars($this->token, ENT_QUOTES, 'UTF-8').'" />';
+        if ($this->globalSearchQuery !== '') {
+            $html .= '<input type="hidden" name="azada_q" value="'.$query.'" />';
+        }
+        $html .= '<div class="checkbox" style="margin:8px 0 12px;">';
+        $html .= '<label style="font-weight:600;">';
+        $html .= '<input type="checkbox" name="azada_only_min_qty" value="1"'.$isMinQtyChecked.' /> Tylko produkty z minimalną ilością';
+        $html .= '</label>';
+        $html .= '</div>';
+        $html .= '<div class="form-group" style="margin-bottom:12px;">';
+        $html .= '<label style="display:block; margin-bottom:8px; font-weight:600;">Hurtownie (możesz wybrać kilka):</label>';
+        $html .= '<div class="azada-wholesaler-picker" style="position:relative; max-width:1000px;">';
+        $html .= '<button type="button" class="btn btn-default azada-picker-toggle" style="width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;">';
+        $html .= '<span class="azada-picker-selected">'.$selectedSummaryEscaped.'</span>';
+        $html .= '<i class="icon-caret-down"></i>';
+        $html .= '</button>';
+        $html .= '<div class="azada-picker-menu panel" style="display:none; position:absolute; left:0; right:0; top:100%; z-index:1000; margin-top:6px; padding:10px; background:#fff; border:1px solid #d3d8db; box-shadow:0 8px 20px rgba(0,0,0,.08);">';
+        $html .= '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">';
+        $html .= '<strong>Wybierz hurtownie</strong>';
+        $html .= '<div>';
+        $html .= '<a href="#" class="azada-picker-select-all" style="margin-right:10px;">Wszystkie</a>';
+        $html .= '<a href="#" class="azada-picker-clear">Wyczyść</a>';
+        $html .= '</div></div>';
+        $html .= '<input type="text" class="form-control azada-picker-search" placeholder="Szukaj hurtowni..." style="margin-bottom:10px;" />';
+        $html .= '<div class="azada-picker-options" style="max-height:180px; overflow:auto; border:1px solid #e5e5e5; padding:8px;">';
+
+        foreach ($this->availableRawTables as $table) {
+            $isSelected = in_array($table, $this->selectedWholesalers, true) ? ' selected="selected"' : '';
+            $isChecked = $isSelected !== '' ? ' checked="checked"' : '';
+            $valueEscaped = htmlspecialchars($table, ENT_QUOTES, 'UTF-8');
+            $label = htmlspecialchars($this->getWholesalerDisplayName($table), ENT_QUOTES, 'UTF-8');
+            $html .= '<label class="azada-picker-option" data-label="'.strtolower($label).'" style="display:block; margin:0 0 6px; font-weight:400;">';
+            $html .= '<input type="checkbox" class="azada-picker-checkbox" value="'.$valueEscaped.'"'.$isChecked.' /> '.$label;
+            $html .= '</label>';
+        }
+
+        $html .= '</div>';
+        $html .= '<div class="azada-picker-hidden-inputs"></div>';
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '<p class="help-block">Brak zaznaczenia = wszystkie hurtownie.</p>';
+        $html .= '</div>';
+        $html .= '<button type="submit" class="btn btn-primary"><i class="icon-check"></i> Wybierz</button>';
+        $html .= '</form></div>';
+
+        $html .= '<script>
+            (function() {
+                var picker = document.querySelector(".azada-wholesaler-picker");
+                if (!picker) return;
+
+                var toggleBtn = picker.querySelector(".azada-picker-toggle");
+                var menu = picker.querySelector(".azada-picker-menu");
+                var search = picker.querySelector(".azada-picker-search");
+                var options = picker.querySelectorAll(".azada-picker-option");
+                var checkboxes = picker.querySelectorAll(".azada-picker-checkbox");
+                var selectedLabel = picker.querySelector(".azada-picker-selected");
+                var hiddenInputsWrap = picker.querySelector(".azada-picker-hidden-inputs");
+                var selectAllLink = picker.querySelector(".azada-picker-select-all");
+                var clearLink = picker.querySelector(".azada-picker-clear");
+
+                function normalize(v) {
+                    return (v || "").toLowerCase();
+                }
+
+                function checkedValues() {
+                    var values = [];
+                    checkboxes.forEach(function(cb) {
+                        if (cb.checked) values.push(cb.value);
+                    });
+                    return values;
+                }
+
+                function checkedLabels() {
+                    var labels = [];
+                    checkboxes.forEach(function(cb) {
+                        if (!cb.checked) return;
+                        var lbl = cb.parentNode.textContent || "";
+                        labels.push(lbl.trim());
+                    });
+                    return labels;
+                }
+
+                function syncHiddenInputs() {
+                    hiddenInputsWrap.innerHTML = "";
+                    checkedValues().forEach(function(value) {
+                        var input = document.createElement("input");
+                        input.type = "hidden";
+                        input.name = "azada_wholesalers[]";
+                        input.value = value;
+                        hiddenInputsWrap.appendChild(input);
+                    });
+                }
+
+                function syncSummary() {
+                    var labels = checkedLabels();
+                    selectedLabel.textContent = labels.length ? labels.join(", ") : "Wszystkie hurtownie";
+                }
+
+                function syncAll() {
+                    syncSummary();
+                    syncHiddenInputs();
+                }
+
+                toggleBtn.addEventListener("click", function() {
+                    menu.style.display = menu.style.display === "none" ? "block" : "none";
+                });
+
+                document.addEventListener("click", function(event) {
+                    if (!picker.contains(event.target)) {
+                        menu.style.display = "none";
+                    }
+                });
+
+                if (search) {
+                    search.addEventListener("input", function() {
+                        var q = normalize(search.value);
+                        options.forEach(function(option) {
+                            var label = option.getAttribute("data-label") || "";
+                            option.style.display = label.indexOf(q) !== -1 ? "block" : "none";
+                        });
+                    });
+                }
+
+                checkboxes.forEach(function(cb) {
+                    cb.addEventListener("change", syncAll);
+                });
+
+                selectAllLink.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    checkboxes.forEach(function(cb) { cb.checked = true; });
+                    syncAll();
+                });
+
+                clearLink.addEventListener("click", function(e) {
+                    e.preventDefault();
+                    checkboxes.forEach(function(cb) { cb.checked = false; });
+                    syncAll();
+                });
+
+                syncAll();
+            })();
+        </script>';
+
+        return $html . parent::renderList();
     }
 
     public function displayProductLink($url, $row)

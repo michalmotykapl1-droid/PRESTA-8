@@ -597,92 +597,126 @@
 </div>
 
 
-  {* Modal synchronizacji (Start -> postęp) *}
-  <div class="modal fade" id="alproSyncModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-md alpro-sync-modal" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="alpro-sync-title">
-            <div class="alpro-sync-title__icon">↻</div>
-            <div>
-              <div class="modal-title">Synchronizacja rozliczeń</div>
-              <div class="alpro-muted" id="alproSyncHeaderSub">Wybierz tryb i kliknij „Start”.</div>
-            </div>
+  
+
+{* Modal synchronizacji rozliczeń (setup -> start -> postęp -> podsumowanie) *}
+<div class="modal fade" id="alproSyncModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg alpro-sync-modal" role="document">
+    <div class="modal-content alpro-sync-modal__content">
+      <div class="modal-header alpro-sync-modal__head">
+        <div class="alpro-sync-head">
+          <div class="alpro-sync-head__icon"><i class="material-icons">sync</i></div>
+          <div class="alpro-sync-head__txt">
+            <div class="alpro-sync-head__title">Synchronizacja rozliczeń</div>
+            <div class="alpro-sync-head__sub" id="alproSyncHeaderSub">Wybierz tryb i kliknij „Rozpocznij”.</div>
           </div>
-          <button type="button" class="close" id="alproSyncHeaderClose" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <button type="button" class="close" id="alproSyncHeaderClose" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+
+      <div class="modal-body alpro-sync-modal__body">
+
+        <div class="alpro-sync-card alpro-sync-overall">
+          <div class="alpro-sync-overall__row">
+            <div class="alpro-sync-overall__label">Postęp</div>
+            <div class="alpro-sync-overall__pct" id="alproSyncOverallPct">0%</div>
+          </div>
+          <div class="progress alpro-progress">
+            <div id="alproSyncOverallBar" class="progress-bar" style="width:0%"></div>
+          </div>
+          <div class="alpro-sync-now">
+            <span class="k">Aktualnie:</span>
+            <span class="v" id="alproSyncNowText">Wybierz tryb i kliknij „Rozpocznij”.</span>
+          </div>
         </div>
 
-        <div class="modal-body">
+        <div class="alpro-sync-card alpro-sync-mode" id="alproSyncModeBox">
+          <div class="alpro-sync-card__title">Tryb synchronizacji</div>
 
-          <div class="alpro-sync-overall">
-            <div class="alpro-sync-overall__row">
-              <div class="alpro-sync-overall__label">Postęp</div>
-              <div class="alpro-sync-overall__pct" id="alproSyncOverallPct">0%</div>
-            </div>
-            <div class="progress alpro-progress">
-              <div id="alproSyncOverallBar" class="progress-bar" style="width:0%"></div>
-            </div>
-            <div class="alpro-sync-now">
-              <span class="k">Aktualnie:</span>
-              <span class="v" id="alproSyncNowText">Wybierz tryb i kliknij „Start”.</span>
-            </div>
-          </div>
+          <label class="alpro-radio">
+            <input type="radio" id="alproSyncModeInc" name="alpro_sync_mode" value="inc" checked>
+            <span>
+              <strong>Szybka</strong> — tylko nowe wpisy + uzupełnij braki w zapisanych operacjach
+            </span>
+          </label>
 
-          <div class="alpro-sync-step" id="alproSyncModeBox">
-            <div class="alpro-sync-step__title">Tryb synchronizacji</div>
-            <div class="form-group mb-2">
-              <div class="custom-control custom-radio">
-                <input type="radio" id="alproSyncModeInc" name="alpro_sync_mode" class="custom-control-input" value="inc" checked>
-                <label class="custom-control-label" for="alproSyncModeInc">
-                  <strong>Szybka</strong> — tylko nowe wpisy + uzupełnij braki w zapisanych operacjach
-                </label>
-              </div>
-              <div class="custom-control custom-radio mt-2">
-                <input type="radio" id="alproSyncModeFull" name="alpro_sync_mode" class="custom-control-input" value="full">
-                <label class="custom-control-label" for="alproSyncModeFull">
-                  <strong>Pełna</strong> — pobierz i zaktualizuj wszystkie wpisy w zakresie dat (wolniej)
-                </label>
-              </div>
-            </div>
-            <div class="text-muted" style="font-size:12px;">Na co dzień wybieraj „Szybka”. „Pełna” tylko gdy podejrzewasz braki lub po zmianach w logice mapowania.</div>
-          </div>
+          <label class="alpro-radio">
+            <input type="radio" id="alproSyncModeFull" name="alpro_sync_mode" value="full">
+            <span>
+              <strong>Pełna</strong> — pobierz i zaktualizuj wszystkie wpisy w zakresie dat (wolniej)
+            </span>
+          </label>
 
-          <div id="alproSyncSteps" style="display:none">
-
-            <div class="alpro-sync-step">
-              <div class="alpro-sync-step__title">1) Pobieranie opłat (billing-entries)</div>
-              <div class="progress">
-                <div id="alproSyncBillingBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
-              </div>
-              <div id="alproSyncBillingText" class="alpro-muted">Oczekiwanie…</div>
-            </div>
-
-            <div class="alpro-sync-step">
-              <div class="alpro-sync-step__title">2) Uzupełnianie brakujących danych zamówień</div>
-              <div class="progress">
-                <div id="alproSyncEnrichBar" class="progress-bar" style="width:0%"></div>
-              </div>
-              <div id="alproSyncEnrichText" class="alpro-muted">Oczekiwanie…</div>
-            </div>
-
-            <div class="alpro-sync-details">
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="alproSyncToggleLog">Pokaż szczegóły techniczne</button>
-              <div id="alproSyncLogWrap" style="display:none">
-                <div id="alproSyncLog" class="alpro-sync-log"></div>
-              </div>
-            </div>
-
-          </div>
-
+          <div class="alpro-sync-hint">Na co dzień wybieraj „Szybka”. „Pełna” tylko gdy podejrzewasz braki lub po zmianach w logice mapowania.</div>
         </div>
 
-        <div class="modal-footer alpro-sync-footer">
-          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" id="alproSyncDismiss">Zamknij</button>
-          <button type="button" class="btn btn-outline-secondary" id="alproSyncCancel" style="display:none">Anuluj</button>
-          <button type="button" class="btn btn-primary" id="alproSyncStart">Start</button>
+        <div id="alproSyncSteps" style="display:none">
+          <div class="alpro-sync-card alpro-sync-step">
+            <div class="alpro-sync-step__title"><span class="alpro-step-badge">1</span> Pobieranie opłat (billing-entries)</div>
+            <div class="progress alpro-progress alpro-progress--sm">
+              <div id="alproSyncBillingBar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div id="alproSyncBillingText" class="alpro-muted">Oczekiwanie…</div>
+          </div>
+
+          <div class="alpro-sync-card alpro-sync-step">
+            <div class="alpro-sync-step__title"><span class="alpro-step-badge">2</span> Uzupełnianie brakujących danych zamówień</div>
+            <div class="progress alpro-progress alpro-progress--sm">
+              <div id="alproSyncEnrichBar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div id="alproSyncEnrichText" class="alpro-muted">Oczekiwanie…</div>
+          </div>
+
+          <div class="alpro-sync-card alpro-sync-summary" id="alproSyncSummary" style="display:none">
+            <div class="alpro-sync-card__title">Podsumowanie</div>
+            <div class="alpro-sync-summary__grid">
+              <div class="alpro-sync-metric">
+                <div class="label">Pobrano wpisów</div>
+                <div class="value" id="alproSumFetched">0</div>
+              </div>
+              <div class="alpro-sync-metric">
+                <div class="label">Nowe wpisy</div>
+                <div class="value" id="alproSumInserted">0</div>
+              </div>
+              <div class="alpro-sync-metric">
+                <div class="label">Aktualizacje</div>
+                <div class="value" id="alproSumUpdated">0</div>
+              </div>
+              <div class="alpro-sync-metric">
+                <div class="label">Uzupełnione zamówienia</div>
+                <div class="value" id="alproSumOrdersFilled">0</div>
+              </div>
+            </div>
+            <div class="alpro-sync-summary__note" id="alproSyncSummaryNote"></div>
+          </div>
+
+          <div class="alpro-sync-details">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="alproSyncToggleLog">Pokaż szczegóły techniczne</button>
+            <div id="alproSyncLogWrap" style="display:none">
+              <pre id="alproSyncLog" class="alpro-sync-log"></pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer alpro-sync-modal__foot">
+        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" id="alproSyncDismiss">Zamknij</button>
+        <button type="button" class="btn btn-outline-secondary" id="alproSyncCancel" style="display:none">Anuluj</button>
+
+        <div class="alpro-sync-foot-right">
+          <button type="button" class="btn btn-outline-primary" id="alproSyncRefresh" style="display:none">
+            <i class="material-icons">refresh</i> Odśwież widok
+          </button>
+
+          <button type="button" class="btn btn-primary" id="alproSyncStart">
+            <i class="material-icons">play_arrow</i> Rozpocznij
+          </button>
+
           <button type="button" class="btn btn-primary" data-dismiss="modal" id="alproSyncClose" style="display:none">Zamknij</button>
         </div>
       </div>
     </div>
   </div>
+</div>
 

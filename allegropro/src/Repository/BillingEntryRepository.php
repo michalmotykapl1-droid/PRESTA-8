@@ -40,7 +40,7 @@ class BillingEntryRepository
 
         Db::getInstance()->execute($sql);
 
-        // For older installations: add missing columns safely.
+	    // For older installations: add missing columns & indexes safely.
         try {
             $cols = Db::getInstance()->executeS('SHOW COLUMNS FROM `' . bqSQL($p . 'allegropro_billing_entry') . '`');
             $have = [];
@@ -56,6 +56,10 @@ class BillingEntryRepository
             if (empty($have['order_id'])) {
                 $alter[] = 'ADD COLUMN `order_id` VARCHAR(64) NULL';
             }
+	        // Used by settlements Step 2 to mark if order details are already complete.
+	        if (empty($have['order_filled'])) {
+	            $alter[] = 'ADD COLUMN `order_filled` TINYINT(1) NOT NULL DEFAULT 0';
+	        }
             if (empty($have['raw_json'])) {
                 $alter[] = 'ADD COLUMN `raw_json` LONGTEXT NULL';
             }
@@ -68,6 +72,39 @@ class BillingEntryRepository
             if (!empty($alter)) {
                 Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ' . implode(', ', $alter));
             }
+
+	        // Add indexes used by fast missing-order scan (ignore if already exist)
+	        $idx = Db::getInstance()->executeS('SHOW INDEX FROM `' . bqSQL($p . 'allegropro_billing_entry') . '`');
+	        $haveIdx = [];
+	        if (is_array($idx)) {
+	            foreach ($idx as $i) {
+	                if (!empty($i['Key_name'])) {
+	                    $haveIdx[$i['Key_name']] = true;
+	                }
+	            }
+	        }
+	        if (empty($haveIdx['idx_acc_filled_date'])) {
+	            Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_filled_date` (`id_allegropro_account`,`order_filled`,`occurred_at`)');
+	        }
+	        if (empty($haveIdx['idx_acc_filled_order'])) {
+	            Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_filled_order` (`id_allegropro_account`,`order_filled`,`order_id`)');
+	        }
+
+	        // One-time cleanup of legacy placeholders that should not be persisted.
+	        $cleanupFlag = 'ALPRO_BILLING_PLACEHOLDER_CLEANUP_20260220';
+	        if ((string)Configuration::get($cleanupFlag) !== '1') {
+	            Db::getInstance()->execute(
+	                'UPDATE `' . bqSQL($p . 'allegropro_billing_entry') . '` '
+	                . "SET offer_id=NULL, offer_name=NULL "
+	                . "WHERE offer_id='__ORDER__' OR offer_name='[opłata zamówienia]'"
+	            );
+	            Db::getInstance()->execute(
+	                'UPDATE `' . bqSQL($p . 'allegropro_billing_entry') . '` '
+	                . "SET tax_annotation=NULL "
+	                . "WHERE tax_annotation='__NA__'"
+	            );
+	            Configuration::updateValue($cleanupFlag, '1');
+	        }
         } catch (\Exception $e) {
             // do not break page load
         }
@@ -123,19 +160,27 @@ class BillingEntryRepository
                 continue;
             }
 
-            $typeId = pSQL((string)($e['type']['id'] ?? ''));
-            $typeName = pSQL((string)($e['type']['name'] ?? ''));
-            $offerId = pSQL((string)($e['offer']['id'] ?? ''));
-            $offerName = pSQL((string)($e['offer']['name'] ?? ''));
-            $orderId = pSQL($this->extractOrderId($e));
+	    $typeId = pSQL((string)($e['type']['id'] ?? ''));
+	    $typeNameRaw = trim((string)($e['type']['name'] ?? ''));
+	    $typeName = pSQL($typeNameRaw);
+
+	    // Offer fields are not guaranteed in all billing-entry types.
+	    // Extract more robustly (offer, offerId, lineItem.offer, etc.).
+	    [$offerIdRaw, $offerNameRaw] = $this->extractOfferIdName($e);
+	    $offerId = pSQL($offerIdRaw);
+	    $offerName = pSQL($offerNameRaw);
+
+	    $orderIdRaw = $this->extractOrderId($e);
+	    $orderId = pSQL($orderIdRaw);
 
             $valAmount = (float)($e['value']['amount'] ?? 0);
             $valCurrency = pSQL((string)($e['value']['currency'] ?? 'PLN'));
             $balAmount = isset($e['balance']['amount']) ? (float)$e['balance']['amount'] : null;
             $balCurrency = pSQL((string)($e['balance']['currency'] ?? ''));
             $taxPerc = isset($e['tax']['percentage']) ? (float)$e['tax']['percentage'] : null;
-            $taxAnn = pSQL((string)($e['tax']['annotation'] ?? ''));
-
+	    $taxAnnRaw = trim((string)($e['tax']['annotation'] ?? ''));
+	    // tax.annotation is optional and often absent; do NOT treat it as required.
+	    $taxAnn = pSQL($taxAnnRaw);
             $raw = pSQL(json_encode($e, JSON_UNESCAPED_UNICODE));
             $now = date('Y-m-d H:i:s');
 
@@ -149,15 +194,15 @@ class BillingEntryRepository
                     'occurred_at' => $occurredAt,
                     'type_id' => $typeId ?: null,
                     'type_name' => $typeName ?: null,
-                    'offer_id' => $offerId ?: null,
-                    'offer_name' => $offerName ?: null,
-                    'order_id' => $orderId ?: null,
+	                'offer_id' => $offerIdRaw !== '' ? $offerId : null,
+	                'offer_name' => $offerNameRaw !== '' ? $offerName : null,
+	                'order_id' => $orderIdRaw !== '' ? $orderId : null,
                     'value_amount' => (float)$valAmount,
                     'value_currency' => $valCurrency ?: 'PLN',
                     'balance_amount' => $balAmount,
                     'balance_currency' => $balCurrency ?: null,
                     'tax_percentage' => $taxPerc,
-                    'tax_annotation' => $taxAnn ?: null,
+	                'tax_annotation' => $taxAnnRaw !== '' ? $taxAnn : null,
                     'raw_json' => $raw ?: null,
                     'created_at' => pSQL($now),
                     'updated_at' => pSQL($now),
@@ -184,15 +229,17 @@ class BillingEntryRepository
                     'occurred_at' => $occurredAt,
                     'type_id' => $typeId ?: null,
                     'type_name' => $typeName ?: null,
-                    'offer_id' => $offerId ?: null,
-                    'offer_name' => $offerName ?: null,
-                    'order_id' => $orderId ?: null,
+	                    // If offer is not present for given entry, keep NULL (do not write placeholders like __ORDER__).
+	                    'offer_id' => $offerIdRaw !== '' ? $offerId : null,
+	                    'offer_name' => $offerNameRaw !== '' ? $offerName : null,
+	                    'order_id' => $orderIdRaw !== '' ? $orderId : null,
                     'value_amount' => (float)$valAmount,
                     'value_currency' => $valCurrency ?: 'PLN',
                     'balance_amount' => $balAmount,
                     'balance_currency' => $balCurrency ?: null,
                     'tax_percentage' => $taxPerc,
-                    'tax_annotation' => $taxAnn ?: null,
+	                    // tax.annotation is optional
+	                    'tax_annotation' => $taxAnnRaw !== '' ? $taxAnn : null,
                     'raw_json' => $raw ?: null,
                 ];
             } else {
@@ -200,6 +247,20 @@ class BillingEntryRepository
                 $isEmpty = function ($v): bool {
                     return $v === null || $v === '';
                 };
+
+	                // Clean up legacy placeholders written by older patches (one-time).
+	                // We want offer fields empty/NULL, not values like '__ORDER__' / '[opłata zamówienia]'.
+	                $dbOfferId = (string)($existsRow['offer_id'] ?? '');
+	                $dbOfferName = (string)($existsRow['offer_name'] ?? '');
+	                if ($dbOfferId === '__ORDER__' || $dbOfferName === '[opłata zamówienia]') {
+	                    if ($offerIdRaw !== '' || $offerNameRaw !== '') {
+	                        $upd['offer_id'] = $offerIdRaw !== '' ? $offerId : null;
+	                        $upd['offer_name'] = $offerNameRaw !== '' ? $offerName : null;
+	                    } else {
+	                        $upd['offer_id'] = null;
+	                        $upd['offer_name'] = null;
+	                    }
+	                }
 
                 if ($isEmpty($existsRow['occurred_at'] ?? null) || (string)($existsRow['occurred_at'] ?? '') === '0000-00-00 00:00:00') {
                     $upd['occurred_at'] = $occurredAt;
@@ -212,15 +273,15 @@ class BillingEntryRepository
                     $upd['type_name'] = $typeName;
                 }
 
-                if ($isEmpty($existsRow['offer_id'] ?? null) && $offerId !== '') {
-                    $upd['offer_id'] = $offerId;
-                }
-                if ($isEmpty($existsRow['offer_name'] ?? null) && $offerName !== '') {
-                    $upd['offer_name'] = $offerName;
-                }
+	                if ($isEmpty($existsRow['offer_id'] ?? null) && $offerIdRaw !== '') {
+	                    $upd['offer_id'] = $offerId;
+	                }
+	                if ($isEmpty($existsRow['offer_name'] ?? null) && $offerNameRaw !== '') {
+	                    $upd['offer_name'] = $offerName;
+	                }
 
-                if ($isEmpty($existsRow['order_id'] ?? null) && $orderId !== '') {
-                    $upd['order_id'] = $orderId;
+	                if ($isEmpty($existsRow['order_id'] ?? null) && $orderIdRaw !== '') {
+	                    $upd['order_id'] = $orderId;
                 }
 
                 // wartości liczbowe: popraw tylko gdy ewidentnie puste/zerowe (po starym błędzie)
@@ -241,10 +302,16 @@ class BillingEntryRepository
                 if ($existsRow['tax_percentage'] === null && $taxPerc !== null) {
                     $upd['tax_percentage'] = $taxPerc;
                 }
-                if ($isEmpty($existsRow['tax_annotation'] ?? null) && $taxAnn !== '') {
-                    $upd['tax_annotation'] = $taxAnn;
-                }
-                if ($isEmpty($existsRow['raw_json'] ?? null) && $raw !== '') {
+	                // tax.annotation is optional; never update just because it's empty.
+	                // Cleanup legacy placeholder '__NA__' if present.
+	                $dbTax = (string)($existsRow['tax_annotation'] ?? '');
+	                if ($dbTax === '__NA__' && $taxAnnRaw === '') {
+	                    $upd['tax_annotation'] = null;
+	                } elseif (($dbTax === '' || $dbTax === '__NA__') && $taxAnnRaw !== '') {
+	                    $upd['tax_annotation'] = $taxAnn;
+	                }
+
+	                if ($isEmpty($existsRow['raw_json'] ?? null) && $raw !== '') {
                     $upd['raw_json'] = $raw;
                 }
             }
@@ -343,6 +410,61 @@ class BillingEntryRepository
 
         return '';
     }
+
+	/**
+	 * Extract offer id/name from various known billing-entry shapes.
+	 * Some entry types (delivery/smart/fees) may not have an offer at all.
+	 * @return array{0:string,1:string}
+	 */
+	private function extractOfferIdName(array $e): array
+	{
+	    $id = '';
+	    $name = '';
+
+	    // Most common: offer: { id, name }
+	    if (isset($e['offer']) && is_array($e['offer'])) {
+	        $id = (string)($e['offer']['id'] ?? $id);
+	        $name = (string)($e['offer']['name'] ?? $name);
+	    }
+
+	    // Alternate keys
+	    if ($id === '' && isset($e['offerId'])) {
+	        $id = (string)$e['offerId'];
+	    }
+	    if ($name === '' && isset($e['offerName'])) {
+	        $name = (string)$e['offerName'];
+	    }
+
+	    // Sometimes nested under lineItem
+	    if (isset($e['lineItem']) && is_array($e['lineItem'])) {
+	        $li = $e['lineItem'];
+	        if ($id === '' && isset($li['offerId'])) {
+	            $id = (string)$li['offerId'];
+	        }
+	        if ($name === '' && isset($li['offerName'])) {
+	            $name = (string)$li['offerName'];
+	        }
+	        if (isset($li['offer']) && is_array($li['offer'])) {
+	            if ($id === '' && isset($li['offer']['id'])) {
+	                $id = (string)$li['offer']['id'];
+	            }
+	            if ($name === '' && isset($li['offer']['name'])) {
+	                $name = (string)$li['offer']['name'];
+	            }
+	        }
+	    }
+
+	    $id = trim((string)$id);
+	    $name = trim((string)$name);
+
+	    // Treat legacy placeholders as empty.
+	    if ($id === '__ORDER__' || $name === '[opłata zamówienia]') {
+	        $id = '';
+	        $name = '';
+	    }
+
+	    return [$id, $name];
+	}
 
     /**
      * SQL: filtr "opłat".

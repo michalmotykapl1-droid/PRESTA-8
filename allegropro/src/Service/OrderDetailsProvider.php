@@ -6,6 +6,7 @@ use DbQuery;
 use Order;
 use Context;
 use Validate;
+use OrderState;
 use AllegroPro\Repository\OrderRepository;
 use AllegroPro\Repository\AccountRepository;
 use AllegroPro\Service\ShipmentManager;
@@ -56,14 +57,30 @@ class OrderDetailsProvider
         $cfId = (string)$order['checkout_form_id'];
         $cfIdEsc = pSQL($cfId);
 
-        // 2) Sync shipmentów z Allegro przy wejściu na widok (z TTL)
+        // 2) Pobierz aktualny snapshot checkout-form z API (w tym fulfillment.status)
+        $allegroCheckoutStatus = '';
+        $allegroFulfillmentStatus = '';
+        $allegroRevision = null;
+
+        $account = $this->accounts->get((int)$order['id_allegropro_account']);
+        if (is_array($account) && !empty($account['access_token'])) {
+            $cfSnapshot = $this->fetchCheckoutFormSnapshot($account, $cfId, 60);
+            if (is_array($cfSnapshot)) {
+                $allegroCheckoutStatus = (string)($cfSnapshot['status'] ?? '');
+                $allegroRevision = $cfSnapshot['revision'] ?? null;
+                if (isset($cfSnapshot['fulfillment']) && is_array($cfSnapshot['fulfillment'])) {
+                    $allegroFulfillmentStatus = (string)($cfSnapshot['fulfillment']['status'] ?? '');
+                }
+            }
+        }
+
+        // 3) Sync shipmentów z Allegro przy wejściu na widok (z TTL)
         $syncMeta = [
             'ok' => false,
             'synced' => 0,
             'skipped' => true,
         ];
 
-        $account = $this->accounts->get((int)$order['id_allegropro_account']);
         if (is_array($account) && !empty($account['access_token'])) {
             $sync = $this->shipmentManager->syncOrderShipments($account, $cfId, 90, false);
             if (is_array($sync)) {
@@ -77,7 +94,14 @@ class OrderDetailsProvider
         $buyer = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_buyer WHERE checkout_form_id = '$cfIdEsc'");
         $shipping = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_shipping WHERE checkout_form_id = '$cfIdEsc'");
         $invoice = Db::getInstance()->getRow("SELECT * FROM "._DB_PREFIX_."allegropro_order_invoice WHERE checkout_form_id = '$cfIdEsc'");
-        $items = Db::getInstance()->executeS("SELECT * FROM "._DB_PREFIX_."allegropro_order_item WHERE checkout_form_id = '$cfIdEsc'");
+        $items = Db::getInstance()->executeS(
+            'SELECT oi.*, ' .
+            'ROUND((p.weight + IFNULL(pa.weight, 0)) * IFNULL(oi.quantity, 0), 3) AS weight ' .
+            'FROM `' . _DB_PREFIX_ . 'allegropro_order_item` oi ' .
+            'LEFT JOIN `' . _DB_PREFIX_ . 'product` p ON p.id_product = oi.id_product ' .
+            'LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` pa ON pa.id_product_attribute = oi.id_product_attribute ' .
+            "WHERE oi.checkout_form_id = '$cfIdEsc'"
+        );
         $documentsCache = $this->loadOrderDocumentsSnapshot($cfId, (int)$order['id_allegropro_account']);
 
         // 4. Tryb i historia przesyłek
@@ -168,20 +192,35 @@ class OrderDetailsProvider
 
         // 5. Statusy
         $psStatusName = 'Nieznany';
+        $psStatusId = 0;
+        $shopStates = [];
         $psOrder = new Order($psOrderId);
         if (Validate::isLoadedObject($psOrder)) {
+            $psStatusId = (int)$psOrder->current_state;
+            try {
+                $shopStates = OrderState::getOrderStates((int)Context::getContext()->language->id);
+            } catch (\Throwable $e) {
+                $shopStates = [];
+            }
             $state = $psOrder->getCurrentOrderState();
             if (Validate::isLoadedObject($state)) {
                 $psStatusName = $state->name[Context::getContext()->language->id] ?? $state->name;
             }
         }
 
+        // fulfillment.status = status realizacji widoczny w panelu Allegro (NOWE/W REALIZACJI/DO WYSŁANIA/WYSŁANE...)
+        // checkoutForm.status (np. READY_FOR_PROCESSING) to status techniczny zakupu i NIE jest tym samym.
         $allegroStatuses = [
-            'READY_FOR_PROCESSING' => 'Do realizacji',
+            'NEW' => 'Nowe',
             'PROCESSING' => 'W realizacji',
+            'READY_FOR_SHIPMENT' => 'Do wysłania',
+            'READY_FOR_PICKUP' => 'Do odbioru',
             'SENT' => 'Wysłane',
-            'CANCELLED' => 'Anulowane'
+            'PICKED_UP' => 'Odebrane',
+            'CANCELLED' => 'Anulowane',
         ];
+
+        $allegroFulfillmentLabel = $allegroStatuses[$allegroFulfillmentStatus] ?? ($allegroFulfillmentStatus ?: 'Brak danych');
 
         $shipmentSizeOptions = $this->buildShipmentSizeOptions(is_array($account) ? $account : [], is_array($shipping) ? $shipping : []);
         $weightDefaults = $this->buildShipmentWeightDefaults($cfId, $psOrderId);
@@ -195,7 +234,13 @@ class OrderDetailsProvider
             'items' => $items,
             'documents_cache' => $documentsCache,
             'ps_status_name' => $psStatusName,
+            'ps_status_id' => $psStatusId,
+            'shop_states' => $shopStates,
             'allegro_statuses' => $allegroStatuses,
+            'allegro_fulfillment_status' => $allegroFulfillmentStatus,
+            'allegro_fulfillment_label' => $allegroFulfillmentLabel,
+            'allegro_checkout_status' => $allegroCheckoutStatus,
+            'allegro_revision' => $allegroRevision,
 
             // --- DANE DLA WIDOKU ---
             'carrier_mode' => $carrierMode,
@@ -207,6 +252,49 @@ class OrderDetailsProvider
             'shipment_weight_defaults' => $weightDefaults,
             'shipment_dimension_defaults' => $dimensionDefaults,
         ];
+    }
+
+    /**
+     * Zwraca snapshot checkout-form (GET /order/checkout-forms/{id}) z prostym cache (TTL).
+     * Potrzebne, aby pokazywać poprawny fulfillment.status (panel Allegro) zamiast checkoutForm.status.
+     */
+    private function fetchCheckoutFormSnapshot(array $account, string $checkoutFormId, int $ttlSeconds = 60): ?array
+    {
+        $checkoutFormId = trim($checkoutFormId);
+        if ($checkoutFormId === '') {
+            return null;
+        }
+
+        $accId = (int)($account['id_allegropro_account'] ?? 0);
+        $cacheKey = 'allegropro_cf_' . $accId . '_' . md5($checkoutFormId);
+
+        try {
+            if (class_exists('\\Cache') && \Cache::isStored($cacheKey)) {
+                $wrap = \Cache::retrieve($cacheKey);
+                if (is_array($wrap) && isset($wrap['_ts'], $wrap['data']) && (time() - (int)$wrap['_ts'] < $ttlSeconds) && is_array($wrap['data'])) {
+                    return $wrap['data'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // brak cache - ignorujemy
+        }
+
+        $res = $this->api->get($account, '/order/checkout-forms/' . rawurlencode($checkoutFormId));
+        if (empty($res['ok']) || !is_array($res['json'])) {
+            return null;
+        }
+
+        $data = $res['json'];
+
+        try {
+            if (class_exists('\\Cache')) {
+                \Cache::store($cacheKey, ['_ts' => time(), 'data' => $data]);
+            }
+        } catch (\Throwable $e) {
+            // cache store fail - ignorujemy
+        }
+
+        return $data;
     }
 
     private function ensureOrderDocumentsTableExists(): void
