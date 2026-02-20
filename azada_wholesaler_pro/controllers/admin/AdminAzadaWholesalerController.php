@@ -482,7 +482,11 @@ function runImport(event, btn, url) {
                                     console.log(data.debug);
                                     console.groupEnd();
                                 }
-                                if (data.status == 'success') Swal.fire('Sukces!', data.msg, 'success');
+  if (data.status == 'success') {
+                                    Swal.fire('Sukces!', data.msg, 'success').then(() => {
+                                        location.reload();
+                                    });
+                                }
                                 else Swal.fire('Wystąpił błąd', data.msg, 'error');
                             },
                             error: function(jqXHR) {

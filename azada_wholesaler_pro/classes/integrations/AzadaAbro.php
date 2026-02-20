@@ -65,6 +65,10 @@ class AzadaAbro
                         'status' => false,
                         'msg' => 'Brak API key (X-Auth-Key).',
                     ],
+                    'products' => [
+                        'status' => false,
+                        'msg' => 'Brak API key (X-Auth-Key).',
+                    ],
                 ],
             ];
         }
@@ -81,6 +85,10 @@ class AzadaAbro
                     'status' => $status,
                     'http_code' => isset($response['http_code']) ? (int)$response['http_code'] : 0,
                     'msg' => $msg,
+                ],
+                'products' => [
+                    'status' => $status,
+                    'msg' => $status ? 'Feed ABRO dostępny.' : ($msg !== '' ? $msg : 'Brak dostępu do feedu ABRO.'),
                 ],
             ],
         ];
@@ -104,15 +112,30 @@ class AzadaAbro
         ];
     }
 
-
     public static function importProducts($wholesaler)
     {
-        $tableName = _DB_PREFIX_ . 'azada_raw_abro';
+        $targetTableName = _DB_PREFIX_ . 'azada_raw_abro';
+        $sourceTableName = _DB_PREFIX_ . 'azada_raw_abro_source';
+        $conversionTableName = _DB_PREFIX_ . 'azada_raw_abro_conversion';
 
-        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$targetTableName`");
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$sourceTableName`");
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$conversionTableName`");
 
         if (!AzadaRawSchema::createTable('azada_raw_abro')) {
-            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli docelowej ABRO.'];
+        }
+
+        if (!self::ensureTargetExtraColumns($targetTableName)) {
+            return ['status' => 'error', 'msg' => 'Błąd dodawania kolumn rozszerzonych ABRO w tabeli docelowej.'];
+        }
+
+        if (!self::createSourceTable($sourceTableName)) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli surowej ABRO.'];
+        }
+
+        if (!self::createConversionTable($conversionTableName)) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli konwersji ABRO.'];
         }
 
         $feed = self::downloadFeed($wholesaler->api_key);
@@ -144,7 +167,7 @@ class AzadaAbro
             return ['status' => 'error', 'msg' => 'Brak produktów w feedzie ABRO.'];
         }
 
-        $insertCols = [
+        $targetInsertCols = [
             'kod_kreskowy',
             'eanprzepismatka',
             'produkt_id',
@@ -153,8 +176,11 @@ class AzadaAbro
             'marka',
             'producentnazwaiadres',
             'opis',
+            'LinkDoProduktu',
             'kategoria',
+            'jednostkapodstawowa',
             'ilosc',
+            'NaStanie',
             'stan_magazynowy_live',
             'cenaporabacienetto',
             'cena_netto_live',
@@ -162,6 +188,12 @@ class AzadaAbro
             'vat',
             'ilosc_w_opakowaniu',
             'minimum_logistyczne',
+            'wymagane_oz',
+            'source_stock_szt',
+            'source_cena_za_sztuke_netto',
+            'source_multiplier_w_opakowaniu',
+            'source_cena_za_opakowanie_netto',
+            'conversion_applied',
             'zdjecieglownelinkurl',
             'zdjecie1linkurl',
             'zdjecie2linkurl',
@@ -169,16 +201,57 @@ class AzadaAbro
             'data_aktualizacji',
         ];
 
-        $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
-        $batchValues = [];
-        $count = 0;
+        $sourceInsertCols = [
+            'source_id',
+            'source_sku',
+            'source_ean',
+            'source_ean_list',
+            'source_name',
+            'source_category',
+            'source_desc',
+            'source_price_netto',
+            'source_stock',
+            'source_multiplier',
+            'source_vat',
+            'source_producer',
+            'source_main_image',
+            'source_extra_images',
+            'imported_at',
+        ];
+
+        $conversionInsertCols = [
+            'source_id',
+            'source_sku',
+            'source_ean',
+            'source_stock',
+            'source_price_netto',
+            'source_multiplier',
+            'target_stock',
+            'target_price_netto',
+            'conversion_applied',
+            'conversion_note',
+            'imported_at',
+        ];
+
+        $targetSqlBase = "INSERT INTO `$targetTableName` (`" . implode('`,`', $targetInsertCols) . "`) VALUES ";
+        $sourceSqlBase = "INSERT INTO `$sourceTableName` (`" . implode('`,`', $sourceInsertCols) . "`) VALUES ";
+        $conversionSqlBase = "INSERT INTO `$conversionTableName` (`" . implode('`,`', $conversionInsertCols) . "`) VALUES ";
+
+        $targetBatchValues = [];
+        $sourceBatchValues = [];
+        $conversionBatchValues = [];
+
+        $targetCount = 0;
+        $sourceCount = 0;
+        $conversionCount = 0;
         $now = date('Y-m-d H:i:s');
 
         foreach ($offers as $offer) {
             $id = trim((string)$offer['id']);
-            $price = self::normalizeDecimal((string)$offer['price']);
-            $stock = self::normalizeDecimal((string)$offer['stock']);
-            $multiplier = trim((string)$offer['multiplier']);
+            $rawPrice = (float)self::normalizeDecimal((string)$offer['price']);
+            $rawStock = (float)self::normalizeDecimal((string)$offer['stock']);
+            $multiplierRaw = trim((string)$offer['multiplier']);
+            $packQty = self::normalizePackQty($multiplierRaw);
 
             $name = trim((string)$offer->name);
             $category = trim((string)$offer->cat);
@@ -196,10 +269,6 @@ class AzadaAbro
             }
 
             $sku = isset($attrs['SKU']) && $attrs['SKU'] !== '' ? $attrs['SKU'] : $id;
-            if ($sku === '') {
-                continue;
-            }
-
             $ean = '';
             if (isset($attrs['EAN']) && $attrs['EAN'] !== '') {
                 $ean = $attrs['EAN'];
@@ -208,11 +277,7 @@ class AzadaAbro
                 $ean = isset($eanCandidates[0]) ? trim((string)$eanCandidates[0]) : '';
             }
 
-            if ($ean === '') {
-                continue;
-            }
-
-            $vat = self::normalizeDecimal(isset($attrs['VAT']) ? $attrs['VAT'] : '0');
+            $vat = (float)self::normalizeDecimal(isset($attrs['VAT']) ? $attrs['VAT'] : '0');
             $producer = isset($attrs['Producent']) ? $attrs['Producent'] : '';
 
             $mainImage = '';
@@ -235,7 +300,61 @@ class AzadaAbro
                 $mainImage = $extraImages[0];
             }
 
-            $rowValues = [
+            // 1) Zapis surowy 1:1 do osobnej tabeli ABRO
+            $sourceRowValues = [
+                $id,
+                $sku,
+                $ean,
+                $eanList,
+                $name,
+                $category,
+                $desc,
+                self::formatDecimal($rawPrice),
+                self::formatDecimal($rawStock),
+                self::formatDecimal($packQty),
+                self::formatDecimal($vat),
+                $producer,
+                $mainImage,
+                implode(',', $extraImages),
+                $now,
+            ];
+
+            $sourceRowValues = array_map('pSQL', $sourceRowValues);
+            $sourceBatchValues[] = "('" . implode("','", $sourceRowValues) . "')";
+            $sourceCount++;
+
+            if (count($sourceBatchValues) >= 150) {
+                Db::getInstance()->execute($sourceSqlBase . implode(',', $sourceBatchValues));
+                $sourceBatchValues = [];
+            }
+
+            // 2) Zapis docelowy do wspólnych kolumn modułu
+            if ($sku === '' || $ean === '') {
+                continue;
+            }
+
+            $targetStock = $rawStock;
+            $targetPrice = $rawPrice;
+            $minimumLogistic = '';
+            $requiredPack = '';
+            $packQtyValue = '';
+            $conversionApplied = 0;
+            $conversionNote = 'Brak przeliczenia: multiplier pusty/0.';
+
+            if ($packQty > 0) {
+                $targetStock = floor($rawStock / $packQty);
+                $targetPrice = $rawPrice * $packQty;
+                $minimumLogistic = '1';
+                $requiredPack = '1';
+                $packQtyValue = (string)$packQty;
+                $conversionApplied = 1;
+                $conversionNote = 'Przeliczono po opakowaniu: stan=floor(stock/multiplier), cena=price*multiplier.';
+            }
+
+            $targetDescription = self::buildTargetDescription($desc, $packQty);
+            $targetUnit = ($packQty > 0) ? 'opak' : 'szt';
+
+            $targetRowValues = [
                 $ean,
                 $eanList,
                 'ABRO_' . $sku,
@@ -243,16 +362,25 @@ class AzadaAbro
                 $name,
                 $producer,
                 $producer,
-                $desc,
+                $targetDescription,
+                self::buildProductUrl($name, $sku, $ean),
                 $category,
-                $stock,
-                $stock,
-                $price,
-                $price,
-                $price,
-                $vat,
-                $multiplier,
-                $multiplier,
+                $targetUnit,
+                self::formatQuantity($targetStock),
+                ((float)$targetStock >= 1.0 ? 'True' : 'False'),
+                self::formatQuantity($targetStock),
+                self::formatDecimal($targetPrice),
+                self::formatDecimal($targetPrice),
+                self::formatDecimal($targetPrice),
+                self::formatDecimal($vat),
+                $packQtyValue,
+                $minimumLogistic,
+                $requiredPack,
+                self::formatQuantity($rawStock),
+                self::formatDecimal($rawPrice),
+                self::formatDecimal($packQty),
+                self::formatDecimal($targetPrice),
+                (string)$conversionApplied,
                 $mainImage,
                 isset($extraImages[0]) ? $extraImages[0] : '',
                 isset($extraImages[1]) ? $extraImages[1] : '',
@@ -260,24 +388,211 @@ class AzadaAbro
                 $now,
             ];
 
-            $rowValues = array_map('pSQL', $rowValues);
-            $batchValues[] = "('" . implode("','", $rowValues) . "')";
-            $count++;
+            $targetRowValues = array_map('pSQL', $targetRowValues);
+            $targetBatchValues[] = "('" . implode("','", $targetRowValues) . "')";
+            $targetCount++;
 
-            if (count($batchValues) >= 150) {
-                Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
-                $batchValues = [];
+            if (count($targetBatchValues) >= 150) {
+                Db::getInstance()->execute($targetSqlBase . implode(',', $targetBatchValues));
+                $targetBatchValues = [];
+            }
+
+            // 3) Jawna tabela konwersji (audyt co moduł przeliczył)
+            $conversionRowValues = [
+                $id,
+                $sku,
+                $ean,
+                self::formatQuantity($rawStock),
+                self::formatDecimal($rawPrice),
+                self::formatDecimal($packQty),
+                self::formatQuantity($targetStock),
+                self::formatDecimal($targetPrice),
+                (string)$conversionApplied,
+                $conversionNote,
+                $now,
+            ];
+
+            $conversionRowValues = array_map('pSQL', $conversionRowValues);
+            $conversionBatchValues[] = "('" . implode("','", $conversionRowValues) . "')";
+            $conversionCount++;
+
+            if (count($conversionBatchValues) >= 150) {
+                Db::getInstance()->execute($conversionSqlBase . implode(',', $conversionBatchValues));
+                $conversionBatchValues = [];
             }
         }
 
-        if (!empty($batchValues)) {
-            Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+        if (!empty($sourceBatchValues)) {
+            Db::getInstance()->execute($sourceSqlBase . implode(',', $sourceBatchValues));
+        }
+
+        if (!empty($targetBatchValues)) {
+            Db::getInstance()->execute($targetSqlBase . implode(',', $targetBatchValues));
+        }
+
+        if (!empty($conversionBatchValues)) {
+            Db::getInstance()->execute($conversionSqlBase . implode(',', $conversionBatchValues));
         }
 
         $wholesaler->last_import = date('Y-m-d H:i:s');
         $wholesaler->update();
 
-        return ['status' => 'success', 'msg' => "Tabela zresetowana. Pobrano $count produktów."];
+        return ['status' => 'success', 'msg' => "ABRO OK. Surowe: $sourceCount, docelowe: $targetCount, konwersje: $conversionCount produktów."];
+    }
+
+    private static function ensureTargetExtraColumns($fullTableName)
+    {
+        $db = Db::getInstance();
+
+        $columns = [
+            'source_stock_szt' => 'TEXT DEFAULT NULL',
+            'source_cena_za_sztuke_netto' => 'DECIMAL(20,6) DEFAULT 0.000000',
+            'source_multiplier_w_opakowaniu' => 'DECIMAL(20,6) DEFAULT 0.000000',
+            'source_cena_za_opakowanie_netto' => 'DECIMAL(20,6) DEFAULT 0.000000',
+            'conversion_applied' => 'TINYINT(1) DEFAULT 0',
+        ];
+
+        foreach ($columns as $columnName => $definition) {
+            $exists = (bool)$db->getValue(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = '" . pSQL($fullTableName) . "'
+                   AND COLUMN_NAME = '" . pSQL($columnName) . "'"
+            );
+
+            if ($exists) {
+                continue;
+            }
+
+            $sql = "ALTER TABLE `" . bqSQL($fullTableName) . "` ADD COLUMN `" . bqSQL($columnName) . "` " . $definition;
+            if (!$db->execute($sql)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function createSourceTable($fullTableName)
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS `$fullTableName` (
+            `id_source` int(11) NOT NULL AUTO_INCREMENT,
+            `source_id` varchar(128) DEFAULT NULL,
+            `source_sku` varchar(128) DEFAULT NULL,
+            `source_ean` varchar(64) DEFAULT NULL,
+            `source_ean_list` text DEFAULT NULL,
+            `source_name` text DEFAULT NULL,
+            `source_category` text DEFAULT NULL,
+            `source_desc` longtext,
+            `source_price_netto` decimal(20,6) DEFAULT 0.000000,
+            `source_stock` decimal(20,6) DEFAULT 0.000000,
+            `source_multiplier` decimal(20,6) DEFAULT 0.000000,
+            `source_vat` decimal(20,6) DEFAULT 0.000000,
+            `source_producer` text DEFAULT NULL,
+            `source_main_image` text DEFAULT NULL,
+            `source_extra_images` longtext,
+            `imported_at` datetime DEFAULT NULL,
+            PRIMARY KEY (`id_source`),
+            KEY `idx_source_id` (`source_id`),
+            KEY `idx_source_ean` (`source_ean`)
+        ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
+
+        return (bool)Db::getInstance()->execute($sql);
+    }
+
+    private static function createConversionTable($fullTableName)
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS `$fullTableName` (
+            `id_conversion` int(11) NOT NULL AUTO_INCREMENT,
+            `source_id` varchar(128) DEFAULT NULL,
+            `source_sku` varchar(128) DEFAULT NULL,
+            `source_ean` varchar(64) DEFAULT NULL,
+            `source_stock` decimal(20,6) DEFAULT 0.000000,
+            `source_price_netto` decimal(20,6) DEFAULT 0.000000,
+            `source_multiplier` decimal(20,6) DEFAULT 0.000000,
+            `target_stock` decimal(20,6) DEFAULT 0.000000,
+            `target_price_netto` decimal(20,6) DEFAULT 0.000000,
+            `conversion_applied` tinyint(1) DEFAULT 0,
+            `conversion_note` text DEFAULT NULL,
+            `imported_at` datetime DEFAULT NULL,
+            PRIMARY KEY (`id_conversion`),
+            KEY `idx_source_id` (`source_id`),
+            KEY `idx_source_ean` (`source_ean`),
+            KEY `idx_conversion_applied` (`conversion_applied`)
+        ) ENGINE=" . _MYSQL_ENGINE_ . " DEFAULT CHARSET=utf8;";
+
+        return (bool)Db::getInstance()->execute($sql);
+    }
+
+
+
+    private static function buildTargetDescription($desc, $packQty)
+    {
+        $desc = trim((string)$desc);
+        $packQty = (int)$packQty;
+
+        if ($packQty <= 1) {
+            return $desc;
+        }
+
+        $prefix = 'Sprzedaż na opakowania zbiorcze: ' . $packQty . ' szt.';
+
+        if ($desc === '') {
+            return $prefix;
+        }
+
+        if (stripos($desc, 'Sprzedaż na opakowania zbiorcze:') === 0) {
+            return $desc;
+        }
+
+        return $prefix . "
+
+" . $desc;
+    }
+
+    private static function buildProductUrl($name, $sku, $ean)
+    {
+        $ean = trim((string)$ean);
+        if ($ean !== '') {
+            return 'https://b2b.abro.com.pl/index.php?do_search=true&search_query=' . urlencode($ean);
+        }
+
+        $sku = trim((string)$sku);
+        if ($sku !== '') {
+            return 'https://b2b.abro.com.pl/index.php?do_search=true&search_query=' . urlencode($sku);
+        }
+
+        $name = trim((string)$name);
+        if ($name !== '') {
+            return 'https://b2b.abro.com.pl/index.php?do_search=true&search_query=' . urlencode($name);
+        }
+
+        return '';
+    }
+
+    private static function normalizePackQty($value)
+    {
+        $normalized = (float)self::normalizeDecimal($value);
+        if ($normalized <= 0) {
+            return 0;
+        }
+
+        return (int)floor($normalized);
+    }
+
+    private static function formatQuantity($value)
+    {
+        $value = (float)$value;
+        if ((float)(int)$value === $value) {
+            return (string)(int)$value;
+        }
+
+        return rtrim(rtrim(number_format($value, 6, '.', ''), '0'), '.');
+    }
+
+    private static function formatDecimal($value)
+    {
+        return number_format((float)$value, 6, '.', '');
     }
 
     private static function normalizeDecimal($value)
