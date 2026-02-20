@@ -44,12 +44,18 @@ class AzadaImportEngine
 
     private function resolveIntegrationClassName($wholesaler)
     {
-        $rawTable = trim((string)$wholesaler->raw_table_name);
-        if ($rawTable === '' || strpos($rawTable, 'azada_raw_') !== 0) {
+        $rawTable = strtolower(trim((string)$wholesaler->raw_table_name));
+        if ($rawTable === '') {
             return '';
         }
 
-        $slug = strtolower(substr($rawTable, strlen('azada_raw_')));
+        // Obsługujemy zarówno "azada_raw_abro", jak i np. "xna_azada_raw_abro"
+        $markerPos = strpos($rawTable, 'azada_raw_');
+        if ($markerPos === false) {
+            return '';
+        }
+
+        $slug = substr($rawTable, $markerPos + strlen('azada_raw_'));
         $slug = preg_replace('/[^a-z0-9]/', '', (string)$slug);
         if ($slug === '') {
             return '';
