@@ -1,0 +1,203 @@
+.azada-hub-panel {
+    margin-top: 20px;
+}
+
+.azada-hub-lead {
+    margin-bottom: 14px;
+}
+
+.azada-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+}
+
+.azada-hub-card {
+    border: 1px solid #dbe7ef;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fcff 100%);
+    box-shadow: 0 6px 18px rgba(12, 47, 79, 0.06);
+    padding: 14px;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.azada-hub-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(12, 47, 79, 0.11);
+    border-color: #b9d7ea;
+}
+
+.azada-hub-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.azada-hub-card__head h4 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.azada-hub-card__meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.azada-field-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 9px;
+}
+
+.azada-field-row label {
+    margin: 0;
+    font-weight: 700;
+    color: #5b6b78;
+}
+
+.azada-field-row code {
+    display: inline-block;
+    background: #f3f7fb;
+    border: 1px solid #dbe7ef;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #c03f64;
+}
+
+.azada-connection-status {
+    font-weight: 700;
+}
+
+.azada-connection-status.is-connected {
+    color: #2ca760;
+}
+
+.azada-connection-status.is-error {
+    color: #c0392b;
+}
+
+.azada-connection-status.is-unknown {
+    color: #7f8c8d;
+}
+
+.azada-field-row--toggle {
+    margin-top: 4px;
+}
+
+.azada-switch-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.azada-switch {
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.azada-switch__track {
+    position: relative;
+    width: 68px;
+    height: 34px;
+    border-radius: 999px;
+    display: block;
+    border: 1px solid #c8d5e0;
+    background: #dfe8ef;
+    transition: background .2s ease, border-color .2s ease;
+}
+
+.azada-switch.is-on .azada-switch__track {
+    background: #35b76d;
+    border-color: #2a995a;
+}
+
+.azada-switch__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,.18);
+    transition: left .2s ease;
+    z-index: 2;
+}
+
+.azada-switch.is-on .azada-switch__thumb {
+    left: 39px;
+}
+
+.azada-switch__label {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    color: rgba(255,255,255,.85);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.azada-switch__label--on {
+    left: 9px;
+}
+
+.azada-switch__label--off {
+    right: 8px;
+    color: #7e8f9e;
+}
+
+.azada-switch.is-on .azada-switch__label--off {
+    color: rgba(255,255,255,.55);
+}
+
+.azada-switch.is-off .azada-switch__label--on {
+    color: rgba(126,143,158,.55);
+}
+
+.azada-switch-state-text {
+    min-width: 72px;
+    font-weight: 700;
+    color: #4f6577;
+}
+
+.azada-hub-card__foot {
+    margin-top: 14px;
+}
+
+.azada-hub-settings-btn {
+    width: 100%;
+    text-align: center;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid #bfd0de;
+    background: linear-gradient(180deg, #fcfeff 0%, #f1f6fa 100%);
+    color: #537086;
+    padding: 9px 12px;
+}
+
+.azada-hub-settings-btn:hover {
+    border-color: #9fc0d5;
+    color: #3e5f77;
+}
+
+.azada-hub-actions {
+    margin-top: 16px;
+    text-align: right;
+}
+
+.azada-hub-card--disabled {
+    opacity: .74;
+}

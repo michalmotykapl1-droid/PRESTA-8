@@ -300,6 +300,7 @@ class AzadaWholesaler extends ObjectModel
         $tableInt = _DB_PREFIX_ . 'azada_wholesaler_pro_integration';
         $tableDetails = _DB_PREFIX_ . 'azada_wholesaler_pro_order_details';
         $tableFiles = _DB_PREFIX_ . 'azada_wholesaler_pro_order_files';
+        $tableHubSettings = _DB_PREFIX_ . 'azada_wholesaler_pro_hub_settings';
         
         // Struktura tabeli integration
         $existsInt = $db->executeS("SHOW TABLES LIKE 'azada_wholesaler_pro_integration'"); 
@@ -351,6 +352,44 @@ class AzadaWholesaler extends ObjectModel
         $colVer = $db->executeS("SHOW COLUMNS FROM `$tableFiles` LIKE 'is_verified_with_invoice'");
         if (empty($colVer)) {
             $db->execute("ALTER TABLE `$tableFiles` ADD COLUMN `is_verified_with_invoice` TINYINT(1) DEFAULT 0 AFTER `is_downloaded`");
+        }
+
+        $db->execute("CREATE TABLE IF NOT EXISTS `$tableHubSettings` (
+            `id_setting` INT(11) NOT NULL AUTO_INCREMENT,
+            `id_wholesaler` INT(11) NOT NULL,
+            `hub_enabled` TINYINT(1) NOT NULL DEFAULT 1,
+            `sync_mode` VARCHAR(32) NOT NULL DEFAULT 'api',
+            `price_field` VARCHAR(64) NOT NULL DEFAULT 'CenaPoRabacieNetto',
+            `notes` VARCHAR(255) DEFAULT NULL,
+            `date_add` DATETIME NOT NULL,
+            `date_upd` DATETIME NOT NULL,
+            PRIMARY KEY (`id_setting`),
+            UNIQUE KEY `uniq_wholesaler` (`id_wholesaler`)
+        ) ENGINE="._MYSQL_ENGINE_." DEFAULT CHARSET=utf8;");
+
+        $allWholesalers = $db->executeS('SELECT id_wholesaler FROM `'.bqSQL($tableInt).'`');
+        if (is_array($allWholesalers)) {
+            foreach ($allWholesalers as $wholesalerRow) {
+                $idWholesaler = (int)$wholesalerRow['id_wholesaler'];
+                if ($idWholesaler <= 0) {
+                    continue;
+                }
+
+                $existsHubRow = (int)$db->getValue('SELECT COUNT(*) FROM `'.bqSQL($tableHubSettings).'` WHERE id_wholesaler='.(int)$idWholesaler);
+                if ($existsHubRow > 0) {
+                    continue;
+                }
+
+                $db->insert('azada_wholesaler_pro_hub_settings', [
+                    'id_wholesaler' => $idWholesaler,
+                    'hub_enabled' => 1,
+                    'sync_mode' => 'api',
+                    'price_field' => 'CenaPoRabacieNetto',
+                    'notes' => null,
+                    'date_add' => date('Y-m-d H:i:s'),
+                    'date_upd' => date('Y-m-d H:i:s'),
+                ]);
+            }
         }
 
         AzadaLogger::ensureTable();

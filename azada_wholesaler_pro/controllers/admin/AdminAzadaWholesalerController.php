@@ -27,6 +27,63 @@ if (is_dir($integrationsDir)) {
 
 class AdminAzadaWholesalerController extends ModuleAdminController
 {
+    private function getHubCardsData()
+    {
+        $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['id_wholesaler'] = (int)$row['id_wholesaler'];
+            $row['active'] = (int)$row['active'];
+            $row['connection_status'] = isset($row['connection_status']) ? (int)$row['connection_status'] : 0;
+            $row['hub_enabled'] = isset($row['hub_enabled']) ? (int)$row['hub_enabled'] : 1;
+        }
+
+        return $rows;
+    }
+
+    public function postProcessHubCards()
+    {
+        if (!Tools::isSubmit('submitAzadaHubCards')) {
+            return;
+        }
+
+        $enabledRows = Tools::getValue('hub_enabled', []);
+
+        $cards = $this->getHubCardsData();
+        foreach ($cards as $card) {
+            $idWholesaler = (int)$card['id_wholesaler'];
+            if ($idWholesaler <= 0) {
+                continue;
+            }
+
+            $enabled = (isset($enabledRows[$idWholesaler]) && (int)$enabledRows[$idWholesaler] === 1) ? 1 : 0;
+
+            $exists = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` WHERE id_wholesaler='.(int)$idWholesaler);
+
+            $payload = [
+                'hub_enabled' => (int)$enabled,
+                'date_upd' => date('Y-m-d H:i:s'),
+            ];
+
+            if ($exists > 0) {
+                Db::getInstance()->update('azada_wholesaler_pro_hub_settings', $payload, 'id_wholesaler='.(int)$idWholesaler);
+            } else {
+                $payload['id_wholesaler'] = (int)$idWholesaler;
+                $payload['sync_mode'] = 'api';
+                $payload['price_field'] = 'CenaPoRabacieNetto';
+                $payload['notes'] = null;
+                $payload['date_add'] = date('Y-m-d H:i:s');
+                Db::getInstance()->insert('azada_wholesaler_pro_hub_settings', $payload);
+            }
+        }
+
+        $this->confirmations[] = $this->l('Zapisano ustawienia kafli hurtowni.');
+    }
+
     public function __construct()
     {
         $this->table = 'azada_wholesaler_pro_integration';
@@ -505,14 +562,23 @@ function runImport(event, btn, url) {
         $total = Db::getInstance()->getValue('SELECT COUNT(*) FROM ' . _DB_PREFIX_ . $this->table);
         $active = Db::getInstance()->getValue('SELECT COUNT(*) FROM ' . _DB_PREFIX_ . $this->table . ' WHERE active = 1');
         
+        $hubCards = $this->getHubCardsData();
+
         $this->context->smarty->assign([
             'total_wholesalers' => (int)$total,
             'active_wholesalers' => (int)$active,
-            'add_url' => self::$currentIndex . '&add' . $this->table . '&token=' . $this->token
+            'add_url' => self::$currentIndex . '&add' . $this->table . '&token=' . $this->token,
+            'azada_hub_cards' => $hubCards,
+            'azada_hub_post_url' => self::$currentIndex . '&token=' . $this->token,
         ]);
-        
+
+        $this->addCSS($this->module->getPathUri() . 'views/css/wholesaler_hub.css');
+        $this->addJS($this->module->getPathUri() . 'views/js/wholesaler_hub.js');
+
         $header = $this->context->smarty->fetch(_PS_MODULE_DIR_ . $this->module->name . '/views/templates/admin/wholesaler_header.tpl');
-        return $js . $header . parent::renderList();
+        $hubPanel = $this->context->smarty->fetch(_PS_MODULE_DIR_ . $this->module->name . '/views/templates/admin/wholesaler_hub/hub.tpl');
+
+        return $js . $header . parent::renderList() . $hubPanel;
     }
 
     public function displayDiagnosticGrid($json, $row)
@@ -658,6 +724,8 @@ function runImport(event, btn, url) {
     }
 
     public function postProcess() {
+        $this->postProcessHubCards();
+
         // DODAWANIE: preset + API
         if (Tools::isSubmit('submitAdd' . $this->table)) {
             $preset = Tools::getValue('preset_integration');

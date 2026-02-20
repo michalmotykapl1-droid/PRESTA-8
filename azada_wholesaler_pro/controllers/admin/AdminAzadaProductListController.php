@@ -8,6 +8,7 @@ class AdminAzadaProductListController extends ModuleAdminController
     private $selectedWholesalers = [];
     private $globalSearchQuery = '';
     private $onlyMinimalQty = false;
+    private $onlyInStock = false;
 
     public function __construct()
     {
@@ -18,6 +19,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $this->selectedWholesalers = $this->normalizeSelectedWholesalers(Tools::getValue('azada_wholesalers', []));
         $this->globalSearchQuery = trim((string)Tools::getValue('azada_q', ''));
         $this->onlyMinimalQty = (Tools::getValue('azada_only_min_qty', '0') === '1');
+        $this->onlyInStock = (Tools::getValue('azada_only_in_stock', '0') === '1');
 
         $this->buildGlobalSearchIndexTable();
 
@@ -406,6 +408,10 @@ class AdminAzadaProductListController extends ModuleAdminController
             }
         }
 
+        if ($this->onlyInStock && isset($existing['NaStanie'])) {
+            $conditions[] = "LOWER(REPLACE(TRIM(NaStanie), ' ', '')) = 'true'";
+        }
+
         if (!empty($conditions)) {
             $this->_where .= ' AND ' . implode(' AND ', $conditions);
         }
@@ -515,6 +521,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $action = $baseAction;
         $query = htmlspecialchars($this->globalSearchQuery, ENT_QUOTES, 'UTF-8');
         $isMinQtyChecked = $this->onlyMinimalQty ? ' checked="checked"' : '';
+        $isInStockChecked = $this->onlyInStock ? ' checked="checked"' : '';
 
         $html = '';
 
@@ -524,11 +531,11 @@ class AdminAzadaProductListController extends ModuleAdminController
         $html .= '<input type="hidden" name="controller" value="'.htmlspecialchars($this->controller_name, ENT_QUOTES, 'UTF-8').'" />';
         $html .= '<input type="hidden" name="token" value="'.htmlspecialchars($this->token, ENT_QUOTES, 'UTF-8').'" />';
         $html .= '<input type="hidden" name="azada_only_min_qty" value="'.($this->onlyMinimalQty ? '1' : '0').'" />';
+        $html .= '<input type="hidden" name="azada_only_in_stock" value="'.($this->onlyInStock ? '1' : '0').'" />';
         $html .= '<div class="form-group" style="margin-right:10px;">';
         $html .= '<input type="text" name="azada_q" value="'.$query.'" class="form-control" style="min-width:420px;" placeholder="Szukaj we wszystkich hurtowniach: nazwa, EAN, SKU, marka..." />';
         $html .= '</div>';
-        $html .= '<button type="submit" class="btn btn-primary"><i class="icon-search"></i> Szukaj</button> ';
-        $html .= '<a class="btn btn-default" href="'.$action.'"><i class="icon-eraser"></i> Wyczyść</a>';
+        $html .= '<button type="submit" class="btn btn-primary"><i class="icon-search"></i> Szukaj</button>';
         $html .= '</form></div>';
 
         // Multi-select hurtowni + przycisk Wybierz (styl dropdown z wyszukiwaniem)
@@ -549,14 +556,18 @@ class AdminAzadaProductListController extends ModuleAdminController
         if ($this->globalSearchQuery !== '') {
             $html .= '<input type="hidden" name="azada_q" value="'.$query.'" />';
         }
-        $html .= '<div class="checkbox" style="margin:8px 0 12px;">';
-        $html .= '<label style="font-weight:600;">';
-        $html .= '<input type="checkbox" name="azada_only_min_qty" value="1"'.$isMinQtyChecked.' /> Tylko produkty z minimalną ilością';
+        $html .= '<div style="margin:8px 0 14px; padding-left:12px; display:flex; gap:34px; flex-wrap:wrap; align-items:center;">';
+        $html .= '<label class="checkbox" style="font-weight:600; margin:0; padding-left:2px;">';
+        $html .= '<input type="checkbox" name="azada_only_min_qty" value="1"'.$isMinQtyChecked.' style="margin-right:10px;" /> Tylko produkty z minimalną ilością';
+        $html .= '</label>';
+        $html .= '<label class="checkbox" style="font-weight:600; margin:0;">';
+        $html .= '<input type="checkbox" name="azada_only_in_stock" value="1"'.$isInStockChecked.' style="margin-right:10px;" /> Tylko produkty dostępne Na stanie TRUE';
         $html .= '</label>';
         $html .= '</div>';
         $html .= '<div class="form-group" style="margin-bottom:12px;">';
         $html .= '<label style="display:block; margin-bottom:8px; font-weight:600;">Hurtownie (możesz wybrać kilka):</label>';
-        $html .= '<div class="azada-wholesaler-picker" style="position:relative; max-width:1000px;">';
+        $html .= '<div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap;">';
+        $html .= '<div class="azada-wholesaler-picker" style="position:relative; max-width:1000px; flex:1 1 650px; min-width:300px;">';
         $html .= '<button type="button" class="btn btn-default azada-picker-toggle" style="width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;">';
         $html .= '<span class="azada-picker-selected">'.$selectedSummaryEscaped.'</span>';
         $html .= '<i class="icon-caret-down"></i>';
@@ -585,9 +596,13 @@ class AdminAzadaProductListController extends ModuleAdminController
         $html .= '<div class="azada-picker-hidden-inputs"></div>';
         $html .= '</div>';
         $html .= '</div>';
+        $html .= '<div style="display:flex; gap:10px; align-items:center;">';
+        $html .= '<button type="submit" class="btn btn-primary" style="margin-top:0;"><i class="icon-check"></i> Wybierz</button>';
+        $html .= '<a class="btn btn-default" href="'.$action.'" style="margin-top:0;"><i class="icon-eraser"></i> Wyczyść</a>';
+        $html .= '</div>';
+        $html .= '</div>';
         $html .= '<p class="help-block">Brak zaznaczenia = wszystkie hurtownie.</p>';
         $html .= '</div>';
-        $html .= '<button type="submit" class="btn btn-primary"><i class="icon-check"></i> Wybierz</button>';
         $html .= '</form></div>';
 
         $html .= '<script>
