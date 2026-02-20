@@ -13,20 +13,16 @@ require_once(dirname(__FILE__) . '/../../azada_wholesaler_pro.php');
 if (file_exists(dirname(__FILE__) . '/../../classes/services/AzadaVerificationEngine.php')) {
     require_once(dirname(__FILE__) . '/../../classes/services/AzadaVerificationEngine.php');
 }
-if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaBioPlanetB2B.php')) {
-    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaBioPlanetB2B.php');
-}
-if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWitalB2B.php')) {
-    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWitalB2B.php');
-}
-if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWital.php')) {
-    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaEkoWital.php');
-}
-if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMed.php')) {
-    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMed.php');
-}
-if (file_exists(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMedB2B.php')) {
-    require_once(dirname(__FILE__) . '/../../classes/integrations/AzadaNaturaMedB2B.php');
+
+$integrationsDir = dirname(__FILE__) . '/../../classes/integrations';
+if (is_dir($integrationsDir)) {
+    foreach (glob($integrationsDir . '/*.php') as $integrationFile) {
+        $baseName = basename($integrationFile);
+        if ($baseName === 'index.php') {
+            continue;
+        }
+        require_once($integrationFile);
+    }
 }
 
 class AdminAzadaWholesalerController extends ModuleAdminController
@@ -219,6 +215,8 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             $result = AzadaEkoWital::runDiagnostics($wholesaler->api_key);
         } elseif ((stripos($wholesaler->name, 'NaturaMed') !== false || stripos($wholesaler->name, 'Natura Med') !== false) && !empty($wholesaler->api_key)) {
             $result = AzadaNaturaMed::runDiagnostics($wholesaler->api_key);
+        } elseif (stripos($wholesaler->name, 'ABRO') !== false && !empty($wholesaler->api_key) && class_exists('AzadaAbro')) {
+            $result = AzadaAbro::runDiagnostics($wholesaler->api_key);
         } else {
             $check = AzadaFileHelper::checkUrlDetailed($wholesaler->file_url);
             $status = !empty($check['status']);
@@ -637,6 +635,11 @@ function runImport(event, btn, url) {
             $_POST['raw_table_name'] = 'azada_raw_naturamed';
             $links = AzadaNaturaMed::generateLinks($apiKey);
             $settings = AzadaNaturaMed::getSettings();
+        } elseif ($preset === 'abro') {
+            $_POST['name'] = 'ABRO';
+            $_POST['raw_table_name'] = 'azada_raw_abro';
+            $links = AzadaAbro::generateLinks($apiKey);
+            $settings = AzadaAbro::getSettings();
         } else {
             return false;
         }
@@ -656,7 +659,7 @@ function runImport(event, btn, url) {
             $preset = Tools::getValue('preset_integration');
             $apiKey = $this->getSubmittedApiKey();
 
-            if (in_array($preset, ['bioplanet', 'ekowital', 'naturamed'], true)) {
+            if (in_array($preset, ['bioplanet', 'ekowital', 'naturamed', 'abro'], true)) {
                 if (empty($apiKey)) {
                     $this->errors[] = $this->l('Podaj Klucz API.');
                     return;
@@ -677,6 +680,8 @@ function runImport(event, btn, url) {
                 $preset = 'ekowital';
             } elseif ($rawTableName === 'azada_raw_naturamed') {
                 $preset = 'naturamed';
+            } elseif ($rawTableName === 'azada_raw_abro') {
+                $preset = 'abro';
             }
 
             if ($preset !== '' && $apiKey !== '') {
@@ -690,20 +695,20 @@ function runImport(event, btn, url) {
 
         if (Tools::isSubmit('submitAdd' . $this->table) || Tools::isSubmit('submitUpdate' . $this->table)) {
             $rawTableName = Tools::getValue('raw_table_name');
-            if ($rawTableName === 'azada_raw_bioplanet' || $rawTableName === 'azada_raw_ekowital' || $rawTableName === 'azada_raw_naturamed') {
+            if ($rawTableName === 'azada_raw_bioplanet' || $rawTableName === 'azada_raw_ekowital' || $rawTableName === 'azada_raw_naturamed' || $rawTableName === 'azada_raw_abro') {
                 AzadaRawSchema::createTable($rawTableName);
             }
         }
     }
 
     public function renderForm() {
-        $js_logic = "<script>$(document).ready(function() { function toggleFields() { var val = $('#preset_integration').val(); if (val == 'bioplanet' || val == 'ekowital' || val == 'naturamed') { $('.custom-field').closest('.form-group').hide(); $('.bioplanet-field').closest('.form-group').show(); $('input[name=\"name\"]').closest('.form-group').hide(); $('input[name=\"raw_table_name\"]').closest('.form-group').hide(); } else { $('.custom-field').closest('.form-group').show(); $('.bioplanet-field').closest('.form-group').hide(); $('input[name=\"name\"]').closest('.form-group').show(); $('input[name=\"raw_table_name\"]').closest('.form-group').show(); } } $('#preset_integration').change(toggleFields); toggleFields(); });</script>";
+        $js_logic = "<script>$(document).ready(function() { function toggleFields() { var val = $('#preset_integration').val(); if (val == 'bioplanet' || val == 'ekowital' || val == 'naturamed' || val == 'abro') { $('.custom-field').closest('.form-group').hide(); $('.bioplanet-field').closest('.form-group').show(); $('input[name=\"name\"]').closest('.form-group').hide(); $('input[name=\"raw_table_name\"]').closest('.form-group').hide(); } else { $('.custom-field').closest('.form-group').show(); $('.bioplanet-field').closest('.form-group').hide(); $('input[name=\"name\"]').closest('.form-group').show(); $('input[name=\"raw_table_name\"]').closest('.form-group').show(); } } $('#preset_integration').change(toggleFields); toggleFields(); });</script>";
 
         $this->fields_form = [
             'legend' => ['title' => $this->l('Nowa Integracja'), 'icon' => 'icon-cloud-upload'],
             'input' => [
                 ['type' => 'html', 'name' => 'html_js', 'html_content' => $js_logic],
-                ['type' => 'select', 'label' => 'Szablon', 'name' => 'preset_integration', 'id' => 'preset_integration', 'required' => true, 'options' => ['query' => [['id' => 'custom', 'name' => '-- Własna / Inna --'], ['id' => 'bioplanet', 'name' => 'BIO PLANET (Automatyczna)'], ['id' => 'ekowital', 'name' => 'EKOWITAL (Automatyczna)'], ['id' => 'naturamed', 'name' => 'NATURAMED (Automatyczna)']], 'id' => 'id', 'name' => 'name']],
+                ['type' => 'select', 'label' => 'Szablon', 'name' => 'preset_integration', 'id' => 'preset_integration', 'required' => true, 'options' => ['query' => [['id' => 'custom', 'name' => '-- Własna / Inna --'], ['id' => 'bioplanet', 'name' => 'BIO PLANET (Automatyczna)'], ['id' => 'ekowital', 'name' => 'EKOWITAL (Automatyczna)'], ['id' => 'naturamed', 'name' => 'NATURAMED (Automatyczna)'], ['id' => 'abro', 'name' => 'ABRO (Automatyczna XML)']], 'id' => 'id', 'name' => 'name']],
                 
                 ['type' => 'text', 'label' => 'Nazwa', 'name' => 'name', 'required' => true],
                 ['type' => 'text', 'label' => 'Tabela Produktów (SQL)', 'name' => 'raw_table_name', 'class' => 'custom-field', 'desc' => 'Nazwa tabeli w bazie (np. azada_raw_bioplanet), w której znajdują się produkty tej hurtowni.'],

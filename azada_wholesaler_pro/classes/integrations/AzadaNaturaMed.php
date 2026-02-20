@@ -201,6 +201,113 @@ class AzadaNaturaMed
         return $columns;
     }
 
+    public static function importProducts($wholesaler)
+    {
+        $links = self::generateLinks($wholesaler->api_key);
+        $tableName = _DB_PREFIX_ . 'azada_raw_naturamed';
+
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+
+        if (!AzadaRawSchema::createTable('azada_raw_naturamed')) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
+        }
+
+        $dbColumnsMap = self::syncTableStructure($links['products']);
+        if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków pliku.'];
+
+        $count = 0;
+
+        $h = @fopen($links['products'], 'r');
+        if (!$h) {
+            return ['status' => 'error', 'msg' => 'Nie można otworzyć pliku.'];
+        }
+
+        $headerLine = self::readFirstNonEmptyLine($h);
+        if ($headerLine === false) {
+            fclose($h);
+            return ['status' => 'error', 'msg' => 'Pusty plik.'];
+        }
+
+        $delimiter = self::detectDelimiter($headerLine);
+        $csvHeaders = str_getcsv(trim($headerLine), $delimiter);
+
+        $allowedColumns = array_flip(AzadaRawSchema::getColumnNames());
+        $colIndexMap = [];
+
+        foreach ($csvHeaders as $index => $rawHeader) {
+            $normalized = self::normalizeHeader($rawHeader);
+            if (isset(self::$columnMap[$normalized])) {
+                $colName = self::$columnMap[$normalized];
+                if (isset($allowedColumns[$colName])) {
+                    $colIndexMap[(int)$index] = $colName;
+                }
+            }
+        }
+
+        $insertCols = array_values($colIndexMap);
+        $insertCols[] = 'data_aktualizacji';
+
+        $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
+        $batchValues = [];
+
+        while (($row = fgetcsv($h, 0, $delimiter)) !== false) {
+            if (!is_array($row) || count($row) < 3) continue;
+
+            $ean = '';
+            foreach ($colIndexMap as $idx => $colName) {
+                if ($colName === 'kod_kreskowy' && isset($row[$idx])) {
+                    $ean = trim((string)$row[$idx]);
+                    break;
+                }
+            }
+            if ($ean === '') continue;
+
+            $rowValues = [];
+            foreach ($colIndexMap as $idx => $colName) {
+                $val = isset($row[$idx]) ? trim((string)$row[$idx]) : '';
+
+                if ($colName === 'produkt_id' && $val !== '') {
+                    $val = 'NAT_' . $val;
+                }
+
+                if (in_array($colName, ['LinkDoProduktu','zdjecieglownelinkurl','zdjecie1linkurl','zdjecie2linkurl','zdjecie3linkurl'], true) && $val !== '') {
+                    $val = self::normalizeToAbsoluteUrl($val);
+                }
+
+                if (in_array($colName, ['waga','ilosc','cenaporabacienetto','cenadetalicznabrutto','vat'], true)) {
+                    $val = str_replace(',', '.', $val);
+                    $val = preg_replace('/[^0-9.]/', '', $val);
+                    if ($val === '') {
+                        $val = '0';
+                    }
+                }
+
+                $rowValues[] = pSQL($val);
+            }
+
+            $rowValues[] = date('Y-m-d H:i:s');
+
+            $batchValues[] = "('" . implode("','", $rowValues) . "')";
+            $count++;
+
+            if (count($batchValues) >= 150) {
+                Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+                $batchValues = [];
+            }
+        }
+
+        fclose($h);
+
+        if (!empty($batchValues)) {
+            Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+        }
+
+        $wholesaler->last_import = date('Y-m-d H:i:s');
+        $wholesaler->update();
+
+        return ['status' => 'success', 'msg' => "Tabela zresetowana. Pobrano $count produktów."];
+    }
+
     public static function runDiagnostics($apiKey)
     {
         if (empty($apiKey)) {

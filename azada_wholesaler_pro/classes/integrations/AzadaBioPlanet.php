@@ -116,6 +116,134 @@ class AzadaBioPlanet
         return trim($str, '_');
     }
 
+    public static function importProducts($wholesaler)
+    {
+        $links = self::generateLinks($wholesaler->api_key);
+        $tableName = _DB_PREFIX_ . 'azada_raw_bioplanet';
+
+        Db::getInstance()->execute("DROP TABLE IF EXISTS `$tableName`");
+
+        if (!AzadaRawSchema::createTable('azada_raw_bioplanet')) {
+            return ['status' => 'error', 'msg' => 'Błąd tworzenia tabeli wzorcowej.'];
+        }
+
+        $dbColumnsMap = self::syncTableStructure($links['products']);
+        if (!$dbColumnsMap) return ['status' => 'error', 'msg' => 'Błąd nagłówków CSV.'];
+
+        $dims = [];
+        if (($h = fopen($links['weights'], "r")) !== false) {
+            fgetcsv($h, 0, ";");
+            while (($row = fgetcsv($h, 1000, ";")) !== false) {
+                if (!empty($row[0])) {
+                    $dims[$row[0]] = [
+                        'd' => (float)str_replace(',', '.', $row[1]),
+                        'w' => (float)str_replace(',', '.', $row[2]),
+                        'h' => (float)str_replace(',', '.', $row[3]),
+                    ];
+                }
+            }
+            fclose($h);
+        }
+
+        $stocks = [];
+        if (($h = fopen($links['stocks'], "r")) !== false) {
+            fgetcsv($h, 0, ";");
+            while (($row = fgetcsv($h, 1000, ";")) !== false) {
+                if (!empty($row[0])) {
+                    $stocks[$row[0]] = [
+                        'qty' => (int)$row[4],
+                        'price' => (float)str_replace(',', '.', $row[6]),
+                    ];
+                }
+            }
+            fclose($h);
+        }
+
+        $count = 0;
+        if (($h = fopen($links['products'], "r")) !== false) {
+            $csvHeaders = fgetcsv($h, 0, ";");
+            $allowedColumns = array_flip(array_keys($dbColumnsMap));
+            $colIndexMap = [];
+
+            foreach ($csvHeaders as $index => $rawHeader) {
+                $rawHeaderNormalized = strtolower(trim($rawHeader));
+                if (in_array($rawHeaderNormalized, self::$ignoredColumns)) {
+                    continue;
+                }
+                $sanitized = self::sanitizeColumnName($rawHeader);
+                if (!empty($sanitized) && isset($allowedColumns[$sanitized])) {
+                    $colIndexMap[$index] = $sanitized;
+                }
+            }
+
+            $insertCols = array_values($colIndexMap);
+            $insertCols[] = 'stan_magazynowy_live';
+            $insertCols[] = 'cena_netto_live';
+            $insertCols[] = 'glebokosc';
+            $insertCols[] = 'szerokosc';
+            $insertCols[] = 'wysokosc';
+            $insertCols[] = 'data_aktualizacji';
+
+            $sqlBase = "INSERT INTO `$tableName` (`" . implode('`,`', $insertCols) . "`) VALUES ";
+            $batchValues = [];
+
+            while (($row = fgetcsv($h, 8192, ";")) !== false) {
+                $eanIndex = array_search('kod_kreskowy', $colIndexMap);
+                $ean = ($eanIndex !== false && isset($row[$eanIndex])) ? $row[$eanIndex] : '';
+                if (empty($ean)) {
+                    $codeIndex = array_search('kod', $colIndexMap);
+                    $ean = ($codeIndex !== false && isset($row[$codeIndex])) ? $row[$codeIndex] : '';
+                }
+                if (empty($ean)) continue;
+
+                $rowValues = [];
+                foreach ($colIndexMap as $index => $colName) {
+                    $val = isset($row[$index]) ? $row[$index] : '';
+                    if ($colName === 'produkt_id') {
+                        $val = 'BP_' . trim($val);
+                    }
+                    if (in_array($colName, ['LinkDoProduktu','zdjecieglownelinkurl','zdjecie1linkurl','zdjecie2linkurl','zdjecie3linkurl'], true) && trim((string)$val) !== '') {
+                        $val = self::normalizeToAbsoluteUrl($val);
+                    }
+                    if (strpos($colName, 'cena') !== false || strpos($colName, 'waga') !== false || strpos($colName, 'vat') !== false || strpos($colName, 'koszt') !== false || strpos($colName, 'netto') !== false || strpos($colName, 'brutto') !== false) {
+                        $val = str_replace(',', '.', $val);
+                        $val = preg_replace('/[^0-9.]/', '', $val);
+                        if ($val === '') $val = '0';
+                    }
+                    $rowValues[] = pSQL(trim($val));
+                }
+
+                $myStock = isset($stocks[$ean]) ? $stocks[$ean] : ['qty' => 0, 'price' => 0];
+                $myDim = isset($dims[$ean]) ? $dims[$ean] : ['d' => 0, 'w' => 0, 'h' => 0];
+
+                $rowValues[] = (int)$myStock['qty'];
+                $rowValues[] = (float)$myStock['price'];
+                $rowValues[] = (float)$myDim['d'];
+                $rowValues[] = (float)$myDim['w'];
+                $rowValues[] = (float)$myDim['h'];
+                $rowValues[] = date('Y-m-d H:i:s');
+
+                $batchValues[] = "('" . implode("','", $rowValues) . "')";
+                $count++;
+
+                if (count($batchValues) >= 150) {
+                    Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+                    $batchValues = [];
+                }
+            }
+
+            fclose($h);
+            if (!empty($batchValues)) {
+                Db::getInstance()->execute($sqlBase . implode(',', $batchValues));
+            }
+        }
+
+        $wholesaler->last_import = date('Y-m-d H:i:s');
+        $wholesaler->update();
+
+        return ['status' => 'success', 'msg' => "Tabela zresetowana. Pobrano $count produktów."];
+    }
+
     public static function runDiagnostics($apiKey)
     {
         if (empty($apiKey)) return ['success' => false, 'details' => []];
