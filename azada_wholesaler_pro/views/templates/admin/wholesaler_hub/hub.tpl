@@ -102,7 +102,7 @@
     </form>
 </div>
 
-<div class="azada-modal-overlay" id="azadaHubSettingsModal" style="display:none;">
+<div class="azada-modal-overlay" id="azadaHubSettingsModal" style="display:none;" data-clear-cache-url="{$azada_hub_clear_cache_url|escape:'html':'UTF-8'}" data-force-sync-url="{$azada_hub_force_sync_url|escape:'html':'UTF-8'}">
     <div class="azada-modal-card azada-modal-card--wide">
         <div class="azada-modal-head">
             <h4>Ustawienia hurtowni: <span id="azadaHubModalName">-</span></h4>
@@ -238,9 +238,17 @@
 
                 <div class="azada-tab-pane" data-tab-pane="tab-maintenance">
                     <p class="azada-tab-description">Operacje utrzymaniowe i porządkowe dla hurtowni.</p>
-                    <div class="azada-placeholder-row">
-                        Etap 1: w tej sekcji dostępny jest plan akcji utrzymaniowych. W kolejnym kroku podłączymy akcje: czyszczenie cache, wymuszenie pełnej synchronizacji i log zmian konfiguracji.
+                    <div class="azada-maintenance-actions">
+                        <button type="button" class="btn btn-default" id="azadaHubClearCacheBtn">
+                            <i class="icon-eraser"></i> Wyczyść cache hurtowni
+                        </button>
+                        <button type="button" class="btn btn-warning" id="azadaHubForceSyncBtn">
+                            <i class="icon-refresh"></i> Wymuś pełną synchronizację teraz
+                        </button>
                     </div>
+                    <p class="azada-inline-help">
+                        Akcje działają tylko dla BioPlanet na tym etapie. Po synchronizacji odśwież stronę, aby zobaczyć najnowsze statusy.
+                    </p>
                 </div>
 
                 <div class="azada-tab-pane" data-tab-pane="tab-coming-soon">

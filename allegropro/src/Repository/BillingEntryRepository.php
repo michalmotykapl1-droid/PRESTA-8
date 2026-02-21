@@ -60,6 +60,17 @@ class BillingEntryRepository
 	        if (empty($have['order_filled'])) {
 	            $alter[] = 'ADD COLUMN `order_filled` TINYINT(1) NOT NULL DEFAULT 0';
 	        }
+            // Error metadata for orders that could not be enriched (checkout-form missing/forbidden/error/timeout)
+            if (empty($have['order_error_code'])) {
+                $alter[] = 'ADD COLUMN `order_error_code` INT NULL';
+            }
+            if (empty($have['order_error'])) {
+                $alter[] = 'ADD COLUMN `order_error` VARCHAR(255) NULL';
+            }
+            if (empty($have['order_error_at'])) {
+                $alter[] = 'ADD COLUMN `order_error_at` DATETIME NULL';
+            }
+
             if (empty($have['raw_json'])) {
                 $alter[] = 'ADD COLUMN `raw_json` LONGTEXT NULL';
             }
@@ -89,6 +100,13 @@ class BillingEntryRepository
 	        if (empty($haveIdx['idx_acc_filled_order'])) {
 	            Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_filled_order` (`id_allegropro_account`,`order_filled`,`order_id`)');
 	        }
+            if (empty($haveIdx['idx_acc_err_date'])) {
+                Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_err_date` (`id_allegropro_account`,`order_error_code`,`order_error_at`)');
+            }
+            if (empty($haveIdx['idx_acc_err_order'])) {
+                Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_err_order` (`id_allegropro_account`,`order_error_code`,`order_id`)');
+            }
+
 
 	        // One-time cleanup of legacy placeholders that should not be persisted.
 	        $cleanupFlag = 'ALPRO_BILLING_PLACEHOLDER_CLEANUP_20260220';
@@ -954,6 +972,77 @@ class BillingEntryRepository
             'promotion' => (float)($row['promotion'] ?? 0),
             'refunds' => (float)($row['refunds'] ?? 0),
         ];
+    }
+
+
+    private function normalizeIdSql(string $expr): string
+    {
+        // remove '-' and '_' and ignore case
+        return "LOWER(REPLACE(REPLACE(IFNULL({$expr},''),'-',''),'_',''))";
+    }
+
+    /**
+     * Persist enrichment error for all billing entries of given order.
+     */
+    public function setOrderError(int $accountId, string $orderId, int $code, string $error): int
+    {
+        $orderId = trim($orderId);
+        if ($accountId <= 0 || $orderId === '') {
+            return 0;
+        }
+        $norm = preg_replace('/[^0-9a-z]/i', '', str_replace(['-','_'], '', strtolower($orderId)));
+        if ($norm === '') {
+            return 0;
+        }
+        $err = trim((string)$error);
+        if ($err !== '' && Tools::strlen($err) > 255) {
+            $err = Tools::substr($err, 0, 255);
+        }
+
+        $p = _DB_PREFIX_;
+        $now = pSQL(date('Y-m-d H:i:s'));
+        $normEsc = pSQL($norm);
+        $errEsc = $err === '' ? null : pSQL($err);
+
+        $sql = "UPDATE `{$p}allegropro_billing_entry`
+                SET order_error_code=" . (int)$code . ",
+                    order_error=" . ($errEsc === null ? "NULL" : "'{$errEsc}'") . ",
+                    order_error_at='{$now}',
+                    updated_at='{$now}'
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND " . $this->normalizeIdSql('order_id') . "='{$normEsc}'";
+
+        Db::getInstance()->execute($sql);
+        return (int)Db::getInstance()->Affected_Rows();
+    }
+
+    /**
+     * Clear enrichment error when order is successfully enriched.
+     */
+    public function clearOrderError(int $accountId, string $orderId): int
+    {
+        $orderId = trim($orderId);
+        if ($accountId <= 0 || $orderId === '') {
+            return 0;
+        }
+        $norm = preg_replace('/[^0-9a-z]/i', '', str_replace(['-','_'], '', strtolower($orderId)));
+        if ($norm === '') {
+            return 0;
+        }
+        $p = _DB_PREFIX_;
+        $now = pSQL(date('Y-m-d H:i:s'));
+        $normEsc = pSQL($norm);
+
+        $sql = "UPDATE `{$p}allegropro_billing_entry`
+                SET order_error_code=NULL,
+                    order_error=NULL,
+                    order_error_at=NULL,
+                    updated_at='{$now}'
+                WHERE id_allegropro_account=" . (int)$accountId . "
+                  AND " . $this->normalizeIdSql('order_id') . "='{$normEsc}'";
+
+        Db::getInstance()->execute($sql);
+        return (int)Db::getInstance()->Affected_Rows();
     }
 
 }

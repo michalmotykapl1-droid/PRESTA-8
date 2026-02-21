@@ -577,6 +577,53 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         ];
     }
 
+    public function ajaxProcessClearHubCache()
+    {
+        $idWholesaler = (int)Tools::getValue('id_wholesaler');
+        if ($idWholesaler <= 0) {
+            die(json_encode(['status' => 'error', 'msg' => 'Brak ID hurtowni.']));
+        }
+
+        $deletedRows = Db::getInstance()->delete('azada_wholesaler_pro_cache', 'id_wholesaler='.(int)$idWholesaler);
+
+        $debugFiles = [
+            _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/debug.html',
+            _PS_MODULE_DIR_ . 'azada_wholesaler_pro/downloads/debug_ekowital.html',
+        ];
+
+        $removedFiles = 0;
+        foreach ($debugFiles as $debugFile) {
+            if (file_exists($debugFile) && @unlink($debugFile)) {
+                $removedFiles++;
+            }
+        }
+
+        die(json_encode([
+            'status' => 'success',
+            'msg' => 'Wyczyszczono cache hurtowni. Rekordy cache: ' . ($deletedRows ? 'usunięte' : 'brak wpisów') . ', pliki debug: ' . (int)$removedFiles . '.',
+        ]));
+    }
+
+    public function ajaxProcessForceHubSync()
+    {
+        @ini_set('max_execution_time', 1200);
+        @ini_set('memory_limit', '512M');
+
+        $idWholesaler = (int)Tools::getValue('id_wholesaler');
+        if ($idWholesaler <= 0) {
+            die(json_encode(['status' => 'error', 'msg' => 'Brak ID hurtowni.']));
+        }
+
+        $engine = new AzadaImportEngine();
+        $result = $engine->runFullImport($idWholesaler);
+
+        if (!is_array($result)) {
+            $result = ['status' => 'error', 'msg' => 'Nieoczekiwana odpowiedź silnika importu.'];
+        }
+
+        die(json_encode($result));
+    }
+
     public function renderList()
     {
         $saveB2BUrl = self::$currentIndex . '&action=saveB2B&ajax=1&token=' . $this->token;
@@ -695,6 +742,8 @@ function runImport(event, btn, url) {
             'add_url' => self::$currentIndex . '&add' . $this->table . '&token=' . $this->token,
             'azada_hub_cards' => $hubCards,
             'azada_hub_post_url' => self::$currentIndex . '&token=' . $this->token,
+            'azada_hub_clear_cache_url' => self::$currentIndex . '&action=clearHubCache&ajax=1&token=' . $this->token,
+            'azada_hub_force_sync_url' => self::$currentIndex . '&action=forceHubSync&ajax=1&token=' . $this->token,
         ]);
 
         $this->addCSS($this->module->getPathUri() . 'views/css/wholesaler_hub.css');

@@ -11,6 +11,7 @@ use AllegroPro\Service\AllegroApiClient;
 use AllegroPro\Service\BillingSyncService;
 use AllegroPro\Service\OrderFetcher;
 use AllegroPro\Service\SettlementsReportService;
+use AllegroPro\Service\OrderEnrichSkipService;
 use AllegroPro\Service\OrderBillingManualSyncService;
 
 class AdminAllegroProSettlementsController extends ModuleAdminController
@@ -18,6 +19,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
     private AccountRepository $accounts;
     private BillingEntryRepository $billingRepo;
     private OrderRepository $orderRepo;
+    private OrderEnrichSkipService $enrichSkip;
 
     public function setMedia($isNewTheme = false)
     {
@@ -44,6 +46,7 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $this->accounts = new AccountRepository();
         $this->billingRepo = new BillingEntryRepository();
         $this->orderRepo = new OrderRepository();
+        $this->enrichSkip = new OrderEnrichSkipService();
     }
 
     public function initContent()
@@ -736,78 +739,21 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
      */
     private function ensureEnrichSkipSchema(): void
     {
-        try {
-            $p = _DB_PREFIX_;
-            $engine = _MYSQL_ENGINE_;
-            $sql = "CREATE TABLE IF NOT EXISTS `{$p}allegropro_order_enrich_skip` (
-                `id_allegropro_order_enrich_skip` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                `id_allegropro_account` INT UNSIGNED NOT NULL,
-                `order_id` VARCHAR(64) NOT NULL,
-                `last_code` INT NULL,
-                `last_error` VARCHAR(255) NULL,
-                `last_attempt_at` DATETIME NOT NULL,
-                `attempts` INT UNSIGNED NOT NULL DEFAULT 1,
-                PRIMARY KEY (`id_allegropro_order_enrich_skip`),
-                UNIQUE KEY `uniq_acc_order` (`id_allegropro_account`,`order_id`),
-                KEY `idx_last_attempt` (`last_attempt_at`)
-            ) ENGINE={$engine} DEFAULT CHARSET=utf8mb4;";
-            Db::getInstance()->execute($sql);
-        } catch (\Throwable $e) {
-            // nie przerywamy
-        }
+        $this->enrichSkip->ensureSchema();
     }
 
     private function markEnrichSkip(int $accountId, string $orderId, int $code, string $error = ''): void
     {
-        $orderId = trim($orderId);
-        if (!$accountId || $orderId === '') {
-            return;
-        }
-
-        $this->ensureEnrichSkipSchema();
-
-        $p = _DB_PREFIX_;
-        $now = pSQL(date('Y-m-d H:i:s'));
-        $orderEsc = pSQL($orderId);
-        $err = trim($error);
-        if ($err !== '' && Tools::strlen($err) > 255) {
-            $err = Tools::substr($err, 0, 255);
-        }
-        $errEsc = $err === '' ? 'NULL' : "'" . pSQL($err) . "'";
-
-        $sql = "INSERT INTO `{$p}allegropro_order_enrich_skip`
-                    (id_allegropro_account, order_id, last_code, last_error, last_attempt_at, attempts)
-                VALUES
-                    (" . (int)$accountId . ", '{$orderEsc}', " . (int)$code . ", {$errEsc}, '{$now}', 1)
-                ON DUPLICATE KEY UPDATE
-                    last_code=VALUES(last_code),
-                    last_error=VALUES(last_error),
-                    last_attempt_at=VALUES(last_attempt_at),
-                    attempts=attempts+1";
+        $this->enrichSkip->mark($accountId, $orderId, $code, $error);
+        // persist into billing entries for fast UI filtering (Do wyjaśnienia)
         try {
-            Db::getInstance()->execute($sql);
+            $this->billingRepo->setOrderError($accountId, $orderId, $code, $error);
         } catch (\Throwable $e) {
             // ignore
         }
     }
 
-    
-    /**
-     * Backfill flag order_filled for billing entries in given range:
-     * - order_id empty => not applicable => order_filled=1
-     * - if local order data is complete (status/buyer/total + items/shipping/buyer tables present) => order_filled=1
-     * This makes missing-order checks fast (WHERE order_filled=0).
-     */
-    
-/**
- * Backfill flag order_filled for billing entries (global, not limited to date range):
- * - rows with empty order_id => order_filled=1 (N/A)
- * - if local order data is complete (status/buyer/total + items/shipping/buyer tables present) => order_filled=1
- *
- * Uwaga: To jest świadomie globalne, żeby etap 2 zawsze dogrywał stare braki (order_filled=0),
- * nawet gdy pobieranie billing-entries jest wykonywane tylko dla "końcówki" zakresu.
- * Dzięki indeksom (id_allegropro_account, order_filled, ...) update dotyka tylko order_filled=0.
- */
+
 private function prepareOrderFilledRange(int $accountId, string $dateFrom, string $dateTo): void
 {
     $p = _DB_PREFIX_;
@@ -816,7 +762,10 @@ private function prepareOrderFilledRange(int $accountId, string $dateFrom, strin
     try {
         Db::getInstance()->execute(
             "UPDATE `{$p}allegropro_billing_entry`
-             SET order_filled=1
+             SET order_filled=1,
+                 order_error_code=NULL,
+                 order_error=NULL,
+                 order_error_at=NULL
              WHERE id_allegropro_account=" . (int)$accountId . "
                AND order_filled=0
                AND (order_id IS NULL OR order_id='')"
@@ -833,7 +782,10 @@ private function prepareOrderFilledRange(int $accountId, string $dateFrom, strin
     $normOb = $this->normalizeIdSql('ob.checkout_form_id');
 
     $sql = "UPDATE `{$p}allegropro_billing_entry` b
-            SET b.order_filled=1
+            SET b.order_filled=1,
+                b.order_error_code=NULL,
+                b.order_error=NULL,
+                b.order_error_at=NULL
             WHERE b.id_allegropro_account=" . (int)$accountId . "
               AND b.order_filled=0
               AND b.order_id IS NOT NULL AND b.order_id <> ''
@@ -870,7 +822,10 @@ private function prepareOrderFilledRange(int $accountId, string $dateFrom, strin
         }
         $normEsc = pSQL($norm);
         $sql = "UPDATE `{$p}allegropro_billing_entry`
-                SET order_filled=1
+                SET order_filled=1,
+                    order_error_code=NULL,
+                    order_error=NULL,
+                    order_error_at=NULL
                 WHERE id_allegropro_account=" . (int)$accountId . "
                   AND order_filled=0
                   AND " . $this->normalizeIdSql('order_id') . " = '{$normEsc}'";
@@ -896,7 +851,7 @@ private function countMissingOrders(int $accountId, string $dateFrom, string $da
             FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
             LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
               ON (s.id_allegropro_account=b.id_allegropro_account AND {$normS} = {$normB}
-                  AND IFNULL(s.last_code,0)=404 AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                  AND COALESCE(s.skip_until, DATE_ADD(s.last_attempt_at, INTERVAL 30 MINUTE)) > NOW())
             WHERE b.id_allegropro_account=" . (int)$accountId . "
               AND b.order_filled=0
               AND b.order_id IS NOT NULL AND b.order_id <> ''
@@ -952,7 +907,7 @@ private function listMissingOrderRows(int $accountId, string $dateFrom, string $
             FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
             LEFT JOIN `" . _DB_PREFIX_ . "allegropro_order_enrich_skip` s
               ON (s.id_allegropro_account=b.id_allegropro_account AND {$normS} = {$normB}
-                  AND IFNULL(s.last_code,0)=404 AND s.last_attempt_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                  AND COALESCE(s.skip_until, DATE_ADD(s.last_attempt_at, INTERVAL 30 MINUTE)) > NOW())
             WHERE b.id_allegropro_account=" . (int)$accountId . "
               AND b.order_filled=0
               AND b.order_id IS NOT NULL AND b.order_id <> ''
@@ -991,7 +946,44 @@ private function listMissingOrderRows(int $accountId, string $dateFrom, string $
      * Poprzednia wersja robiła SELECT ... LIMIT 1 i na części konfiguracji MariaDB dawało to 1064.
      * Tu robimy bezpieczny UPDATE po znormalizowanym UUID (bez - i _), bez LIMIT.
      */
-    private function rekeyCheckoutFormIdByNorm(int $accountId, string $rawId, string $apiId): int
+    
+    private function extractApiErrorMessage(array $resp, int $code = 0): string
+    {
+        try {
+            $json = $resp['json'] ?? null;
+            if (is_array($json)) {
+                if (!empty($json['errors']) && is_array($json['errors'])) {
+                    $e0 = $json['errors'][0] ?? null;
+                    if (is_array($e0)) {
+                        $msg = (string)($e0['userMessage'] ?? $e0['message'] ?? '');
+                        $msg = trim($msg);
+                        if ($msg !== '') {
+                            return $msg;
+                        }
+                    }
+                }
+                if (!empty($json['message'])) {
+                    $msg = trim((string)$json['message']);
+                    if ($msg !== '') {
+                        return $msg;
+                    }
+                }
+            }
+            $raw = (string)($resp['raw'] ?? '');
+            $raw = trim($raw);
+            if ($raw !== '') {
+                if (Tools::strlen($raw) > 255) {
+                    $raw = Tools::substr($raw, 0, 255);
+                }
+                return $raw;
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+        return $code ? ('HTTP ' . (int)$code) : 'unknown error';
+    }
+
+private function rekeyCheckoutFormIdByNorm(int $accountId, string $rawId, string $apiId): int
     {
         $rawId = trim($rawId);
         $apiId = trim($apiId);
@@ -1130,17 +1122,18 @@ private function listMissingOrderRows(int $accountId, string $dateFrom, string $
             }
 
             try {
-            $resp = $api->get($acc, '/order/checkout-forms/' . rawurlencode($apiId));
-        } catch (\Throwable $e) {
-            $errors[] = ['id' => $rawId, 'error' => 'API: ' . $e->getMessage()];
-            continue;
-        }
+                $resp = $api->get($acc, '/order/checkout-forms/' . rawurlencode($apiId));
+            } catch (\Throwable $e) {
+                $msg = 'API: ' . $e->getMessage();
+                $this->markEnrichSkip($accountId, $rawId, 0, $msg);
+                $errors[] = ['id' => $rawId, 'code' => 0, 'error' => $msg];
+                continue;
+            }
             if (empty($resp['ok']) || !is_array($resp['json'])) {
                 $code = (int)($resp['code'] ?? 0);
-                if ($code === 404) {
-                    $this->markEnrichSkip($accountId, $rawId, 404, 'checkout-form not found');
-                }
-                $errors[] = ['id' => $rawId, 'code' => $code];
+                $msg = $this->extractApiErrorMessage($resp, $code);
+                $this->markEnrichSkip($accountId, $rawId, $code, $msg);
+                $errors[] = ['id' => $rawId, 'code' => $code, 'error' => $msg];
                 continue;
             }
             $order = $resp['json'];
@@ -1156,6 +1149,9 @@ private function listMissingOrderRows(int $accountId, string $dateFrom, string $
             try {
                 $this->orderRepo->saveFullOrder($order);
                 $this->markBillingOrderFilled($accountId, $rawId);
+                // clear throttle + error markers
+                $this->enrichSkip->clear($accountId, $rawId);
+                try { $this->billingRepo->clearOrderError($accountId, $rawId); } catch (\Throwable $e) {}
                 $updated++;
             } catch (\Throwable $e) {
                 $errors[] = ['id' => $rawId, 'error' => $e->getMessage()];

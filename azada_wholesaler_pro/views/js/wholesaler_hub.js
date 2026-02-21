@@ -65,6 +65,11 @@
         var zeroBelowStockInput = document.getElementById('azada_hub_settings_zero_below_stock');
 
         var saveBtn = document.getElementById('azadaHubModalSave');
+        var clearCacheBtn = document.getElementById('azadaHubClearCacheBtn');
+        var forceSyncBtn = document.getElementById('azadaHubForceSyncBtn');
+
+        var clearCacheUrl = modal ? (modal.getAttribute('data-clear-cache-url') || '') : '';
+        var forceSyncUrl = modal ? (modal.getAttribute('data-force-sync-url') || '') : '';
 
         if (!modal) {
             return;
@@ -145,6 +150,59 @@
             }
         };
 
+        var currentWholesalerId = '0';
+
+        var runHubAction = function (url, button, confirmText) {
+            if (!url || !currentWholesalerId || currentWholesalerId === '0') {
+                return;
+            }
+
+            if (confirmText && !window.confirm(confirmText)) {
+                return;
+            }
+
+            var previousHtml = button ? button.innerHTML : '';
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<i class="icon-refresh icon-spin"></i> Trwa...';
+            }
+
+            var requestUrl = url + '&id_wholesaler=' + encodeURIComponent(currentWholesalerId);
+
+            fetch(requestUrl, {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    var message = (data && data.msg) ? data.msg : 'Brak odpowiedzi.';
+                    window.alert(message);
+                })
+                .catch(function () {
+                    window.alert('Błąd połączenia z serwerem.');
+                })
+                .finally(function () {
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = previousHtml;
+                    }
+                });
+        };
+
+        if (clearCacheBtn) {
+            clearCacheBtn.addEventListener('click', function () {
+                runHubAction(clearCacheUrl, clearCacheBtn, 'Czy na pewno wyczyścić cache hurtowni?');
+            });
+        }
+
+        if (forceSyncBtn) {
+            forceSyncBtn.addEventListener('click', function () {
+                runHubAction(forceSyncUrl, forceSyncBtn, 'To uruchomi pełny import 1:1. Kontynuować?');
+            });
+        }
+
         var settingsButtons = document.querySelectorAll('.azada-hub-settings-btn');
         settingsButtons.forEach(function (button) {
             button.addEventListener('click', function () {
@@ -158,6 +216,9 @@
 
                 if (modalIdInput) {
                     modalIdInput.value = button.getAttribute('data-wholesaler') || '0';
+                    currentWholesalerId = modalIdInput.value;
+                } else {
+                    currentWholesalerId = button.getAttribute('data-wholesaler') || '0';
                 }
 
                 setInputValue(syncModeInput, button.getAttribute('data-sync-mode'), 'api');
@@ -203,6 +264,14 @@
 
                 if (saveBtn) {
                     saveBtn.disabled = !isBioPlanet;
+                }
+
+                if (clearCacheBtn) {
+                    clearCacheBtn.disabled = !isBioPlanet;
+                }
+
+                if (forceSyncBtn) {
+                    forceSyncBtn.disabled = !isBioPlanet;
                 }
 
                 activateTab('tab-start');

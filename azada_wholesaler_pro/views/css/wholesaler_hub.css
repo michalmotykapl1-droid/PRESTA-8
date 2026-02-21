@@ -344,3 +344,17 @@
     color: #638096;
     font-weight: 600;
 }
+
+
+.azada-maintenance-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.azada-inline-help {
+    margin: 0;
+    color: #6a7f91;
+    font-size: 12px;
+}
