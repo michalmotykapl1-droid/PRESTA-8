@@ -29,7 +29,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
 {
     private function getHubCardsData()
     {
-        $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled, hs.sync_mode, hs.price_field, hs.notes FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
+        $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled, hs.sync_mode, hs.price_field, hs.notes, hs.use_local_cache, hs.cache_ttl_minutes, hs.price_multiplier, hs.price_markup_percent, hs.stock_buffer, hs.stock_min_limit, hs.stock_max_limit, hs.price_min_limit, hs.price_max_limit, hs.zero_below_stock FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
 
         if (!is_array($rows)) {
             return [];
@@ -43,6 +43,16 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             $row['sync_mode'] = isset($row['sync_mode']) && $row['sync_mode'] !== '' ? (string)$row['sync_mode'] : 'api';
             $row['price_field'] = isset($row['price_field']) && $row['price_field'] !== '' ? (string)$row['price_field'] : 'CenaPoRabacieNetto';
             $row['notes'] = isset($row['notes']) ? (string)$row['notes'] : '';
+            $row['use_local_cache'] = isset($row['use_local_cache']) ? (int)$row['use_local_cache'] : 1;
+            $row['cache_ttl_minutes'] = isset($row['cache_ttl_minutes']) ? max(1, (int)$row['cache_ttl_minutes']) : 60;
+            $row['price_multiplier'] = isset($row['price_multiplier']) ? (float)$row['price_multiplier'] : 1.0000;
+            $row['price_markup_percent'] = isset($row['price_markup_percent']) ? (float)$row['price_markup_percent'] : 0.00;
+            $row['stock_buffer'] = isset($row['stock_buffer']) ? (int)$row['stock_buffer'] : 0;
+            $row['stock_min_limit'] = isset($row['stock_min_limit']) ? (int)$row['stock_min_limit'] : 0;
+            $row['stock_max_limit'] = isset($row['stock_max_limit']) ? (int)$row['stock_max_limit'] : 0;
+            $row['price_min_limit'] = isset($row['price_min_limit']) ? (float)$row['price_min_limit'] : 0.00;
+            $row['price_max_limit'] = isset($row['price_max_limit']) ? (float)$row['price_max_limit'] : 0.00;
+            $row['zero_below_stock'] = isset($row['zero_below_stock']) ? (int)$row['zero_below_stock'] : 0;
         }
 
         return $rows;
@@ -79,6 +89,16 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 $payload['sync_mode'] = 'api';
                 $payload['price_field'] = 'CenaPoRabacieNetto';
                 $payload['notes'] = null;
+                $payload['use_local_cache'] = 1;
+                $payload['cache_ttl_minutes'] = 60;
+                $payload['price_multiplier'] = 1.0000;
+                $payload['price_markup_percent'] = 0.00;
+                $payload['stock_buffer'] = 0;
+                $payload['stock_min_limit'] = 0;
+                $payload['stock_max_limit'] = 0;
+                $payload['price_min_limit'] = 0.00;
+                $payload['price_max_limit'] = 0.00;
+                $payload['zero_below_stock'] = 0;
                 $payload['date_add'] = date('Y-m-d H:i:s');
                 Db::getInstance()->insert('azada_wholesaler_pro_hub_settings', $payload);
             }
@@ -124,12 +144,56 @@ class AdminAzadaWholesalerController extends ModuleAdminController
 
         $notes = trim((string)Tools::getValue('hub_settings_notes', ''));
 
+        $useLocalCache = (int)Tools::getValue('hub_settings_use_local_cache', 1) === 1 ? 1 : 0;
+        $cacheTtlMinutes = (int)Tools::getValue('hub_settings_cache_ttl_minutes', 60);
+        if ($cacheTtlMinutes < 1) {
+            $cacheTtlMinutes = 1;
+        }
+        if ($cacheTtlMinutes > 10080) {
+            $cacheTtlMinutes = 10080;
+        }
+
+        $priceMultiplier = (float)Tools::getValue('hub_settings_price_multiplier', 1);
+        if ($priceMultiplier <= 0) {
+            $priceMultiplier = 1.0000;
+        }
+
+        $priceMarkupPercent = (float)Tools::getValue('hub_settings_price_markup_percent', 0);
+        if ($priceMarkupPercent < -99.99) {
+            $priceMarkupPercent = -99.99;
+        }
+
+        $stockBuffer = (int)Tools::getValue('hub_settings_stock_buffer', 0);
+        $stockMinLimit = max(0, (int)Tools::getValue('hub_settings_stock_min_limit', 0));
+        $stockMaxLimit = max(0, (int)Tools::getValue('hub_settings_stock_max_limit', 0));
+        if ($stockMaxLimit > 0 && $stockMaxLimit < $stockMinLimit) {
+            $stockMaxLimit = $stockMinLimit;
+        }
+
+        $priceMinLimit = max(0, (float)Tools::getValue('hub_settings_price_min_limit', 0));
+        $priceMaxLimit = max(0, (float)Tools::getValue('hub_settings_price_max_limit', 0));
+        if ($priceMaxLimit > 0 && $priceMaxLimit < $priceMinLimit) {
+            $priceMaxLimit = $priceMinLimit;
+        }
+
+        $zeroBelowStock = max(0, (int)Tools::getValue('hub_settings_zero_below_stock', 0));
+
         $exists = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` WHERE id_wholesaler='.(int)$idWholesaler);
 
         $payload = [
             'sync_mode' => pSQL($syncMode),
             'price_field' => pSQL($priceField),
             'notes' => pSQL($notes),
+            'use_local_cache' => (int)$useLocalCache,
+            'cache_ttl_minutes' => (int)$cacheTtlMinutes,
+            'price_multiplier' => (float)$priceMultiplier,
+            'price_markup_percent' => (float)$priceMarkupPercent,
+            'stock_buffer' => (int)$stockBuffer,
+            'stock_min_limit' => (int)$stockMinLimit,
+            'stock_max_limit' => (int)$stockMaxLimit,
+            'price_min_limit' => (float)$priceMinLimit,
+            'price_max_limit' => (float)$priceMaxLimit,
+            'zero_below_stock' => (int)$zeroBelowStock,
             'date_upd' => date('Y-m-d H:i:s'),
         ];
 

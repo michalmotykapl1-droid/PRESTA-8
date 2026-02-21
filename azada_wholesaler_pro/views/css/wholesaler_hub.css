@@ -222,6 +222,10 @@
     overflow: hidden;
 }
 
+.azada-modal-card--wide {
+    max-width: 920px;
+}
+
 .azada-modal-head {
     display: flex;
     align-items: center;
@@ -290,6 +294,45 @@
 
 .azada-tab-pane.is-active {
     display: block;
+}
+
+.azada-tab-description {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f3f8fc;
+    border: 1px solid #d8e5ef;
+    color: #436278;
+    font-weight: 600;
+}
+
+.azada-switch-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.azada-inline-note {
+    display: inline-block;
+    margin-left: 10px;
+    font-weight: 700;
+    color: #4f6577;
+}
+
+.azada-form-separator {
+    margin: 10px 0 16px;
+    border-top: 1px solid #e6eef4;
+}
+
+.azada-roadmap-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #4f6577;
+}
+
+.azada-roadmap-list li {
+    margin-bottom: 8px;
 }
 
 .azada-placeholder-row {

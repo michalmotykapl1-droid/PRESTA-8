@@ -361,11 +361,41 @@ class AzadaWholesaler extends ObjectModel
             `sync_mode` VARCHAR(32) NOT NULL DEFAULT 'api',
             `price_field` VARCHAR(64) NOT NULL DEFAULT 'CenaPoRabacieNetto',
             `notes` VARCHAR(255) DEFAULT NULL,
+            `use_local_cache` TINYINT(1) NOT NULL DEFAULT 1,
+            `cache_ttl_minutes` INT(11) NOT NULL DEFAULT 60,
+            `price_multiplier` DECIMAL(10,4) NOT NULL DEFAULT 1.0000,
+            `price_markup_percent` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            `stock_buffer` INT(11) NOT NULL DEFAULT 0,
+            `stock_min_limit` INT(11) NOT NULL DEFAULT 0,
+            `stock_max_limit` INT(11) NOT NULL DEFAULT 0,
+            `price_min_limit` DECIMAL(20,2) NOT NULL DEFAULT 0.00,
+            `price_max_limit` DECIMAL(20,2) NOT NULL DEFAULT 0.00,
+            `zero_below_stock` INT(11) NOT NULL DEFAULT 0,
             `date_add` DATETIME NOT NULL,
             `date_upd` DATETIME NOT NULL,
             PRIMARY KEY (`id_setting`),
             UNIQUE KEY `uniq_wholesaler` (`id_wholesaler`)
         ) ENGINE="._MYSQL_ENGINE_." DEFAULT CHARSET=utf8;");
+
+        $hubColumns = [
+            'use_local_cache' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `use_local_cache` TINYINT(1) NOT NULL DEFAULT 1 AFTER `notes`",
+            'cache_ttl_minutes' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `cache_ttl_minutes` INT(11) NOT NULL DEFAULT 60 AFTER `use_local_cache`",
+            'price_multiplier' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `price_multiplier` DECIMAL(10,4) NOT NULL DEFAULT 1.0000 AFTER `cache_ttl_minutes`",
+            'price_markup_percent' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `price_markup_percent` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `price_multiplier`",
+            'stock_buffer' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `stock_buffer` INT(11) NOT NULL DEFAULT 0 AFTER `price_markup_percent`",
+            'stock_min_limit' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `stock_min_limit` INT(11) NOT NULL DEFAULT 0 AFTER `stock_buffer`",
+            'stock_max_limit' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `stock_max_limit` INT(11) NOT NULL DEFAULT 0 AFTER `stock_min_limit`",
+            'price_min_limit' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `price_min_limit` DECIMAL(20,2) NOT NULL DEFAULT 0.00 AFTER `stock_max_limit`",
+            'price_max_limit' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `price_max_limit` DECIMAL(20,2) NOT NULL DEFAULT 0.00 AFTER `price_min_limit`",
+            'zero_below_stock' => "ALTER TABLE `$tableHubSettings` ADD COLUMN `zero_below_stock` INT(11) NOT NULL DEFAULT 0 AFTER `price_max_limit`",
+        ];
+
+        foreach ($hubColumns as $columnName => $alterSql) {
+            $columnExists = $db->executeS("SHOW COLUMNS FROM `$tableHubSettings` LIKE '".pSQL($columnName)."'");
+            if (empty($columnExists)) {
+                $db->execute($alterSql);
+            }
+        }
 
         $allWholesalers = $db->executeS('SELECT id_wholesaler FROM `'.bqSQL($tableInt).'`');
         if (is_array($allWholesalers)) {
@@ -386,6 +416,16 @@ class AzadaWholesaler extends ObjectModel
                     'sync_mode' => 'api',
                     'price_field' => 'CenaPoRabacieNetto',
                     'notes' => null,
+                    'use_local_cache' => 1,
+                    'cache_ttl_minutes' => 60,
+                    'price_multiplier' => 1.0000,
+                    'price_markup_percent' => 0.00,
+                    'stock_buffer' => 0,
+                    'stock_min_limit' => 0,
+                    'stock_max_limit' => 0,
+                    'price_min_limit' => 0.00,
+                    'price_max_limit' => 0.00,
+                    'zero_below_stock' => 0,
                     'date_add' => date('Y-m-d H:i:s'),
                     'date_upd' => date('Y-m-d H:i:s'),
                 ]);
