@@ -11,6 +11,7 @@ use AllegroPro\Service\AllegroApiClient;
 use AllegroPro\Service\BillingSyncService;
 use AllegroPro\Service\OrderFetcher;
 use AllegroPro\Service\SettlementsReportService;
+use AllegroPro\Service\OrderBillingManualSyncService;
 
 class AdminAllegroProSettlementsController extends ModuleAdminController
 {
@@ -531,6 +532,64 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'pie' => $pie,
             'items' => $items,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * AJAX: ręczne pobranie billing-entries pod zakładkę "Rozliczenia Allegro" w szczegółach zamówienia.
+     * URL: ...&ajax=1&action=syncOrderBilling
+     * POST: id_allegropro_account, checkout_form_id, date_from, date_to, force_update
+     */
+    public function ajaxProcessSyncOrderBilling(): void
+    {
+        // ensure schema also for AJAX
+        $this->billingRepo->ensureSchema();
+
+        $accountId = (int)Tools::getValue('id_allegropro_account', 0);
+        $checkoutFormId = trim((string)Tools::getValue('checkout_form_id', ''));
+        $dateFrom = $this->sanitizeYmd((string)Tools::getValue('date_from', ''));
+        $dateTo = $this->sanitizeYmd((string)Tools::getValue('date_to', ''));
+        $forceUpdate = (int)Tools::getValue('force_update', 0) ? true : false;
+
+        if ($accountId <= 0 || $checkoutFormId === '' || $dateFrom === '' || $dateTo === '') {
+            $this->ajaxJson(['ok' => 0, 'error' => 'Brak parametrów (konto / checkoutFormId / zakres dat).']);
+            return;
+        }
+
+        $acc = $this->accounts->get($accountId);
+        if (!$acc || empty($acc['access_token'])) {
+            $this->ajaxJson(['ok' => 0, 'error' => 'Brak autoryzacji konta Allegro (access_token).']);
+            return;
+        }
+
+        // Ręczne pobranie działa na zakresie dat (occurredAt). Allegro nie filtruje billing-entries po orderId.
+        $svc = new OrderBillingManualSyncService();
+        $res = $svc->syncRangeForAccount(
+            $accountId,
+            $this->toIsoStart($dateFrom),
+            $this->toIsoEnd($dateTo),
+            $forceUpdate
+        );
+
+        if (empty($res['ok'])) {
+            $this->ajaxJson([
+                'ok' => 0,
+                'error' => 'Nie udało się pobrać billing-entries. Sprawdź autoryzację/logi.',
+                'code' => (int)($res['code'] ?? 0),
+                'total' => (int)($res['total'] ?? 0),
+                'inserted' => (int)($res['inserted'] ?? 0),
+                'updated' => (int)($res['updated'] ?? 0),
+                'debug_tail' => array_slice((array)($res['debug'] ?? []), -3),
+            ]);
+            return;
+        }
+
+        $this->ajaxJson([
+            'ok' => 1,
+            'total' => (int)($res['total'] ?? 0),
+            'inserted' => (int)($res['inserted'] ?? 0),
+            'updated' => (int)($res['updated'] ?? 0),
+            'debug_tail' => array_slice((array)($res['debug'] ?? []), -2),
+        ]);
     }
 
     

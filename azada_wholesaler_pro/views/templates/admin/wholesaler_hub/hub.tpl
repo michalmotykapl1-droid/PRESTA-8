@@ -67,7 +67,16 @@
                     </div>
 
                     <div class="azada-hub-card__foot">
-                        <button type="button" class="btn btn-default btn-block azada-hub-settings-btn" data-wholesaler="{$card.id_wholesaler|intval}">
+                        <button
+                            type="button"
+                            class="btn btn-default btn-block azada-hub-settings-btn"
+                            data-wholesaler="{$card.id_wholesaler|intval}"
+                            data-name="{$card.name|escape:'html':'UTF-8'}"
+                            data-table="{$card.raw_table_name|escape:'html':'UTF-8'}"
+                            data-sync-mode="{$card.sync_mode|escape:'html':'UTF-8'}"
+                            data-price-field="{$card.price_field|escape:'html':'UTF-8'}"
+                            data-notes="{$card.notes|escape:'html':'UTF-8'}"
+                        >
                             <i class="icon-cog"></i> Ustawienia
                         </button>
                     </div>
@@ -81,4 +90,74 @@
             </button>
         </div>
     </form>
+</div>
+
+<div class="azada-modal-overlay" id="azadaHubSettingsModal" style="display:none;">
+    <div class="azada-modal-card">
+        <div class="azada-modal-head">
+            <h4>Ustawienia hurtowni: <span id="azadaHubModalName">-</span></h4>
+            <button type="button" class="btn btn-default btn-sm" id="azadaHubModalClose">✕</button>
+        </div>
+
+        <div class="azada-modal-tabs" id="azadaHubTabs">
+            <button type="button" class="azada-tab-btn is-active" data-tab="tab-basic">Podstawowe</button>
+            <button type="button" class="azada-tab-btn" data-tab="tab-products">Produkty</button>
+            <button type="button" class="azada-tab-btn" data-tab="tab-stock">Stany</button>
+            <button type="button" class="azada-tab-btn" data-tab="tab-dimensions">Wymiary</button>
+            <button type="button" class="azada-tab-btn" data-tab="tab-b2b">Dostęp B2B</button>
+        </div>
+
+        <div class="azada-modal-info" id="azadaHubModalOnlyBio" style="display:none;">
+            Ten etap obsługuje ustawienia szczegółowe tylko dla BioPlanet.
+        </div>
+
+        <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" id="azadaHubSettingsForm">
+            <input type="hidden" name="submitAzadaHubSettings" value="1" />
+            <input type="hidden" name="hub_settings_id_wholesaler" id="azada_hub_settings_id_wholesaler" value="0" />
+
+            <div class="azada-modal-body">
+                <div class="azada-tab-pane is-active" data-tab-pane="tab-basic">
+                    <div class="form-group">
+                        <label for="azada_hub_settings_sync_mode">Tryb synchronizacji</label>
+                        <select name="hub_settings_sync_mode" id="azada_hub_settings_sync_mode" class="form-control">
+                            <option value="api">API</option>
+                            <option value="file">Plik</option>
+                            <option value="hybrid">Hybrid</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_price_field">Pole cenowe</label>
+                        <input type="text" class="form-control" name="hub_settings_price_field" id="azada_hub_settings_price_field" placeholder="np. CenaPoRabacieNetto" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_notes">Notatki techniczne</label>
+                        <textarea class="form-control" rows="4" name="hub_settings_notes" id="azada_hub_settings_notes" placeholder="Uwagi do integracji BioPlanet..."></textarea>
+                    </div>
+                </div>
+
+                <div class="azada-tab-pane" data-tab-pane="tab-products">
+                    <p class="azada-placeholder-row">Sekcja „Produkty” zostanie podłączona w kolejnym kroku (mapowanie pól i reguły importu).</p>
+                </div>
+
+                <div class="azada-tab-pane" data-tab-pane="tab-stock">
+                    <p class="azada-placeholder-row">Sekcja „Stany” zostanie podłączona w kolejnym kroku (strategia aktualizacji stanów i częstotliwość).</p>
+                </div>
+
+                <div class="azada-tab-pane" data-tab-pane="tab-dimensions">
+                    <p class="azada-placeholder-row">Sekcja „Wymiary” zostanie podłączona w kolejnym kroku (mapowanie szerokość/wysokość/głębokość).</p>
+                </div>
+
+                <div class="azada-tab-pane" data-tab-pane="tab-b2b">
+                    <p class="azada-placeholder-row">Sekcja „Dostęp B2B” zostanie podłączona w kolejnym kroku (integracja loginu i autoryzacji B2B).</p>
+                </div>
+            </div>
+
+            <div class="azada-modal-actions">
+                <button type="button" class="btn btn-default" id="azadaHubModalCancel">Anuluj</button>
+                <button type="submit" class="btn btn-primary" id="azadaHubModalSave">Zapisz ustawienia BioPlanet</button>
+            </div>
+        </form>
+    </div>
 </div>

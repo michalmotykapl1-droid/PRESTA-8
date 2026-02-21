@@ -16,6 +16,7 @@ use AllegroPro\Service\LabelStorage;
 use AllegroPro\Repository\DeliveryServiceRepository;
 use AllegroPro\Repository\ShipmentRepository;
 use AllegroPro\Service\HttpClient;
+use AllegroPro\Service\OrderSettlementsTabProvider;
 
 class OrderDetailsProvider
 {
@@ -226,6 +227,50 @@ class OrderDetailsProvider
         $weightDefaults = $this->buildShipmentWeightDefaults($cfId, $psOrderId);
         $dimensionDefaults = $this->buildShipmentDimensionDefaults();
 
+        // 6) Rozliczenia Allegro (DB) — duża logika w osobnym providerze
+        // Ważne: nawet przy błędzie budowy raportu chcemy mieć checkoutFormId/konto,
+        // żeby w zakładce działał przycisk ręcznego pobrania.
+        $accountIdForSett = (int)($order['id_allegropro_account'] ?? 0);
+        $cfIdForSett = (string)($order['checkout_form_id'] ?? '');
+        $createdAtForSett = (string)($order['created_at_allegro'] ?? '');
+
+        $todayYmd = date('Y-m-d');
+        $createdYmd = $createdAtForSett ? substr($createdAtForSett, 0, 10) : '';
+        if (!$createdYmd || !preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/', $createdYmd)) {
+            $createdYmd = $todayYmd;
+        }
+        $narrowFrom = date('Y-m-d', strtotime($createdYmd . ' -3 days'));
+        $narrowTo = $todayYmd;
+        $wideFrom = date('Y-m-d', strtotime($todayYmd . ' -180 days'));
+        $wideTo = $todayYmd;
+
+        $settlements = [
+            'ok' => 0,
+            'account_id' => $accountIdForSett,
+            'checkout_form_id' => $cfIdForSett,
+            'ranges' => [
+                'narrow_from' => $narrowFrom,
+                'narrow_to' => $narrowTo,
+                'wide_from' => $wideFrom,
+                'wide_to' => $wideTo,
+            ],
+            'last_billing_at' => '',
+        ];
+
+        try {
+            $settProvider = new OrderSettlementsTabProvider();
+            $settlements = $settProvider->buildForOrderRow($order);
+        } catch (\Throwable $e) {
+            // Nie blokujemy UI — pokażemy błąd i zostawimy możliwość ręcznej synchronizacji.
+            $settlements['ok'] = 0;
+            $settlements['error'] = 'Nie udało się zbudować danych rozliczeń.';
+            // Krótki opis techniczny (bez wrażliwych danych) — pomaga w diagnozie.
+            $msg = trim((string)$e->getMessage());
+            if ($msg !== '') {
+                $settlements['error_debug'] = function_exists('mb_substr') ? mb_substr($msg, 0, 200) : substr($msg, 0, 200);
+            }
+        }
+
         return [
             'order' => $order,
             'buyer' => $buyer,
@@ -251,6 +296,9 @@ class OrderDetailsProvider
             'shipment_size_options' => $shipmentSizeOptions,
             'shipment_weight_defaults' => $weightDefaults,
             'shipment_dimension_defaults' => $dimensionDefaults,
+
+            // --- ROZLICZENIA (NOWA ZAKŁADKA) ---
+            'settlements' => $settlements,
         ];
     }
 

@@ -29,7 +29,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
 {
     private function getHubCardsData()
     {
-        $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
+        $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled, hs.sync_mode, hs.price_field, hs.notes FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
 
         if (!is_array($rows)) {
             return [];
@@ -40,6 +40,9 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             $row['active'] = (int)$row['active'];
             $row['connection_status'] = isset($row['connection_status']) ? (int)$row['connection_status'] : 0;
             $row['hub_enabled'] = isset($row['hub_enabled']) ? (int)$row['hub_enabled'] : 1;
+            $row['sync_mode'] = isset($row['sync_mode']) && $row['sync_mode'] !== '' ? (string)$row['sync_mode'] : 'api';
+            $row['price_field'] = isset($row['price_field']) && $row['price_field'] !== '' ? (string)$row['price_field'] : 'CenaPoRabacieNetto';
+            $row['notes'] = isset($row['notes']) ? (string)$row['notes'] : '';
         }
 
         return $rows;
@@ -82,6 +85,64 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         }
 
         $this->confirmations[] = $this->l('Zapisano ustawienia kafli hurtowni.');
+    }
+
+
+
+    public function postProcessHubSettings()
+    {
+        if (!Tools::isSubmit('submitAzadaHubSettings')) {
+            return;
+        }
+
+        $idWholesaler = (int)Tools::getValue('hub_settings_id_wholesaler');
+        if ($idWholesaler <= 0) {
+            $this->errors[] = $this->l('Nieprawidłowa hurtownia dla ustawień.');
+            return;
+        }
+
+        $card = Db::getInstance()->getRow('SELECT id_wholesaler, raw_table_name FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` WHERE id_wholesaler='.(int)$idWholesaler);
+        if (!is_array($card) || empty($card['id_wholesaler'])) {
+            $this->errors[] = $this->l('Nie znaleziono hurtowni dla ustawień.');
+            return;
+        }
+
+        if ((string)$card['raw_table_name'] !== 'azada_raw_bioplanet') {
+            $this->errors[] = $this->l('Na tym etapie ustawienia szczegółowe są dostępne tylko dla BioPlanet.');
+            return;
+        }
+
+        $syncMode = trim((string)Tools::getValue('hub_settings_sync_mode', 'api'));
+        if (!in_array($syncMode, ['api', 'file', 'hybrid'], true)) {
+            $syncMode = 'api';
+        }
+
+        $priceField = trim((string)Tools::getValue('hub_settings_price_field', 'CenaPoRabacieNetto'));
+        if ($priceField === '') {
+            $priceField = 'CenaPoRabacieNetto';
+        }
+
+        $notes = trim((string)Tools::getValue('hub_settings_notes', ''));
+
+        $exists = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` WHERE id_wholesaler='.(int)$idWholesaler);
+
+        $payload = [
+            'sync_mode' => pSQL($syncMode),
+            'price_field' => pSQL($priceField),
+            'notes' => pSQL($notes),
+            'date_upd' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($exists > 0) {
+            Db::getInstance()->update('azada_wholesaler_pro_hub_settings', $payload, 'id_wholesaler='.(int)$idWholesaler);
+        } else {
+            $payload['id_wholesaler'] = (int)$idWholesaler;
+            $payload['hub_enabled'] = 1;
+            $payload['date_add'] = date('Y-m-d H:i:s');
+            Db::getInstance()->insert('azada_wholesaler_pro_hub_settings', $payload);
+        }
+
+        $this->confirmations[] = $this->l('Zapisano ustawienia szczegółowe dla BioPlanet.');
     }
 
     public function __construct()
@@ -725,6 +786,7 @@ function runImport(event, btn, url) {
 
     public function postProcess() {
         $this->postProcessHubCards();
+        $this->postProcessHubSettings();
 
         // DODAWANIE: preset + API
         if (Tools::isSubmit('submitAdd' . $this->table)) {

@@ -1,4 +1,8 @@
 <div class="card mt-2" id="allegropro_order_details">
+    {* Modal wykresów (Rozliczenia): używa settlements.css + settlements.js z modułu *}
+    <link rel="stylesheet" href="{$smarty.const.__PS_BASE_URI__}modules/allegropro/views/css/settlements.css?v=1">
+    <script defer src="{$smarty.const.__PS_BASE_URI__}modules/allegropro/views/js/settlements.js?v=1"></script>
+
     {* UI/UX: scoped styles for this block only (no global overrides) *}
     <style>
         {literal}
@@ -195,6 +199,11 @@
             <li class="nav-item" role="presentation">
                 <a class="nav-link" id="apTabDocsLink" data-toggle="tab" href="#apTabDocs" role="tab" aria-controls="apTabDocs" aria-selected="false">
                     <i class="material-icons">description</i> Dokumenty
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="apTabSettlementsLink" data-toggle="tab" href="#apTabSettlements" role="tab" aria-controls="apTabSettlements" aria-selected="false">
+                    <i class="material-icons">paid</i> Rozliczenia Allegro
                 </a>
             </li>
         </ul>
@@ -444,6 +453,10 @@
                     {include file='./partials/documents_panel.tpl' allegro_data=$allegro_data}
                 </div>
             </div>
+
+            <div class="tab-pane fade" id="apTabSettlements" role="tabpanel" aria-labelledby="apTabSettlementsLink">
+                {include file='./partials/settlements_panel.tpl' allegro_data=$allegro_data}
+            </div>
         </div>
 
     </div>
@@ -508,6 +521,161 @@
     var cfId = '{$allegro_data.order.checkout_form_id|escape:'javascript':'UTF-8'}';
     var accId = '{$allegro_data.order.id_allegropro_account|intval}';
     var cfRev = '{$allegro_data.allegro_revision|default:''|escape:'javascript':'UTF-8'}';
+
+    // --- 0. Persist aktywnej zakładki (hash / sessionStorage) ---
+    (function apTabsPersist(){
+      try {
+        var tabs = document.querySelectorAll('#apOrderTabs a[data-toggle="tab"]');
+        if (!tabs || !tabs.length) return;
+        tabs.forEach(function(a){
+          a.addEventListener('click', function(){
+            var h = a.getAttribute('href') || '';
+            if (h && h.charAt(0) === '#') {
+              try { sessionStorage.setItem('ap_order_tab', h); } catch(e) {}
+              try { history.replaceState(null, '', h); } catch(e) { window.location.hash = h; }
+            }
+          });
+        });
+
+        var desired = window.location.hash || '';
+        if (!desired) {
+          try { desired = sessionStorage.getItem('ap_order_tab') || ''; } catch(e) {}
+        }
+        if (desired && document.querySelector('#apOrderTabs a[href="' + desired + '"]')) {
+          try { $('#apOrderTabs a[href="' + desired + '"]').tab('show'); } catch(e) {}
+        }
+      } catch (e) {}
+    })();
+
+    // --- 0b. Rozliczenia Allegro: filtry + ręczne pobranie billing-entries ---
+    (function apInitSettlementsTab(){
+      var panel = document.getElementById('apSettlementsPanel');
+      if (!panel) return;
+
+      var rangeSel = document.getElementById('apBillingRange');
+      var rangeHint = document.getElementById('apBillingRangeHint');
+      var forceCb = document.getElementById('apBillingForce');
+      var btn = document.getElementById('apBillingSyncBtn');
+      var msg = document.getElementById('apBillingSyncMsg');
+
+      var viewSel = document.getElementById('apBillingView');
+      var catSel = document.getElementById('apBillingCat');
+      var table = document.getElementById('apBillingTable');
+
+      function getRange(){
+        var v = (rangeSel && rangeSel.value) ? rangeSel.value : 'narrow';
+        var from = panel.getAttribute('data-range-narrow-from') || '';
+        var to = panel.getAttribute('data-range-narrow-to') || '';
+        if (v === 'wide') {
+          from = panel.getAttribute('data-range-wide-from') || from;
+          to = panel.getAttribute('data-range-wide-to') || to;
+        }
+        return { value: v, from: from, to: to };
+      }
+
+      function setRangeHint(){
+        if (!rangeHint) return;
+        var r = getRange();
+        rangeHint.textContent = r.from && r.to ? ('Zakres: ' + r.from + ' → ' + r.to) : '';
+      }
+      if (rangeSel) rangeSel.addEventListener('change', setRangeHint);
+      setRangeHint();
+
+      function applyBillingFilters(){
+        if (!table) return;
+        var v = viewSel ? (viewSel.value || 'fees') : 'fees';
+        var cat = catSel ? (catSel.value || '') : '';
+        var rows = table.querySelectorAll('tbody tr');
+        rows.forEach(function(tr){
+          // puste wiersze (brak danych) pomijamy
+          if (!tr.getAttribute('data-amt')) return;
+          var amt = parseFloat(tr.getAttribute('data-amt') || '0');
+          var rowCat = tr.getAttribute('data-cat') || '';
+
+          var ok = true;
+          if (v === 'fees') {
+            // pokazuj tylko opłaty/zwroty (czyli wartości != 0)
+            ok = ok && (Math.abs(amt) > 0.00001);
+          }
+          if (cat) {
+            ok = ok && (rowCat === cat);
+          }
+          tr.style.display = ok ? '' : 'none';
+        });
+      }
+      if (viewSel) viewSel.addEventListener('change', applyBillingFilters);
+      if (catSel) catSel.addEventListener('change', applyBillingFilters);
+      applyBillingFilters();
+
+      function setMsg(text, isError){
+        if (!msg) return;
+        msg.className = 'form-text ' + (isError ? 'text-danger' : 'text-muted');
+        msg.textContent = text || '';
+      }
+
+      function setBtnLoading(isLoading){
+        if (!btn) return;
+        var icon = btn.querySelector('.ap-sync-icon');
+        var txt = btn.querySelector('.ap-sync-text');
+        var label = btn.getAttribute('data-ap-label');
+        if (!label) {
+          label = (txt ? txt.textContent : (btn.textContent || 'Pobierz z Allegro'));
+          try { btn.setAttribute('data-ap-label', label); } catch(e) {}
+        }
+        if (isLoading) {
+          btn.disabled = true;
+          if (icon) icon.classList.add('ap-spin');
+          if (txt) { txt.textContent = 'Pobieram…'; } else { btn.textContent = 'Pobieram…'; }
+        } else {
+          btn.disabled = false;
+          if (icon) icon.classList.remove('ap-spin');
+          if (txt) { txt.textContent = label; } else { btn.textContent = label; }
+        }
+      }
+
+      if (btn) {
+        btn.addEventListener('click', function(e){
+          e.preventDefault();
+          var r = getRange();
+          var accountId = panel.getAttribute('data-account-id') || '';
+          var cf = panel.getAttribute('data-checkout-form-id') || '';
+          var force = forceCb && forceCb.checked ? 1 : 0;
+
+          if (!accountId || !cf || !r.from || !r.to) {
+            setMsg('Brak parametrów do pobrania (konto/checkoutFormId/zakres).', true);
+            return;
+          }
+
+          setBtnLoading(true);
+          setMsg('Pobieranie billing-entries z Allegro…', false);
+
+          var url = 'index.php?controller=AdminAllegroProSettlements&token={getAdminToken tab='AdminAllegroProSettlements'}&action=syncOrderBilling&ajax=1';
+          var fd = new FormData();
+          fd.append('id_allegropro_account', accountId);
+          fd.append('checkout_form_id', cf);
+          fd.append('date_from', r.from);
+          fd.append('date_to', r.to);
+          fd.append('force_update', force ? '1' : '0');
+
+          fetch(url, { method: 'POST', body: fd })
+            .then(function(resp){ return resp.json(); })
+            .then(function(d){
+              if (!d || !d.ok) {
+                setMsg((d && d.error) ? d.error : 'Nie udało się pobrać billing-entries.', true);
+                setBtnLoading(false);
+                return;
+              }
+              setMsg('Synchronizacja zakończona — pobrano ' + (d.total||0) + ' (nowe: ' + (d.inserted||0) + ', zaktualizowane: ' + (d.updated||0) + '). Odświeżam widok…', false);
+              try { sessionStorage.setItem('ap_order_tab', '#apTabSettlements'); } catch(e) {}
+              setTimeout(function(){ window.location.reload(); }, 700);
+            })
+            .catch(function(){
+              setMsg('Błąd połączenia podczas pobierania billing-entries.', true);
+              setBtnLoading(false);
+            });
+        });
+      }
+    })();
 
     // --- 1. Statusy ---
     var btnStatus = document.getElementById('btnUpdateAllegroStatus');

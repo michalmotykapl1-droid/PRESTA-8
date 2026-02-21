@@ -201,3 +201,103 @@
 .azada-hub-card--disabled {
     opacity: .74;
 }
+
+.azada-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(22, 40, 56, 0.55);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.azada-modal-card {
+    width: 100%;
+    max-width: 620px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .25);
+    overflow: hidden;
+}
+
+.azada-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5edf3;
+}
+
+.azada-modal-head h4 {
+    margin: 0;
+    font-weight: 700;
+}
+
+.azada-modal-info {
+    margin: 12px 14px 0;
+    padding: 9px 10px;
+    border-radius: 7px;
+    background: #fff6e5;
+    border: 1px solid #f1d59e;
+    color: #896315;
+    font-weight: 600;
+}
+
+.azada-modal-body {
+    padding: 12px 14px 6px;
+}
+
+.azada-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid #e5edf3;
+}
+
+.azada-hub-settings-btn.is-disabled {
+    opacity: .55;
+}
+
+.azada-modal-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 12px 14px 0;
+}
+
+.azada-tab-btn {
+    border: 1px solid #b8cbda;
+    background: #f4f8fb;
+    color: #4d677d;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.azada-tab-btn.is-active {
+    background: #2fa9d9;
+    border-color: #2596c2;
+    color: #fff;
+}
+
+.azada-tab-pane {
+    display: none;
+}
+
+.azada-tab-pane.is-active {
+    display: block;
+}
+
+.azada-placeholder-row {
+    margin: 0;
+    padding: 12px;
+    border: 1px dashed #c9d9e5;
+    border-radius: 8px;
+    background: #f8fbfd;
+    color: #638096;
+    font-weight: 600;
+}
