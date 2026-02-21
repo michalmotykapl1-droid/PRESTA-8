@@ -27,7 +27,7 @@ class IssuesReportService
      * @param int[] $accountIds
      * @return array{orders_count:int,billing_rows:int,fees_neg:float,refunds_pos:float,balance:float}
      */
-    public function getIssuesSummary(array $accountIds, string $dateFrom, string $dateTo, string $q = '', string $feeGroup = '', array $feeTypesSelected = [], bool $allHistory = false): array
+    public function getIssuesSummary(array $accountIds, string $dateFrom, string $dateTo, string $q = "", string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false, string $refundMode = "any"): array
     {
         $accountIds = $this->normalizeAccountIds($accountIds);
         if (empty($accountIds)) {
@@ -41,7 +41,7 @@ class IssuesReportService
         $qWhere = $this->issuesSearchWhereSql($q);
         $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
 
-        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, false);
+        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, false, $refundMode);
         $sql = "SELECT\n"
             . "  COUNT(*) AS orders_count,\n"
             . "  SUM(t.billing_rows) AS billing_rows,\n"
@@ -62,9 +62,74 @@ class IssuesReportService
     }
 
     /**
+     * Rozbicie problemów na typy (do szybkiego podsumowania na dashboardzie).
+     *
+     * @param int[] $accountIds
+     * @return array{api:array{orders:int,fees_neg:float,refunds_pos:float,balance:float},unpaid:array{orders:int,fees_neg:float,refunds_pos:float,balance:float},cancelled:array{orders:int,fees_neg:float,refunds_pos:float,balance:float}}
+     */
+    public function getIssuesBreakdown(array $accountIds, string $dateFrom, string $dateTo, string $q = "", string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false, string $refundMode = "any"): array
+    {
+        $accountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($accountIds)) {
+            return [
+                'api' => ['orders' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0],
+                'unpaid' => ['orders' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0],
+                'cancelled' => ['orders' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0],
+            ];
+        }
+
+        $this->billingRepo->ensureSchema();
+
+        $in = $this->buildIn($accountIds);
+        $filter = $this->billingEntryFilterSql('b.value_amount', 'b.type_id', 'b.type_name', $feeGroup, $feeTypesSelected);
+        $qWhere = $this->issuesSearchWhereSql($q);
+        $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
+
+        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, false, $refundMode);
+
+        $sql = "SELECT\n"
+            . "  SUM(CASE WHEN t.err_code IS NOT NULL THEN 1 ELSE 0 END) AS api_orders,\n"
+            . "  SUM(CASE WHEN t.err_code IS NOT NULL THEN t.fees_neg ELSE 0 END) AS api_fees_neg,\n"
+            . "  SUM(CASE WHEN t.err_code IS NOT NULL THEN t.refunds_pos ELSE 0 END) AS api_refunds_pos,\n"
+            . "  SUM(CASE WHEN t.err_code IS NOT NULL THEN t.balance ELSE 0 END) AS api_balance,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND (UPPER(IFNULL(t.order_status,''))='CANCELLED' OR UPPER(IFNULL(t.pay_status,''))='CANCELLED') THEN 1 ELSE 0 END) AS cancelled_orders,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND (UPPER(IFNULL(t.order_status,''))='CANCELLED' OR UPPER(IFNULL(t.pay_status,''))='CANCELLED') THEN t.fees_neg ELSE 0 END) AS cancelled_fees_neg,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND (UPPER(IFNULL(t.order_status,''))='CANCELLED' OR UPPER(IFNULL(t.pay_status,''))='CANCELLED') THEN t.refunds_pos ELSE 0 END) AS cancelled_refunds_pos,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND (UPPER(IFNULL(t.order_status,''))='CANCELLED' OR UPPER(IFNULL(t.pay_status,''))='CANCELLED') THEN t.balance ELSE 0 END) AS cancelled_balance,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND UPPER(IFNULL(t.order_status,''))='FILLED_IN' AND IFNULL(t.paid_amount,0)<=0 THEN 1 ELSE 0 END) AS unpaid_orders,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND UPPER(IFNULL(t.order_status,''))='FILLED_IN' AND IFNULL(t.paid_amount,0)<=0 THEN t.fees_neg ELSE 0 END) AS unpaid_fees_neg,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND UPPER(IFNULL(t.order_status,''))='FILLED_IN' AND IFNULL(t.paid_amount,0)<=0 THEN t.refunds_pos ELSE 0 END) AS unpaid_refunds_pos,\n"
+            . "  SUM(CASE WHEN t.err_code IS NULL AND UPPER(IFNULL(t.order_status,''))='FILLED_IN' AND IFNULL(t.paid_amount,0)<=0 THEN t.balance ELSE 0 END) AS unpaid_balance\n"
+            . "FROM (\n{$base}\n) t";
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+
+        return [
+            'api' => [
+                'orders' => (int)($row['api_orders'] ?? 0),
+                'fees_neg' => (float)($row['api_fees_neg'] ?? 0),
+                'refunds_pos' => (float)($row['api_refunds_pos'] ?? 0),
+                'balance' => (float)($row['api_balance'] ?? 0),
+            ],
+            'cancelled' => [
+                'orders' => (int)($row['cancelled_orders'] ?? 0),
+                'fees_neg' => (float)($row['cancelled_fees_neg'] ?? 0),
+                'refunds_pos' => (float)($row['cancelled_refunds_pos'] ?? 0),
+                'balance' => (float)($row['cancelled_balance'] ?? 0),
+            ],
+            'unpaid' => [
+                'orders' => (int)($row['unpaid_orders'] ?? 0),
+                'fees_neg' => (float)($row['unpaid_fees_neg'] ?? 0),
+                'refunds_pos' => (float)($row['unpaid_refunds_pos'] ?? 0),
+                'balance' => (float)($row['unpaid_balance'] ?? 0),
+            ],
+        ];
+    }
+
+    /**
      * @param int[] $accountIds
      */
-    public function countIssuesOrders(array $accountIds, string $dateFrom, string $dateTo, string $q = '', string $feeGroup = '', array $feeTypesSelected = [], bool $allHistory = false): int
+    public function countIssuesOrders(array $accountIds, string $dateFrom, string $dateTo, string $q = "", string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false, string $refundMode = "any"): int
     {
         $accountIds = $this->normalizeAccountIds($accountIds);
         if (empty($accountIds)) {
@@ -77,7 +142,7 @@ class IssuesReportService
         $qWhere = $this->issuesSearchWhereSql($q);
         $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
 
-        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, false);
+        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, false, $refundMode);
         $sql = "SELECT COUNT(*) AS cnt FROM (\n{$base}\n) t";
         $row = Db::getInstance()->getRow($sql) ?: [];
         return (int)($row['cnt'] ?? 0);
@@ -87,7 +152,7 @@ class IssuesReportService
      * @param int[] $accountIds
      * @return array<int,array<string,mixed>>
      */
-    public function getIssuesRows(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $feeGroup = '', array $feeTypesSelected = [], bool $allHistory = false): array
+    public function getIssuesRows(array $accountIds, string $dateFrom, string $dateTo, string $q = "", int $limit = 50, int $offset = 0, string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false, string $refundMode = "any"): array
     {
         $accountIds = $this->normalizeAccountIds($accountIds);
         if (empty($accountIds)) {
@@ -103,7 +168,7 @@ class IssuesReportService
         $limit = max(1, min(500, (int)$limit));
         $offset = max(0, (int)$offset);
 
-        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, true);
+        $base = $this->issuesBaseSql($in, $dateWhere, $filter, $qWhere, true, $refundMode);
         $sql = $base . "\nLIMIT {$limit} OFFSET {$offset}";
         $rows = Db::getInstance()->executeS($sql) ?: [];
 
@@ -133,11 +198,29 @@ class IssuesReportService
             } elseif ($kind === 'CANCELLED_FEES') {
                 $r['badge_text'] = 'ANULOWANE';
                 $r['badge_class'] = 'badge-warning';
-                $r['desc'] = 'Zamówienie anulowane, a saldo opłat jest ujemne (pobrano opłaty bez pełnego zwrotu).';
+
+                $bal = (float)($r['balance'] ?? 0);
+                $ref = (float)($r['refunds_pos'] ?? 0);
+                if ($ref <= 0.0) {
+                    $r['desc'] = 'Zamówienie anulowane: pobrano opłaty i brak zwrotów w billing.';
+                } elseif ($bal < 0.0) {
+                    $r['desc'] = 'Zamówienie anulowane: zwroty częściowe, saldo opłat nadal ujemne.';
+                } else {
+                    $r['desc'] = 'Zamówienie anulowane: zwrot widoczny (saldo 0 lub dodatnie) — do weryfikacji.';
+                }
             } else {
                 $r['badge_text'] = 'NIEOPŁACONE';
                 $r['badge_class'] = 'badge-warning';
-                $r['desc'] = 'Zamówienie nieopłacone, a saldo opłat jest ujemne (pobrano opłaty bez pełnego zwrotu).';
+
+                $bal = (float)($r['balance'] ?? 0);
+                $ref = (float)($r['refunds_pos'] ?? 0);
+                if ($ref <= 0.0) {
+                    $r['desc'] = 'Zamówienie nieopłacone: pobrano opłaty i brak zwrotów w billing.';
+                } elseif ($bal < 0.0) {
+                    $r['desc'] = 'Zamówienie nieopłacone: zwroty częściowe, saldo opłat nadal ujemne.';
+                } else {
+                    $r['desc'] = 'Zamówienie nieopłacone: zwrot widoczny (saldo 0 lub dodatnie) — do weryfikacji.';
+                }
             }
         }
         unset($r);
@@ -145,12 +228,187 @@ class IssuesReportService
         return $rows;
     }
 
+
+    /**
+     * Podsumowanie "nieprzypisanych" operacji billing (brak order_id).
+     *
+     * @param int[] $accountIds
+     * @return array{entries_count:int,fees_neg:float,refunds_pos:float,balance:float}
+     */
+    public function getUnassignedSummary(array $accountIds, string $dateFrom, string $dateTo, string $q = "", string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false): array
+    {
+        $accountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($accountIds)) {
+            return ['entries_count' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0];
+        }
+
+        $this->billingRepo->ensureSchema();
+
+        $in = $this->buildIn($accountIds);
+        $filter = $this->billingEntryFilterSql('b.value_amount', 'b.type_id', 'b.type_name', $feeGroup, $feeTypesSelected);
+        $qWhere = $this->unassignedSearchWhereSql($q);
+        $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
+
+        $sql = "SELECT
+"
+            . "  COUNT(*) AS entries_count,
+"
+            . "  SUM(CASE WHEN b.value_amount < 0 THEN b.value_amount ELSE 0 END) AS fees_neg,
+"
+            . "  SUM(CASE WHEN b.value_amount > 0 THEN b.value_amount ELSE 0 END) AS refunds_pos,
+"
+            . "  SUM(b.value_amount) AS balance
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+"
+            . "WHERE b.id_allegropro_account IN {$in}
+"
+            . $dateWhere . "
+"
+            . "  AND (b.order_id IS NULL OR b.order_id='')
+"
+            . "  AND {$filter}
+"
+            . $qWhere;
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+
+        return [
+            'entries_count' => (int)($row['entries_count'] ?? 0),
+            'fees_neg' => (float)($row['fees_neg'] ?? 0),
+            'refunds_pos' => (float)($row['refunds_pos'] ?? 0),
+            'balance' => (float)($row['balance'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param int[] $accountIds
+     */
+    public function countUnassignedEntries(array $accountIds, string $dateFrom, string $dateTo, string $q = "", string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false): int
+    {
+        $accountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($accountIds)) {
+            return 0;
+        }
+
+        $this->billingRepo->ensureSchema();
+
+        $in = $this->buildIn($accountIds);
+        $filter = $this->billingEntryFilterSql('b.value_amount', 'b.type_id', 'b.type_name', $feeGroup, $feeTypesSelected);
+        $qWhere = $this->unassignedSearchWhereSql($q);
+        $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
+
+        $sql = "SELECT COUNT(*) AS cnt
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+"
+            . "WHERE b.id_allegropro_account IN {$in}
+"
+            . $dateWhere . "
+"
+            . "  AND (b.order_id IS NULL OR b.order_id='')
+"
+            . "  AND {$filter}
+"
+            . $qWhere;
+
+        $row = Db::getInstance()->getRow($sql) ?: [];
+        return (int)($row['cnt'] ?? 0);
+    }
+
+    /**
+     * Lista nieprzypisanych operacji billing (brak order_id).
+     *
+     * @param int[] $accountIds
+     * @return array<int,array<string,mixed>>
+     */
+    public function getUnassignedRows(array $accountIds, string $dateFrom, string $dateTo, string $q = "", int $limit = 50, int $offset = 0, string $feeGroup = "", array $feeTypesSelected = [], bool $allHistory = false): array
+    {
+        $accountIds = $this->normalizeAccountIds($accountIds);
+        if (empty($accountIds)) {
+            return [];
+        }
+
+        $this->billingRepo->ensureSchema();
+
+        $in = $this->buildIn($accountIds);
+        $filter = $this->billingEntryFilterSql('b.value_amount', 'b.type_id', 'b.type_name', $feeGroup, $feeTypesSelected);
+        $qWhere = $this->unassignedSearchWhereSql($q);
+        $dateWhere = $allHistory ? '' : " AND b.occurred_at BETWEEN '" . pSQL($dateFrom . ' 00:00:00') . "' AND '" . pSQL($dateTo . ' 23:59:59') . "'";
+
+        $limit = max(1, min(500, (int)$limit));
+        $offset = max(0, (int)$offset);
+
+        $sql = "SELECT
+"
+            . "  b.id_allegropro_billing_entry,
+"
+            . "  b.id_allegropro_account,
+"
+            . "  b.billing_entry_id,
+"
+            . "  b.occurred_at,
+"
+            . "  b.type_id,
+"
+            . "  b.type_name,
+"
+            . "  b.offer_id,
+"
+            . "  b.offer_name,
+"
+            . "  b.value_amount,
+"
+            . "  b.value_currency,
+"
+            . "  b.balance_amount,
+"
+            . "  b.balance_currency,
+"
+            . "  b.tax_percentage,
+"
+            . "  b.tax_annotation
+"
+            . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+"
+            . "WHERE b.id_allegropro_account IN {$in}
+"
+            . $dateWhere . "
+"
+            . "  AND (b.order_id IS NULL OR b.order_id='')
+"
+            . "  AND {$filter}
+"
+            . $qWhere . "
+"
+            . "ORDER BY b.occurred_at DESC
+"
+            . "LIMIT {$limit} OFFSET {$offset}";
+
+        return Db::getInstance()->executeS($sql) ?: [];
+    }
+
+    /**
+     * Warunek wyszukiwania dla listy nieprzypisanych operacji.
+     * Szukamy po offer_name/type_name/type_id/billing_entry_id.
+     */
+    private function unassignedSearchWhereSql(string $q): string
+    {
+        $q = trim((string)$q);
+        if ($q === '') {
+            return '';
+        }
+        $q = \Tools::substr($q, 0, 160);
+        $like = '%' . pSQL($q) . '%';
+        return " AND (b.offer_name LIKE '{$like}' OR b.type_name LIKE '{$like}' OR b.type_id LIKE '{$like}' OR b.billing_entry_id LIKE '{$like}')";
+    }
+
     /**
      * Buduje bazowy SELECT (1 wiersz = 1 order_id) z warunkiem "do wyjaśnienia":
      * - błąd enrichmentu (order_error_code)
      * - lub zamówienie nieopłacone/anulowane + ujemne saldo opłat
      */
-    private function issuesBaseSql(string $inAccounts, string $dateWhere, string $filter, string $qWhere, bool $orderBy): string
+    private function issuesBaseSql(string $inAccounts, string $dateWhere, string $filter, string $qWhere, bool $orderBy, string $refundMode = 'any'): string
     {
         // Normalizacja order_id do joinów ze skip (UUID bywa z myślnikami/podkreśleniami).
         $normB = "LOWER(REPLACE(REPLACE(IFNULL(b.order_id,''),'-',''),'_',''))";
@@ -171,7 +429,18 @@ class IssuesReportService
         // "Pobrane opłaty" – jeśli są jakiekolwiek ujemne pozycje (koszty)
         $condFeesNeg = "SUM(CASE WHEN b.value_amount < 0 THEN b.value_amount ELSE 0 END) < 0";
 
-        $having = "HAVING ({$condApiErr} OR ({$condFeesNeg} AND ({$condCancelled} OR {$condUnpaid})))";
+        $baseHaving = "({$condApiErr} OR ({$condFeesNeg} AND ({$condCancelled} OR {$condUnpaid})))";
+
+        // Dodatkowy filtr "zwroty" (opcjonalnie) – pozwala wyświetlić np. tylko brak zwrotu lub tylko saldo ujemne.
+        $refundMode = strtolower(trim((string)$refundMode));
+        $extra = '';
+        if ($refundMode === 'no_refund') {
+            $extra = " AND SUM(CASE WHEN b.value_amount > 0 THEN b.value_amount ELSE 0 END) = 0";
+        } elseif ($refundMode === 'balance_neg') {
+            $extra = " AND SUM(b.value_amount) < 0";
+        }
+
+        $having = "HAVING {$baseHaving}{$extra}";
 
         $sql = "SELECT\n"
             . "  b.id_allegropro_account,\n"

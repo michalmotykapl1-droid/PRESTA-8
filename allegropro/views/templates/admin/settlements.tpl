@@ -384,27 +384,39 @@
             </div>
           </div>
 
-          {if isset($refund_summary.pending_total)}
+          {if isset($issues_summary.orders_count) && $issues_summary.orders_count > 0}
           <div class="alpro-kpi alpro-kpi--refundpending">
             <div class="top">
               <div>
-                <div class="label">Do zwrotu opłat (anul./nieopł.)</div>
-                <div class="value {if $refund_summary.pending_total > 0}text-warning{else}text-success{/if}">{$refund_summary.pending_total|number_format:2:',':' '} zł</div>
-                <div class="sub">Zamówień z kwotą do zwrotu: <strong>{$refund_summary.pending_orders|intval}</strong></div>
+                <div class="label">Niezgodności opłat (Do wyjaśnienia)</div>
+                <div class="value {if $issues_summary.balance < 0}text-danger{else}text-success{/if}">{$issues_summary.balance|number_format:2:',':' '} zł</div>
+                <div class="sub">Problemów: <strong>{$issues_summary.orders_count|intval}</strong> • Wpisy billing: <strong>{$issues_summary.billing_rows|intval}</strong></div>
                 <div class="sub">
-                  Pobrane: <span class="text-danger">-{$refund_summary.charged_total|number_format:2:',':' '} zł</span>
-                  • Zwrócone: <span class="text-success">{$refund_summary.refunded_total|number_format:2:',':' '} zł</span>
+                  Opłaty: <span class="text-danger">{$issues_summary.fees_neg|number_format:2:',':' '} zł</span>
+                  • Zwroty/korekty: <span class="text-success">+{$issues_summary.refunds_pos|number_format:2:',':' '} zł</span>
                 </div>
-                {if isset($refund_summary.missing_orders) && $refund_summary.missing_orders > 0}
-                  <div class="sub text-warning">Brak danych zamówienia dla: <strong>{$refund_summary.missing_orders|intval}</strong></div>
+                {if isset($issues_breakdown)}
+                  <div class="sub" style="margin-top:6px;">
+                    {if $issues_breakdown.api.orders|intval > 0}
+                      <span class="badge badge-danger" style="margin-right:6px;">ERR</span>
+                      <strong>{$issues_breakdown.api.orders|intval}</strong> • saldo: {$issues_breakdown.api.balance|number_format:2:',':' '} zł
+                    {/if}
+                    {if $issues_breakdown.unpaid.orders|intval > 0}
+                      <span class="badge badge-warning" style="margin-left:10px; margin-right:6px;">NIEOPŁ.</span>
+                      <strong>{$issues_breakdown.unpaid.orders|intval}</strong> • saldo: {$issues_breakdown.unpaid.balance|number_format:2:',':' '} zł
+                    {/if}
+                    {if $issues_breakdown.cancelled.orders|intval > 0}
+                      <span class="badge badge-warning" style="margin-left:10px; margin-right:6px;">ANUL.</span>
+                      <strong>{$issues_breakdown.cancelled.orders|intval}</strong> • saldo: {$issues_breakdown.cancelled.balance|number_format:2:',':' '} zł
+                    {/if}
+                  </div>
                 {/if}
               </div>
-              <div class="icon" title="Do zwrotu opłat">
+              <div class="icon" title="Do wyjaśnienia">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 12a8 8 0 1 1-2.343-5.657" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 7v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M12 17h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
                 </svg>
               </div>
             </div>
@@ -465,7 +477,7 @@
           <a class="nav-link active js-alpro-subtab" href="#alproTabOrders" data-tab="orders">Zamówienia</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link js-alpro-subtab" href="#alproTabIssues" data-tab="issues">Do wyjaśnienia{if isset($issues_total) && $issues_total>0} <span class="badge badge-danger ml-1">{$issues_total|intval}</span>{/if}</a>
+          <a class="nav-link js-alpro-subtab" href="#alproTabIssues" data-tab="issues">Do wyjaśnienia{if isset($issues_badge_total) && $issues_badge_total>0} <span class="badge badge-danger ml-1">{$issues_badge_total|intval}</span>{/if}</a>
         </li>
       </ul>
       <span class="alpro-badge" id="alproTabBadgeOrders">Pokazano <strong>{$orders_from|intval}-{$orders_to|intval}</strong> z <strong>{$orders_total|intval}</strong></span>
@@ -584,7 +596,26 @@
             <input type="checkbox" id="alproIssuesAll" {if isset($issues_all_history) && $issues_all_history}checked{/if}>
             <span style="font-size:12px; color:#6c757d;">Cała historia (bez filtra dat)</span>
           </label>
+          <label class="form-check" id="alproIssuesRefundModeWrap" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <span style="font-size:12px; color:#6c757d;">Filtr:</span>
+            <select id="alproIssuesRefundMode" class="form-control form-control-sm" style="width:auto; min-width:220px;">
+              <option value="any" {if !isset($issues_refund_mode) || $issues_refund_mode=='any'}selected{/if}>Wszystkie</option>
+              <option value="balance_neg" {if isset($issues_refund_mode) && $issues_refund_mode=='balance_neg'}selected{/if}>Tylko saldo ujemne</option>
+              <option value="no_refund" {if isset($issues_refund_mode) && $issues_refund_mode=='no_refund'}selected{/if}>Tylko brak zwrotu</option>
+            </select>
+          </label>
         </div>
+
+<ul class="nav nav-pills" id="alproIssuesInnerTabs" style="margin:0 0 10px 0; gap:8px;">
+  <li class="nav-item">
+    <a class="nav-link active js-alpro-issues-inner" href="#" data-view="orders">Problemy zamówień <span class="badge badge-light ml-1">{if isset($issues_summary.orders_count)}{$issues_summary.orders_count|intval}{else}0{/if}</span></a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link js-alpro-issues-inner" href="#" data-view="unassigned">Nieprzypisane operacje <span class="badge badge-light ml-1">{if isset($unassigned_summary.entries_count)}{$unassigned_summary.entries_count|intval}{else}0{/if}</span></a>
+  </li>
+</ul>
+
+<div id="alproIssuesOrdersWrap">
 
         <div class="alpro-kpi-grid alpro-kpi-grid--compact" style="margin: 0 0 12px 0;">
           <div class="alpro-kpi">
@@ -697,6 +728,127 @@
         {if isset($issues_total) && isset($issues_limit) && $issues_total > $issues_limit}
           <div class="alpro-muted" style="padding:10px 2px; font-size:12px;">Pokazano pierwsze {$issues_limit|intval} z {$issues_total|intval}. (Paginacja w kolejnych etapach)</div>
         {/if}
+
+
+</div> {* /#alproIssuesOrdersWrap *}
+
+<div id="alproIssuesUnassignedWrap" style="display:none;">
+  <div class="alpro-muted" style="font-size:12px; padding:2px 0 10px;">
+    Operacje billing bez powiązania z zamówieniem (order_id puste). To są wpisy, których nie da się pokazać w tabeli „Zamówienia”, ale nadal wpływają na saldo.
+  </div>
+
+  <div class="alpro-kpi-grid alpro-kpi-grid--compact" style="margin: 0 0 12px 0;">
+    <div class="alpro-kpi">
+      <div class="top">
+        <div>
+          <div class="label">Operacje</div>
+          <div class="value">{if isset($unassigned_summary.entries_count)}{$unassigned_summary.entries_count|intval}{else}0{/if}</div>
+          <div class="sub">Nieprzypisane wpisy billing</div>
+        </div>
+        <div class="icon" title="Nieprzypisane"><i class="material-icons" style="font-size:20px;">help_outline</i></div>
+      </div>
+    </div>
+
+    <div class="alpro-kpi">
+      <div class="top">
+        <div>
+          <div class="label">Opłaty pobrane</div>
+          <div class="value text-danger">{if isset($unassigned_summary.fees_neg)}{$unassigned_summary.fees_neg|number_format:2:',':' '}{else}0,00{/if} zł</div>
+          <div class="sub">Suma ujemnych (koszty)</div>
+        </div>
+        <div class="icon" title="Opłaty"><i class="material-icons" style="font-size:20px;">remove_circle</i></div>
+      </div>
+    </div>
+
+    <div class="alpro-kpi">
+      <div class="top">
+        <div>
+          <div class="label">Zwroty / korekty</div>
+          <div class="value {if isset($unassigned_summary.refunds_pos) && $unassigned_summary.refunds_pos>0}text-success{/if}">{if isset($unassigned_summary.refunds_pos) && $unassigned_summary.refunds_pos>0}+{/if}{if isset($unassigned_summary.refunds_pos)}{$unassigned_summary.refunds_pos|number_format:2:',':' '}{else}0,00{/if} zł</div>
+          <div class="sub">Suma dodatnich</div>
+        </div>
+        <div class="icon" title="Zwroty"><i class="material-icons" style="font-size:20px;">add_circle</i></div>
+      </div>
+    </div>
+
+    <div class="alpro-kpi">
+      <div class="top">
+        <div>
+          <div class="label">Saldo</div>
+          <div class="value {if isset($unassigned_summary.balance) && $unassigned_summary.balance<0}text-danger{elseif isset($unassigned_summary.balance) && $unassigned_summary.balance>0}text-success{/if}">{if isset($unassigned_summary.balance)}{$unassigned_summary.balance|number_format:2:',':' '}{else}0,00{/if} zł</div>
+          <div class="sub">Suma opłat i zwrotów</div>
+        </div>
+        <div class="icon" title="Saldo"><i class="material-icons" style="font-size:20px;">account_balance_wallet</i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-striped table-hover table-sm mb-0 alpro-table">
+      <thead>
+        <tr>
+          <th>Konto</th>
+          <th>Data</th>
+          <th>Typ</th>
+          <th>Oferta</th>
+          <th class="text-right">Kwota</th>
+          <th>VAT / adnotacja</th>
+          <th style="width:130px;">&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody>
+        {if isset($unassigned_rows) && $unassigned_rows|@count>0}
+          {foreach from=$unassigned_rows item=ur}
+            <tr>
+              <td><span class="alpro-badge">{$ur.account_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
+              <td>{$ur.occurred_at|escape:'htmlall':'UTF-8'}</td>
+              <td>
+                <div style="font-weight:600;">{$ur.type_name|escape:'htmlall':'UTF-8'}</div>
+                <div class="alpro-muted" style="font-size:11px;">{$ur.type_id|escape:'htmlall':'UTF-8'}</div>
+              </td>
+              <td>
+                <div style="font-weight:600;">{$ur.offer_name|default:'-'|escape:'htmlall':'UTF-8'}</div>
+                {if $ur.offer_id}
+                  <div class="alpro-muted" style="font-size:11px;">offer_id: {$ur.offer_id|escape:'htmlall':'UTF-8'}</div>
+                {/if}
+                {if $ur.billing_entry_id}
+                  <div class="alpro-idwrap" style="margin-top:4px;">
+                    <span class="alpro-id" title="{$ur.billing_entry_id|escape:'htmlall':'UTF-8'}">{$ur.billing_entry_id|escape:'htmlall':'UTF-8'}</span>
+                    <a href="#" class="alpro-copy js-alpro-copy" data-copy="{$ur.billing_entry_id|escape:'htmlall':'UTF-8'}" title="Kopiuj billing_entry_id">
+                      <i class="material-icons" style="font-size:16px;">content_copy</i>
+                    </a>
+                  </div>
+                {/if}
+              </td>
+              <td class="text-right {if $ur.value_amount<0}text-danger{elseif $ur.value_amount>0}text-success{/if}">
+                {if $ur.value_amount>0}+{/if}{$ur.value_amount|number_format:2:',':' '} {$ur.value_currency|escape:'htmlall':'UTF-8'}
+              </td>
+              <td>
+                {if isset($ur.tax_percentage) && $ur.tax_percentage!==''}
+                  {$ur.tax_percentage|number_format:2:',':' '}%
+                {else}
+                  -
+                {/if}
+                {if isset($ur.tax_annotation) && $ur.tax_annotation}
+                  <span class="alpro-muted">{$ur.tax_annotation|escape:'htmlall':'UTF-8'}</span>
+                {/if}
+              </td>
+              <td>
+                <a class="btn btn-outline-secondary btn-sm js-alpro-billing-details" href="#" data-billing-entry="{$ur.id_allegropro_billing_entry|intval}" data-account-id="{$ur.id_allegropro_account|intval}">Podgląd</a>
+              </td>
+            </tr>
+          {/foreach}
+        {else}
+          <tr><td colspan="7" class="p-3" style="color:#6c757d;">Brak nieprzypisanych operacji w wybranym zakresie.</td></tr>
+        {/if}
+      </tbody>
+    </table>
+  </div>
+
+  {if isset($unassigned_total) && isset($unassigned_limit) && $unassigned_total > $unassigned_limit}
+    <div class="alpro-muted" style="padding:10px 2px; font-size:12px;">Pokazano pierwsze {$unassigned_limit|intval} z {$unassigned_total|intval}. (Paginacja w kolejnych etapach)</div>
+  {/if}
+</div>
       </div>
 
     </div>

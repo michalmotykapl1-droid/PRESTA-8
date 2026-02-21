@@ -82,9 +82,13 @@
         var saveBtn = document.getElementById('azadaHubModalSave');
         var clearCacheBtn = document.getElementById('azadaHubClearCacheBtn');
         var forceSyncBtn = document.getElementById('azadaHubForceSyncBtn');
+        var disableProductsBtn = document.getElementById('azadaHubDisableProductsBtn');
+        var deleteProductsBtn = document.getElementById('azadaHubDeleteProductsBtn');
 
         var clearCacheUrl = modal ? (modal.getAttribute('data-clear-cache-url') || '') : '';
         var forceSyncUrl = modal ? (modal.getAttribute('data-force-sync-url') || '') : '';
+        var disableProductsUrl = modal ? (modal.getAttribute('data-disable-products-url') || '') : '';
+        var deleteProductsUrl = modal ? (modal.getAttribute('data-delete-products-url') || '') : '';
 
         if (!modal) {
             return;
@@ -226,6 +230,18 @@
             });
         }
 
+        if (disableProductsBtn) {
+            disableProductsBtn.addEventListener('click', function () {
+                runHubAction(disableProductsUrl, disableProductsBtn, 'Wyłączyć wszystkie produkty tej hurtowni w katalogu sklepu?');
+            });
+        }
+
+        if (deleteProductsBtn) {
+            deleteProductsBtn.addEventListener('click', function () {
+                runHubAction(deleteProductsUrl, deleteProductsBtn, 'To trwale usunie produkty tej hurtowni z katalogu. Kontynuować?');
+            });
+        }
+
         var settingsButtons = document.querySelectorAll('.azada-hub-settings-btn');
         settingsButtons.forEach(function (button) {
             button.addEventListener('click', function () {
@@ -323,6 +339,14 @@
 
                 if (forceSyncBtn) {
                     forceSyncBtn.disabled = !isBioPlanet;
+                }
+
+                if (disableProductsBtn) {
+                    disableProductsBtn.disabled = !isBioPlanet;
+                }
+
+                if (deleteProductsBtn) {
+                    deleteProductsBtn.disabled = !isBioPlanet;
                 }
 
                 activateTab('tab-start');

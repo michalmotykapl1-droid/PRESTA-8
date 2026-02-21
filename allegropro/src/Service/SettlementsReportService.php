@@ -281,6 +281,9 @@ class SettlementsReportService
             return [
                 'orders_total' => 0,
                 'missing_orders' => 0,
+                'missing_charged_total' => 0.0,
+                'missing_refunded_total' => 0.0,
+                'missing_pending_total' => 0.0,
                 'expected_orders' => 0,
                 'pending_orders' => 0,
                 'charged_total' => 0.0,
@@ -345,9 +348,15 @@ class SettlementsReportService
 "
             . "  COUNT(*) AS orders_total,
 "
-            . "    SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN 1 ELSE 0 END) AS missing_orders,
+            . "  SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN 1 ELSE 0 END) AS missing_orders,
 "
-            . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN 1 ELSE 0 END) AS expected_orders,
+. "  SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN ABS(IFNULL(neg_sum,0)) ELSE 0 END) AS missing_charged_total,
+"
+. "  SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN GREATEST(IFNULL(pos_sum,0),0) ELSE 0 END) AS missing_refunded_total,
+"
+. "  SUM(CASE WHEN IFNULL(order_filled,0)=0 THEN GREATEST(0, ABS(IFNULL(neg_sum,0)) - IFNULL(pos_sum,0)) ELSE 0 END) AS missing_pending_total,
+"
+. "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN') THEN 1 ELSE 0 END) AS expected_orders,
 "
             . "  SUM(CASE WHEN UPPER(IFNULL(order_status,'')) IN ('CANCELLED','FILLED_IN')
 "
@@ -370,6 +379,9 @@ class SettlementsReportService
         return [
             'orders_total' => (int)($row['orders_total'] ?? 0),
             'missing_orders' => (int)($row['missing_orders'] ?? 0),
+            'missing_charged_total' => (float)($row['missing_charged_total'] ?? 0),
+            'missing_refunded_total' => (float)($row['missing_refunded_total'] ?? 0),
+            'missing_pending_total' => (float)($row['missing_pending_total'] ?? 0),
             'expected_orders' => (int)($row['expected_orders'] ?? 0),
             'pending_orders' => (int)($row['pending_orders'] ?? 0),
             'charged_total' => (float)($row['charged_total'] ?? 0),

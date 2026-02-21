@@ -1202,10 +1202,19 @@ function displayAjaxUpdateStatus() {
         }
         unset($r);
 
+        // Badge count for "Do wyjaśnienia" tab (avoid PHP 8 warnings when not assigned)
+        $issuesBadgeCount = 0;
+        try {
+            $issuesBadgeCount = $this->getIssuesBadgeCount((int)$selectedAccount);
+        } catch (Exception $e) {
+            // ignore; keep 0
+        }
+
         // Pola filtrów dla smarty
         $this->context->smarty->assign([
             // used by views/templates/admin/orders.tpl (tabs)
             'allegropro_view' => (string)Tools::getValue('view', 'orders'),
+            'allegropro_issues_badge_count' => (int)$issuesBadgeCount,
             'allegropro_accounts' => $accounts,
             'allegropro_selected_account' => $selectedAccount,
             'allegropro_filters' => $smartyFilters,
@@ -1242,6 +1251,21 @@ function displayAjaxUpdateStatus() {
         ]);
 
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
+    }
+
+    /**
+     * Count problematic Allegro order_ids discovered during settlements enrichment.
+     * Used only for the badge in AdminAllegroProOrders tabs.
+     */
+    private function getIssuesBadgeCount(int $accountId = 0): int
+    {
+        $db = Db::getInstance();
+        $where = "order_error_code IS NOT NULL AND order_id IS NOT NULL AND order_id <> ''";
+        if ($accountId > 0) {
+            $where .= ' AND id_allegropro_account=' . (int)$accountId;
+        }
+        $sql = 'SELECT COUNT(DISTINCT order_id) FROM ' . _DB_PREFIX_ . 'allegropro_billing_entry WHERE ' . $where;
+        return (int)$db->getValue($sql);
     }
 
     private function extractOrderDocumentsFromPayload(array $json, string $sourceEndpoint = ''): array

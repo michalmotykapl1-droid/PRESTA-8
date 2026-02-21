@@ -547,6 +547,56 @@
       } catch (e) {}
     })();
 
+    // --- 0a. Fallback tabs (gdy bootstrap/jQuery tab() nie działa lub zniknie klasa active) ---
+    (function apTabsFallback(){
+      try {
+        var links = Array.prototype.slice.call(document.querySelectorAll('#apOrderTabs a[href^="#"]'));
+        var panes = Array.prototype.slice.call(document.querySelectorAll('#apOrderTabsContent .tab-pane'));
+        if (!links.length || !panes.length) return;
+
+        function show(hash){
+          if (!hash || hash.charAt(0) !== '#') return;
+          links.forEach(function(a){
+            var h = a.getAttribute('href') || '';
+            var on = (h === hash);
+            a.classList.toggle('active', on);
+            a.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          panes.forEach(function(p){
+            var on = ('#' + p.id) === hash;
+            p.classList.toggle('active', on);
+            p.classList.toggle('show', on);
+          });
+        }
+
+        // jeśli żadna zakładka nie jest aktywna (np. po konflikcie JS) — ustaw domyślną
+        var anyActive = panes.some(function(p){ return p.classList.contains('active') || p.classList.contains('show'); });
+        if (!anyActive) {
+          var desired = window.location.hash || '';
+          if (!desired) { try { desired = sessionStorage.getItem('ap_order_tab') || ''; } catch(e) {} }
+          if (!desired || !document.querySelector('#apOrderTabs a[href="' + desired + '"]')) {
+            desired = links[0].getAttribute('href') || '#apTabShipments';
+          }
+          show(desired);
+        }
+
+        // przełączanie bez zależności od bootstrap tab()
+        links.forEach(function(a){
+          a.addEventListener('click', function(ev){
+            // jeśli bootstrap tab() działa — zostawiamy mu sterowanie
+            try { if (window.jQuery && jQuery.fn && jQuery.fn.tab) return; } catch(e) {}
+            ev.preventDefault();
+            var h = a.getAttribute('href') || '';
+            show(h);
+            if (h && h.charAt(0) === '#') {
+              try { sessionStorage.setItem('ap_order_tab', h); } catch(e) {}
+              try { history.replaceState(null, '', h); } catch(e) { window.location.hash = h; }
+            }
+          }, true);
+        });
+      } catch (e) {}
+    })();
+
     // --- 0b. Rozliczenia Allegro: filtry + ręczne pobranie billing-entries ---
     (function apInitSettlementsTab(){
       var panel = document.getElementById('apSettlementsPanel');

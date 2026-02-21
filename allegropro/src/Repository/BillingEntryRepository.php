@@ -1078,4 +1078,82 @@ class BillingEntryRepository
         return (int)Db::getInstance()->Affected_Rows();
     }
 
+    /**
+     * Fetch persisted enrichment errors for a batch of orders (used to show "Błąd" column on orders list).
+     *
+     * Returned map is keyed by [accountId][normalizedOrderId].
+     *
+     * @param int[] $accountIds
+     * @param string[] $orderIds
+     * @return array<int,array<string,array{err_code:int,err_at:?string,err_msg:?string}>>
+     */
+    public function getOrderErrorsMap(array $accountIds, array $orderIds): array
+    {
+        $acc = [];
+        foreach ($accountIds as $v) {
+            $i = (int)$v;
+            if ($i > 0) {
+                $acc[$i] = $i;
+            }
+        }
+
+        $norms = [];
+        foreach ($orderIds as $oid) {
+            $oid = trim((string)$oid);
+            if ($oid === '') {
+                continue;
+            }
+            $n = strtolower((string)$oid);
+            $n = str_replace(['-','_'], '', $n);
+            $n = preg_replace('/[^0-9a-z]/i', '', $n);
+            if (!$n) {
+                continue;
+            }
+            $norms[$n] = true;
+            if (count($norms) >= 1200) { // safety limit
+                break;
+            }
+        }
+
+        if (empty($acc) || empty($norms)) {
+            return [];
+        }
+
+        $accIn = '(' . implode(',', array_values($acc)) . ')';
+        $vals = [];
+        foreach (array_keys($norms) as $n) {
+            $vals[] = "'" . pSQL($n) . "'";
+        }
+        $valsIn = '(' . implode(',', $vals) . ')';
+
+        $p = _DB_PREFIX_;
+        $normExpr = $this->normalizeIdSql('order_id');
+
+        $sql = "SELECT id_allegropro_account, {$normExpr} AS norm_id, "
+            . "MAX(order_error_code) AS err_code, MAX(order_error_at) AS err_at, MAX(order_error) AS err_msg "
+            . "FROM `{$p}allegropro_billing_entry` "
+            . "WHERE id_allegropro_account IN {$accIn} "
+            . "  AND order_id IS NOT NULL AND order_id<>'' "
+            . "  AND order_error_code IS NOT NULL "
+            . "  AND {$normExpr} IN {$valsIn} "
+            . "GROUP BY id_allegropro_account, norm_id";
+
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            $nid = (string)($r['norm_id'] ?? '');
+            if ($aid <= 0 || $nid === '') {
+                continue;
+            }
+            $out[$aid][$nid] = [
+                'err_code' => (int)($r['err_code'] ?? 0),
+                'err_at' => $r['err_at'] ?? null,
+                'err_msg' => $r['err_msg'] ?? null,
+            ];
+        }
+
+        return $out;
+    }
+
 }

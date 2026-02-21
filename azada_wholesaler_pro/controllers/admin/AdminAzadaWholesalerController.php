@@ -92,6 +92,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
 
             $payload = [
                 'hub_enabled' => (int)$enabled,
+                'wholesaler_name' => isset($card['name']) ? pSQL((string)$card['name']) : null,
                 'date_upd' => date('Y-m-d H:i:s'),
             ];
 
@@ -99,6 +100,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 Db::getInstance()->update('azada_wholesaler_pro_hub_settings', $payload, 'id_wholesaler='.(int)$idWholesaler);
             } else {
                 $payload['id_wholesaler'] = (int)$idWholesaler;
+                $payload['wholesaler_name'] = isset($card['name']) ? pSQL((string)$card['name']) : null;
                 $payload['sync_mode'] = 'api';
                 $payload['price_field'] = 'CenaPoRabacieNetto';
                 $payload['notes'] = null;
@@ -133,6 +135,8 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $this->confirmations[] = $this->l('Zapisano ustawienia kafli hurtowni.');
     }
 
+
+
     public function postProcessHubSettings()
     {
         if (!Tools::isSubmit('submitAzadaHubSettings')) {
@@ -145,7 +149,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             return;
         }
 
-        $card = Db::getInstance()->getRow('SELECT id_wholesaler, raw_table_name FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` WHERE id_wholesaler='.(int)$idWholesaler);
+        $card = Db::getInstance()->getRow('SELECT id_wholesaler, name, raw_table_name FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` WHERE id_wholesaler='.(int)$idWholesaler);
         if (!is_array($card) || empty($card['id_wholesaler'])) {
             $this->errors[] = $this->l('Nie znaleziono hurtowni dla ustawień.');
             return;
@@ -206,6 +210,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $seoStripIframe = (int)Tools::getValue('hub_settings_seo_strip_iframe', 1) === 1 ? 1 : 0;
         $seoStripLinks = (int)Tools::getValue('hub_settings_seo_strip_links', 0) === 1 ? 1 : 0;
         $seoShortDescFallback = (int)Tools::getValue('hub_settings_seo_short_desc_fallback', 1) === 1 ? 1 : 0;
+
         $seoMetaTitleTemplate = trim((string)Tools::getValue('hub_settings_seo_meta_title_template', ''));
         $seoMetaDescTemplate = trim((string)Tools::getValue('hub_settings_seo_meta_desc_template', ''));
         $seoDescriptionPrefix = trim((string)Tools::getValue('hub_settings_seo_description_prefix', ''));
@@ -233,6 +238,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         $exists = (int)Db::getInstance()->getValue('SELECT COUNT(*) FROM `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` WHERE id_wholesaler='.(int)$idWholesaler);
 
         $payload = [
+            'wholesaler_name' => isset($card['name']) ? pSQL((string)$card['name']) : null,
             'sync_mode' => pSQL($syncMode),
             'price_field' => pSQL($priceField),
             'notes' => pSQL($notes),
@@ -250,10 +256,10 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             'seo_strip_iframe' => (int)$seoStripIframe,
             'seo_strip_links' => (int)$seoStripLinks,
             'seo_short_desc_fallback' => (int)$seoShortDescFallback,
-            'seo_meta_title_template' => pSQL($seoMetaTitleTemplate),
-            'seo_meta_desc_template' => pSQL($seoMetaDescTemplate),
-            'seo_description_prefix' => pSQL($seoDescriptionPrefix),
-            'seo_description_suffix' => pSQL($seoDescriptionSuffix),
+            'seo_meta_title_template' => $seoMetaTitleTemplate !== '' ? pSQL($seoMetaTitleTemplate) : null,
+            'seo_meta_desc_template' => $seoMetaDescTemplate !== '' ? pSQL($seoMetaDescTemplate) : null,
+            'seo_description_prefix' => $seoDescriptionPrefix !== '' ? pSQL($seoDescriptionPrefix) : null,
+            'seo_description_suffix' => $seoDescriptionSuffix !== '' ? pSQL($seoDescriptionSuffix) : null,
             'quality_require_ean' => (int)$qualityRequireEan,
             'quality_require_name' => (int)$qualityRequireName,
             'quality_require_price' => (int)$qualityRequirePrice,
@@ -358,6 +364,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
                 <i class="'.$icon.'"></i> '.$text.'
                 </a>';
     }
+
 
     private function encodeJsValue($value)
     {
@@ -565,6 +572,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         ];
     }
 
+
     private function checkDimensionsStatusFromRawTable($wholesaler)
     {
         if (!Validate::isLoadedObject($wholesaler) || empty($wholesaler->raw_table_name)) {
@@ -687,6 +695,115 @@ class AdminAzadaWholesalerController extends ModuleAdminController
         die(json_encode($result));
     }
 
+    private function getWholesalerProductIdsByRawTable($idWholesaler)
+    {
+        $idWholesaler = (int)$idWholesaler;
+        if ($idWholesaler <= 0) {
+            return [];
+        }
+
+        $row = Db::getInstance()->getRow(
+            'SELECT raw_table_name FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` WHERE id_wholesaler='.(int)$idWholesaler
+        );
+
+        if (!is_array($row) || empty($row['raw_table_name'])) {
+            return [];
+        }
+
+        $rawTable = _DB_PREFIX_ . pSQL((string)$row['raw_table_name']);
+        $tableExists = (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='".pSQL($rawTable)."'"
+        );
+
+        if (!$tableExists) {
+            return [];
+        }
+
+        $ids = Db::getInstance()->executeS(
+            'SELECT p.id_product FROM `'._DB_PREFIX_.'product` p '
+            .'INNER JOIN `'.bqSQL($rawTable).'` r ON r.produkt_id = p.reference '
+            .'GROUP BY p.id_product'
+        );
+
+        if (!is_array($ids)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($ids as $item) {
+            $pid = isset($item['id_product']) ? (int)$item['id_product'] : 0;
+            if ($pid > 0) {
+                $result[] = $pid;
+            }
+        }
+
+        return array_values(array_unique($result));
+    }
+
+    public function ajaxProcessDisableWholesalerProducts()
+    {
+        $idWholesaler = (int)Tools::getValue('id_wholesaler');
+        if ($idWholesaler <= 0) {
+            die(json_encode(['status' => 'error', 'msg' => 'Brak ID hurtowni.']));
+        }
+
+        $ids = $this->getWholesalerProductIdsByRawTable($idWholesaler);
+        if (empty($ids)) {
+            die(json_encode(['status' => 'success', 'msg' => 'Nie znaleziono produktów do wyłączenia.']));
+        }
+
+        $chunks = array_chunk($ids, 300);
+        foreach ($chunks as $chunk) {
+            $in = implode(',', array_map('intval', $chunk));
+            if ($in === '') {
+                continue;
+            }
+            Db::getInstance()->execute('UPDATE `'._DB_PREFIX_."product` SET active=0, indexed=0 WHERE id_product IN ($in)");
+            Db::getInstance()->execute('UPDATE `'._DB_PREFIX_."product_shop` SET active=0 WHERE id_product IN ($in)");
+        }
+
+        die(json_encode([
+            'status' => 'success',
+            'msg' => 'Wyłączono produkty hurtowni. Liczba produktów: '.count($ids).'.',
+        ]));
+    }
+
+    public function ajaxProcessDeleteWholesalerProducts()
+    {
+        @ini_set('max_execution_time', 1200);
+        @ini_set('memory_limit', '512M');
+
+        $idWholesaler = (int)Tools::getValue('id_wholesaler');
+        if ($idWholesaler <= 0) {
+            die(json_encode(['status' => 'error', 'msg' => 'Brak ID hurtowni.']));
+        }
+
+        $ids = $this->getWholesalerProductIdsByRawTable($idWholesaler);
+        if (empty($ids)) {
+            die(json_encode(['status' => 'success', 'msg' => 'Nie znaleziono produktów do usunięcia.']));
+        }
+
+        $deleted = 0;
+        $failed = 0;
+        foreach ($ids as $idProduct) {
+            $product = new Product((int)$idProduct);
+            if (!Validate::isLoadedObject($product)) {
+                $failed++;
+                continue;
+            }
+            if ($product->delete()) {
+                $deleted++;
+            } else {
+                $failed++;
+            }
+        }
+
+        die(json_encode([
+            'status' => 'success',
+            'msg' => 'Usuwanie zakończone. Usunięte: '.$deleted.', błędy: '.$failed.'.',
+        ]));
+    }
+
     public function renderList()
     {
         $saveB2BUrl = self::$currentIndex . '&action=saveB2B&ajax=1&token=' . $this->token;
@@ -799,11 +916,6 @@ function runImport(event, btn, url) {
         
         $hubCards = $this->getHubCardsData();
 
-        $cssPath = _PS_MODULE_DIR_ . $this->module->name . '/views/css/wholesaler_hub.css';
-        $jsPath = _PS_MODULE_DIR_ . $this->module->name . '/views/js/wholesaler_hub.js';
-        $cssVersion = file_exists($cssPath) ? (string)filemtime($cssPath) : '1';
-        $jsVersion = file_exists($jsPath) ? (string)filemtime($jsPath) : '1';
-
         $this->context->smarty->assign([
             'total_wholesalers' => (int)$total,
             'active_wholesalers' => (int)$active,
@@ -812,10 +924,18 @@ function runImport(event, btn, url) {
             'azada_hub_post_url' => self::$currentIndex . '&token=' . $this->token,
             'azada_hub_clear_cache_url' => self::$currentIndex . '&action=clearHubCache&ajax=1&token=' . $this->token,
             'azada_hub_force_sync_url' => self::$currentIndex . '&action=forceHubSync&ajax=1&token=' . $this->token,
+            'azada_hub_disable_products_url' => self::$currentIndex . '&action=disableWholesalerProducts&ajax=1&token=' . $this->token,
+            'azada_hub_delete_products_url' => self::$currentIndex . '&action=deleteWholesalerProducts&ajax=1&token=' . $this->token,
         ]);
 
-        $this->addCSS($this->module->getPathUri() . 'views/css/wholesaler_hub.css?v=' . rawurlencode($cssVersion));
-        $this->addJS($this->module->getPathUri() . 'views/js/wholesaler_hub.js?v=' . rawurlencode($jsVersion));
+        $cssPath = _PS_MODULE_DIR_ . $this->module->name . '/views/css/wholesaler_hub.css';
+        $jsPath = _PS_MODULE_DIR_ . $this->module->name . '/views/js/wholesaler_hub.js';
+
+        $cssVersion = file_exists($cssPath) ? (string)filemtime($cssPath) : '1';
+        $jsVersion = file_exists($jsPath) ? (string)filemtime($jsPath) : '1';
+
+        $this->addCSS($this->module->getPathUri() . 'views/css/wholesaler_hub.css?v=' . $cssVersion);
+        $this->addJS($this->module->getPathUri() . 'views/js/wholesaler_hub.js?v=' . $jsVersion);
 
         $header = $this->context->smarty->fetch(_PS_MODULE_DIR_ . $this->module->name . '/views/templates/admin/wholesaler_header.tpl');
         $hubPanel = $this->context->smarty->fetch(_PS_MODULE_DIR_ . $this->module->name . '/views/templates/admin/wholesaler_hub/hub.tpl');

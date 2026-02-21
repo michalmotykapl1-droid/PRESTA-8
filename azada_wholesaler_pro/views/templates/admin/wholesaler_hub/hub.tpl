@@ -120,6 +120,8 @@
         style="display:none;"
         data-clear-cache-url="{$azada_hub_clear_cache_url|escape:'html':'UTF-8'}"
         data-force-sync-url="{$azada_hub_force_sync_url|escape:'html':'UTF-8'}"
+        data-disable-products-url="{$azada_hub_disable_products_url|escape:'html':'UTF-8'}"
+        data-delete-products-url="{$azada_hub_delete_products_url|escape:'html':'UTF-8'}"
     >
         <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" class="azada-modal-card azada-modal-card--wide" id="azadaHubSettingsForm">
             <input type="hidden" name="submitAzadaHubSettings" value="1" />
@@ -359,6 +361,12 @@
                         </button>
                         <button type="button" class="btn btn-warning" id="azadaHubForceSyncBtn">
                             <i class="icon-refresh"></i> Wymuś pełną synchronizację teraz
+                        </button>
+                        <button type="button" class="btn btn-default" id="azadaHubDisableProductsBtn">
+                            <i class="icon-ban-circle"></i> Wyłącz produkty hurtowni
+                        </button>
+                        <button type="button" class="btn btn-danger" id="azadaHubDeleteProductsBtn">
+                            <i class="icon-trash"></i> Usuń produkty hurtowni
                         </button>
                     </div>
                     <p class="azada-inline-help">

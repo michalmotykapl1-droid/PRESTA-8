@@ -10,8 +10,8 @@
     <li class="{if $allegropro_view == 'issues'}active{/if}">
       <a href="{$admin_link|escape:'htmlall':'UTF-8'}&view=issues">
         Do wyjaśnienia
-        {if $allegropro_issues_badge_count|intval > 0}
-          <span class="badge" style="background:#d9534f;">{$allegropro_issues_badge_count|intval}</span>
+        {if $allegropro_issues_badge_count|default:0|intval > 0}
+          <span class="badge" style="background:#d9534f;">{$allegropro_issues_badge_count|default:0|intval}</span>
         {/if}
       </a>
     </li>
