@@ -1,7 +1,7 @@
 <div class="panel azada-hub-panel">
     <h3><i class="icon-th-large"></i> Nowoczesny Panel Hurtowni</h3>
     <p class="text-muted azada-hub-lead">
-        Etap 1: konfiguracja BioPlanet oparta o autorskie zakładki: Start integracji, Import i źródło danych, Ceny i stany, Akcje i utrzymanie.
+        Etap 2: BioPlanet z pełnym układem zakładek: Start integracji, Import i źródło danych, Ceny i stany, Treści i SEO, Reguły jakości, Akcje i utrzymanie.
     </p>
 
     <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" class="azada-hub-cards-form">
@@ -86,6 +86,19 @@
                             data-price-min-limit="{$card.price_min_limit|escape:'html':'UTF-8'}"
                             data-price-max-limit="{$card.price_max_limit|escape:'html':'UTF-8'}"
                             data-zero-below-stock="{$card.zero_below_stock|intval}"
+                            data-seo-strip-style="{$card.seo_strip_style|intval}"
+                            data-seo-strip-iframe="{$card.seo_strip_iframe|intval}"
+                            data-seo-strip-links="{$card.seo_strip_links|intval}"
+                            data-seo-short-desc-fallback="{$card.seo_short_desc_fallback|intval}"
+                            data-seo-meta-title-template="{$card.seo_meta_title_template|escape:'html':'UTF-8'}"
+                            data-seo-meta-desc-template="{$card.seo_meta_desc_template|escape:'html':'UTF-8'}"
+                            data-seo-description-prefix="{$card.seo_description_prefix|escape:'html':'UTF-8'}"
+                            data-seo-description-suffix="{$card.seo_description_suffix|escape:'html':'UTF-8'}"
+                            data-quality-require-ean="{$card.quality_require_ean|intval}"
+                            data-quality-require-name="{$card.quality_require_name|intval}"
+                            data-quality-require-price="{$card.quality_require_price|intval}"
+                            data-quality-require-stock="{$card.quality_require_stock|intval}"
+                            data-quality-reject-missing-data="{$card.quality_reject_missing_data|intval}"
                         >
                             <i class="icon-cog"></i> Ustawienia
                         </button>
@@ -95,64 +108,69 @@
         </div>
 
         <div class="azada-hub-actions">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="icon-save"></i> Zapisz ustawienia hurtowni
+            <button type="submit" class="btn btn-primary">
+                <i class="icon-save"></i> Zapisz ustawienia hurtowni (ON/OFF)
             </button>
         </div>
     </form>
-</div>
 
-<div class="azada-modal-overlay" id="azadaHubSettingsModal" style="display:none;" data-clear-cache-url="{$azada_hub_clear_cache_url|escape:'html':'UTF-8'}" data-force-sync-url="{$azada_hub_force_sync_url|escape:'html':'UTF-8'}">
-    <div class="azada-modal-card azada-modal-card--wide">
-        <div class="azada-modal-head">
-            <h4>Ustawienia hurtowni: <span id="azadaHubModalName">-</span></h4>
-            <button type="button" class="btn btn-default btn-sm" id="azadaHubModalClose">✕</button>
-        </div>
-
-        <div class="azada-modal-tabs" id="azadaHubTabs">
-            <button type="button" class="azada-tab-btn is-active" data-tab="tab-start">Start integracji</button>
-            <button type="button" class="azada-tab-btn" data-tab="tab-import">Import i źródło danych</button>
-            <button type="button" class="azada-tab-btn" data-tab="tab-pricing">Ceny i stany</button>
-            <button type="button" class="azada-tab-btn" data-tab="tab-maintenance">Akcje i utrzymanie</button>
-            <button type="button" class="azada-tab-btn" data-tab="tab-coming-soon">Kolejne etapy</button>
-        </div>
-
-        <div class="azada-modal-info" id="azadaHubModalOnlyBio" style="display:none;">
-            Ten etap obsługuje ustawienia szczegółowe tylko dla BioPlanet.
-        </div>
-
-        <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" id="azadaHubSettingsForm">
+    <div
+        class="azada-modal-overlay"
+        id="azadaHubSettingsModal"
+        style="display:none;"
+        data-clear-cache-url="{$azada_hub_clear_cache_url|escape:'html':'UTF-8'}"
+        data-force-sync-url="{$azada_hub_force_sync_url|escape:'html':'UTF-8'}"
+    >
+        <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" class="azada-modal-card azada-modal-card--wide" id="azadaHubSettingsForm">
             <input type="hidden" name="submitAzadaHubSettings" value="1" />
             <input type="hidden" name="hub_settings_id_wholesaler" id="azada_hub_settings_id_wholesaler" value="0" />
 
+            <div class="azada-modal-head">
+                <h4>Ustawienia hurtowni: <span id="azadaHubModalName">-</span></h4>
+                <button type="button" class="btn btn-default" id="azadaHubModalClose"><i class="icon-remove"></i></button>
+            </div>
+
+            <div class="azada-modal-info" id="azadaHubModalOnlyBio" style="display:none;">
+                Na tym etapie szczegółowe zakładki dotyczą wyłącznie BioPlanet (sql: <code>azada_raw_bioplanet</code>).
+            </div>
+
+            <div class="azada-modal-tabs" role="tablist" aria-label="Zakładki ustawień hurtowni">
+                <button type="button" class="azada-tab-btn is-active" data-tab="tab-start">Start integracji</button>
+                <button type="button" class="azada-tab-btn" data-tab="tab-import">Import i źródło danych</button>
+                <button type="button" class="azada-tab-btn" data-tab="tab-pricing">Ceny i stany</button>
+                <button type="button" class="azada-tab-btn" data-tab="tab-content-seo">Treści i SEO</button>
+                <button type="button" class="azada-tab-btn" data-tab="tab-quality">Reguły jakości</button>
+                <button type="button" class="azada-tab-btn" data-tab="tab-maintenance">Akcje i utrzymanie</button>
+            </div>
+
             <div class="azada-modal-body">
                 <div class="azada-tab-pane is-active" data-tab-pane="tab-start">
-                    <p class="azada-tab-description">Szybki start i diagnostyka integracji BioPlanet.</p>
+                    <p class="azada-tab-description">Podstawy uruchomienia i diagnozy integracji.</p>
                     <div class="form-group">
                         <label for="azada_hub_settings_sync_mode">Tryb synchronizacji</label>
-                        <select name="hub_settings_sync_mode" id="azada_hub_settings_sync_mode" class="form-control">
+                        <select class="form-control" name="hub_settings_sync_mode" id="azada_hub_settings_sync_mode">
                             <option value="api">API</option>
                             <option value="file">Plik</option>
-                            <option value="hybrid">Hybrid</option>
+                            <option value="hybrid">Hybryda</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="azada_hub_settings_notes">Notatki techniczne</label>
-                        <textarea class="form-control" rows="4" name="hub_settings_notes" id="azada_hub_settings_notes" placeholder="Uwagi do integracji BioPlanet..."></textarea>
+                        <textarea class="form-control" rows="3" name="hub_settings_notes" id="azada_hub_settings_notes" placeholder="Np. uwagi integracyjne, niestandardowe mapowanie..." ></textarea>
                     </div>
                 </div>
 
                 <div class="azada-tab-pane" data-tab-pane="tab-import">
-                    <p class="azada-tab-description">Kontrola źródła danych i odświeżania plików.</p>
+                    <p class="azada-tab-description">Kontrola źródła danych, cache i parametrów pobierania.</p>
                     <div class="form-group">
-                        <label for="azada_hub_settings_price_field">Pole cenowe</label>
-                        <input type="text" class="form-control" name="hub_settings_price_field" id="azada_hub_settings_price_field" placeholder="np. CenaPoRabacieNetto" />
+                        <label for="azada_hub_settings_price_field">Pole ceny źródłowej</label>
+                        <input type="text" class="form-control" name="hub_settings_price_field" id="azada_hub_settings_price_field" value="CenaPoRabacieNetto" />
                     </div>
 
-                    <div class="form-group azada-switch-group">
-                        <label for="azada_hub_settings_use_local_cache">Używaj lokalnych plików cache</label>
-                        <div>
+                    <div class="form-group">
+                        <label>Cache lokalnych plików hurtowni</label>
+                        <div class="azada-switch-group">
                             <input type="hidden" name="hub_settings_use_local_cache" id="azada_hub_settings_use_local_cache" value="1" />
                             <button type="button" class="azada-switch is-on" id="azadaHubUseLocalCacheSwitch" aria-pressed="true">
                                 <span class="azada-switch__track">
@@ -161,12 +179,12 @@
                                     <span class="azada-switch__label azada-switch__label--off">OFF</span>
                                 </span>
                             </button>
-                            <span class="azada-inline-note" id="azadaHubUseLocalCacheLabel">Włączone</span>
+                            <span id="azadaHubUseLocalCacheLabel" class="azada-inline-note">Włączone</span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="azada_hub_settings_cache_ttl_minutes">Odśwież plik po (minuty)</label>
+                        <label for="azada_hub_settings_cache_ttl_minutes">Odświeżenie cache po (minuty)</label>
                         <input type="number" min="1" max="10080" class="form-control" name="hub_settings_cache_ttl_minutes" id="azada_hub_settings_cache_ttl_minutes" value="60" />
                     </div>
                 </div>
@@ -236,6 +254,103 @@
                     </div>
                 </div>
 
+                <div class="azada-tab-pane" data-tab-pane="tab-content-seo">
+                    <p class="azada-tab-description">Reguły czyszczenia treści oraz ustawienia meta dla importowanych produktów.</p>
+
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_seo_strip_style" name="hub_settings_seo_strip_style" value="1" />
+                                Usuwaj style inline z HTML
+                            </label>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_seo_strip_iframe" name="hub_settings_seo_strip_iframe" value="1" />
+                                Usuwaj iframe / video embed
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_seo_strip_links" name="hub_settings_seo_strip_links" value="1" />
+                                Usuwaj linki zewnętrzne
+                            </label>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_seo_short_desc_fallback" name="hub_settings_seo_short_desc_fallback" value="1" />
+                                Generuj fallback krótkiego opisu
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_seo_meta_title_template">Szablon meta title</label>
+                        <input type="text" maxlength="255" class="form-control" name="hub_settings_seo_meta_title_template" id="azada_hub_settings_seo_meta_title_template" placeholder="{ldelim}name{rdelim} | {ldelim}brand{rdelim} | BioPlanet" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_seo_meta_desc_template">Szablon meta description</label>
+                        <input type="text" maxlength="255" class="form-control" name="hub_settings_seo_meta_desc_template" id="azada_hub_settings_seo_meta_desc_template" placeholder="Kup {ldelim}name{rdelim} w dobrej cenie. Hurtownia BioPlanet." />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_seo_description_prefix">Prefix opisu</label>
+                        <input type="text" maxlength="255" class="form-control" name="hub_settings_seo_description_prefix" id="azada_hub_settings_seo_description_prefix" placeholder="Produkt z oficjalnej oferty BioPlanet." />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="azada_hub_settings_seo_description_suffix">Suffix opisu</label>
+                        <input type="text" maxlength="255" class="form-control" name="hub_settings_seo_description_suffix" id="azada_hub_settings_seo_description_suffix" placeholder="Sprawdź także inne produkty ekologiczne." />
+                    </div>
+                </div>
+
+                <div class="azada-tab-pane" data-tab-pane="tab-quality">
+                    <p class="azada-tab-description">Reguły jakości służą do odrzucania lub oznaczania niekompletnych danych przed zapisem.</p>
+
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_quality_require_ean" name="hub_settings_quality_require_ean" value="1" />
+                                Wymagaj EAN
+                            </label>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_quality_require_name" name="hub_settings_quality_require_name" value="1" />
+                                Wymagaj nazwy produktu
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_quality_require_price" name="hub_settings_quality_require_price" value="1" />
+                                Wymagaj poprawnej ceny
+                            </label>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="azada-checkline">
+                                <input type="checkbox" id="azada_hub_settings_quality_require_stock" name="hub_settings_quality_require_stock" value="1" />
+                                Wymagaj poprawnego stanu
+                            </label>
+                        </div>
+                    </div>
+
+                    <label class="azada-checkline azada-checkline--single">
+                        <input type="checkbox" id="azada_hub_settings_quality_reject_missing_data" name="hub_settings_quality_reject_missing_data" value="1" />
+                        Odrzucaj rekordy z brakami (zamiast tylko ostrzegać)
+                    </label>
+
+                    <p class="azada-inline-help">
+                        Raport pominiętych rekordów i pre-view odrzutów będzie rozwijany w kolejnym etapie silnika importu.
+                    </p>
+                </div>
+
                 <div class="azada-tab-pane" data-tab-pane="tab-maintenance">
                     <p class="azada-tab-description">Operacje utrzymaniowe i porządkowe dla hurtowni.</p>
                     <div class="azada-maintenance-actions">
@@ -249,15 +364,6 @@
                     <p class="azada-inline-help">
                         Akcje działają tylko dla BioPlanet na tym etapie. Po synchronizacji odśwież stronę, aby zobaczyć najnowsze statusy.
                     </p>
-                </div>
-
-                <div class="azada-tab-pane" data-tab-pane="tab-coming-soon">
-                    <p class="azada-tab-description">Funkcje zaplanowane na kolejne etapy.</p>
-                    <ul class="azada-roadmap-list">
-                        <li><strong>Treści i SEO</strong> – czyszczenie HTML, reguły meta i fallback opisu.</li>
-                        <li><strong>Reguły jakości</strong> – walidacja braków i raport pominiętych produktów.</li>
-                        <li><strong>Premium</strong> – dry-run, presety importu i reguły warunkowe.</li>
-                    </ul>
                 </div>
             </div>
 

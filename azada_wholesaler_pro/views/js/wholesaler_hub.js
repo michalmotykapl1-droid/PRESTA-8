@@ -64,6 +64,21 @@
         var priceMaxInput = document.getElementById('azada_hub_settings_price_max_limit');
         var zeroBelowStockInput = document.getElementById('azada_hub_settings_zero_below_stock');
 
+        var seoStripStyleInput = document.getElementById('azada_hub_settings_seo_strip_style');
+        var seoStripIframeInput = document.getElementById('azada_hub_settings_seo_strip_iframe');
+        var seoStripLinksInput = document.getElementById('azada_hub_settings_seo_strip_links');
+        var seoShortDescFallbackInput = document.getElementById('azada_hub_settings_seo_short_desc_fallback');
+        var seoMetaTitleTemplateInput = document.getElementById('azada_hub_settings_seo_meta_title_template');
+        var seoMetaDescTemplateInput = document.getElementById('azada_hub_settings_seo_meta_desc_template');
+        var seoDescriptionPrefixInput = document.getElementById('azada_hub_settings_seo_description_prefix');
+        var seoDescriptionSuffixInput = document.getElementById('azada_hub_settings_seo_description_suffix');
+
+        var qualityRequireEanInput = document.getElementById('azada_hub_settings_quality_require_ean');
+        var qualityRequireNameInput = document.getElementById('azada_hub_settings_quality_require_name');
+        var qualityRequirePriceInput = document.getElementById('azada_hub_settings_quality_require_price');
+        var qualityRequireStockInput = document.getElementById('azada_hub_settings_quality_require_stock');
+        var qualityRejectMissingDataInput = document.getElementById('azada_hub_settings_quality_reject_missing_data');
+
         var saveBtn = document.getElementById('azadaHubModalSave');
         var clearCacheBtn = document.getElementById('azadaHubClearCacheBtn');
         var forceSyncBtn = document.getElementById('azadaHubForceSyncBtn');
@@ -148,6 +163,14 @@
             } else {
                 input.value = value;
             }
+        };
+
+        var setCheckboxValue = function (input, enabled) {
+            if (!input) {
+                return;
+            }
+
+            input.checked = enabled;
         };
 
         var currentWholesalerId = '0';
@@ -235,6 +258,21 @@
                 setInputValue(priceMaxInput, button.getAttribute('data-price-max-limit'), '0.00');
                 setInputValue(zeroBelowStockInput, button.getAttribute('data-zero-below-stock'), '0');
 
+                setCheckboxValue(seoStripStyleInput, button.getAttribute('data-seo-strip-style') !== '0');
+                setCheckboxValue(seoStripIframeInput, button.getAttribute('data-seo-strip-iframe') !== '0');
+                setCheckboxValue(seoStripLinksInput, button.getAttribute('data-seo-strip-links') === '1');
+                setCheckboxValue(seoShortDescFallbackInput, button.getAttribute('data-seo-short-desc-fallback') !== '0');
+                setInputValue(seoMetaTitleTemplateInput, button.getAttribute('data-seo-meta-title-template'), '');
+                setInputValue(seoMetaDescTemplateInput, button.getAttribute('data-seo-meta-desc-template'), '');
+                setInputValue(seoDescriptionPrefixInput, button.getAttribute('data-seo-description-prefix'), '');
+                setInputValue(seoDescriptionSuffixInput, button.getAttribute('data-seo-description-suffix'), '');
+
+                setCheckboxValue(qualityRequireEanInput, button.getAttribute('data-quality-require-ean') !== '0');
+                setCheckboxValue(qualityRequireNameInput, button.getAttribute('data-quality-require-name') !== '0');
+                setCheckboxValue(qualityRequirePriceInput, button.getAttribute('data-quality-require-price') !== '0');
+                setCheckboxValue(qualityRequireStockInput, button.getAttribute('data-quality-require-stock') !== '0');
+                setCheckboxValue(qualityRejectMissingDataInput, button.getAttribute('data-quality-reject-missing-data') !== '0');
+
                 var useLocalCache = button.getAttribute('data-use-local-cache') === '1';
                 updateLocalCacheSwitch(useLocalCache);
 
@@ -251,7 +289,20 @@
                     stockMaxInput,
                     priceMinInput,
                     priceMaxInput,
-                    zeroBelowStockInput
+                    zeroBelowStockInput,
+                    seoStripStyleInput,
+                    seoStripIframeInput,
+                    seoStripLinksInput,
+                    seoShortDescFallbackInput,
+                    seoMetaTitleTemplateInput,
+                    seoMetaDescTemplateInput,
+                    seoDescriptionPrefixInput,
+                    seoDescriptionSuffixInput,
+                    qualityRequireEanInput,
+                    qualityRequireNameInput,
+                    qualityRequirePriceInput,
+                    qualityRequireStockInput,
+                    qualityRejectMissingDataInput
                 ].forEach(function (field) {
                     if (field) {
                         field.disabled = !isBioPlanet;
