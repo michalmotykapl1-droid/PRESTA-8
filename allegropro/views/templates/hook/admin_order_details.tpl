@@ -39,7 +39,12 @@
         #allegropro_order_details .ap-tabs .nav-link .material-icons{font-size:18px; color:#6c757d;}
         #allegropro_order_details .ap-tabs .nav-link.active{color:#0b7285; border-bottom-color:#0b7285; background:transparent;}
         #allegropro_order_details .ap-tab-content{padding-top:6px;}
-	        #allegropro_order_details .ap-mini-box{border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:12px; background:#f8fafc; height:100%;}
+	        
+        /* HARD FIX: w widoku zamówienia (Symfony) Presta/Bootstrap potrafi ukryć .tab-pane.
+           Używamy własnej klasy aktywnej, aby wymusić widoczność panelu. */
+        #allegropro_order_details #apOrderTabsContent > .tab-pane{display:none !important; opacity:1 !important; visibility:visible !important;}
+        #allegropro_order_details #apOrderTabsContent > .tab-pane.ap-pane--active{display:block !important;}
+#allegropro_order_details .ap-mini-box{border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:12px; background:#f8fafc; height:100%;}
 	        #allegropro_order_details .ap-mini-title{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:900; letter-spacing:.3px; text-transform:uppercase; color:#516170; margin-bottom:10px;}
 	        #allegropro_order_details .ap-mini-title .material-icons{font-size:18px; color:#6c757d;}
 	        #allegropro_order_details .ap-mini-box .form-text{font-size:12px;}
@@ -209,7 +214,7 @@
         </ul>
 
         <div class="tab-content ap-tab-content" id="apOrderTabsContent">
-            <div class="tab-pane fade show active" id="apTabShipments" role="tabpanel" aria-labelledby="apTabShipmentsLink">
+            <div class="tab-pane fade show active ap-pane ap-pane--active" id="apTabShipments" role="tabpanel" aria-labelledby="apTabShipmentsLink">
 <div class="row pt-3">
             {* 3. WYSYŁKA - PANEL STEROWANIA *}
             <div class="col-12">
@@ -448,13 +453,13 @@
 
             </div>
 
-            <div class="tab-pane fade" id="apTabDocs" role="tabpanel" aria-labelledby="apTabDocsLink">
+            <div class="tab-pane fade ap-pane" id="apTabDocs" role="tabpanel" aria-labelledby="apTabDocsLink">
                 <div class="pt-3">
                     {include file='./partials/documents_panel.tpl' allegro_data=$allegro_data}
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="apTabSettlements" role="tabpanel" aria-labelledby="apTabSettlementsLink">
+            <div class="tab-pane fade ap-pane" id="apTabSettlements" role="tabpanel" aria-labelledby="apTabSettlementsLink">
                 {include file='./partials/settlements_panel.tpl' allegro_data=$allegro_data}
             </div>
         </div>
@@ -522,30 +527,77 @@
     var accId = '{$allegro_data.order.id_allegropro_account|intval}';
     var cfRev = '{$allegro_data.allegro_revision|default:''|escape:'javascript':'UTF-8'}';
 
-    // --- 0. Persist aktywnej zakładki (hash / sessionStorage) ---
-    (function apTabsPersist(){
+    // --- 0. Zakładki: pewne przełączanie (działa nawet gdy Bootstrap Tab JS nie działa) ---
+    (function apTabs(){
       try {
-        var tabs = document.querySelectorAll('#apOrderTabs a[data-toggle="tab"]');
-        if (!tabs || !tabs.length) return;
-        tabs.forEach(function(a){
-          a.addEventListener('click', function(){
-            var h = a.getAttribute('href') || '';
-            if (h && h.charAt(0) === '#') {
-              try { sessionStorage.setItem('ap_order_tab', h); } catch(e) {}
-              try { history.replaceState(null, '', h); } catch(e) { window.location.hash = h; }
-            }
-          });
-        });
+        var nav = document.getElementById('apOrderTabs');
+        var content = document.getElementById('apOrderTabsContent');
+        if (!nav || !content) return;
 
+        var links = nav.querySelectorAll('a[href^="#"]');
+        var panes = content.querySelectorAll('.tab-pane');
+
+        function store(hash){
+          if (!hash || hash.charAt(0) !== '#') return;
+          try { sessionStorage.setItem('ap_order_tab', hash); } catch(e) {}
+          try { history.replaceState(null, '', hash); } catch(e) { window.location.hash = hash; }
+        }
+
+        function setDisplay(el, value){
+          try { el.style.setProperty('display', value, 'important'); } catch(e) { el.style.display = value; }
+        }
+
+        function show(hash){
+          if (!hash) return;
+          if (hash.charAt(0) !== '#') hash = '#' + hash;
+
+          // linki
+          for (var i = 0; i < links.length; i++) {
+            links[i].classList.remove('active');
+            links[i].setAttribute('aria-selected', 'false');
+          }
+          var activeLink = nav.querySelector('a[href="' + hash + '"]');
+          if (activeLink) {
+            activeLink.classList.add('active');
+            activeLink.setAttribute('aria-selected', 'true');
+          }
+
+          // panele
+          for (var p = 0; p < panes.length; p++) {
+            panes[p].classList.remove('ap-pane--active', 'active', 'show');
+            setDisplay(panes[p], 'none');
+          }
+          var pane = content.querySelector(hash);
+          if (pane) {
+            pane.classList.add('ap-pane--active', 'active', 'show');
+            setDisplay(pane, 'block');
+          }
+        }
+
+        for (var j = 0; j < links.length; j++) {
+          (function(a){
+            a.addEventListener('click', function(e){
+              var h = a.getAttribute('href') || '';
+              if (!h || h.charAt(0) !== '#') return;
+              e.preventDefault();
+              store(h);
+              show(h);
+            });
+          })(links[j]);
+        }
+
+        // init
         var desired = window.location.hash || '';
         if (!desired) {
           try { desired = sessionStorage.getItem('ap_order_tab') || ''; } catch(e) {}
         }
-        if (desired && document.querySelector('#apOrderTabs a[href="' + desired + '"]')) {
-          try { $('#apOrderTabs a[href="' + desired + '"]').tab('show'); } catch(e) {}
+        if (!desired || !nav.querySelector('a[href="' + desired + '"]')) {
+          var first = nav.querySelector('a[href^="#"]');
+          desired = first ? (first.getAttribute('href') || '') : '#apTabShipments';
         }
+        show(desired);
       } catch (e) {}
-    })();
+    })();;
 
     // --- 0b. Rozliczenia Allegro: filtry + ręczne pobranie billing-entries ---
     (function apInitSettlementsTab(){
