@@ -1109,149 +1109,213 @@ function displayAjaxUpdateStatus() {
     // RENDER GŁÓWNEGO WIDOKU
     // ============================================================
 
+    
+
+    private function mapModuleStatusLabel(string $status): string
+        {
+            $status = strtoupper(trim($status));
+    
+            if (in_array($status, ['READY_FOR_PROCESSING', 'BOUGHT'], true)) {
+                return 'ALLEGRO PRO - OPŁACONE';
+            }
+    
+            if ($status === 'FILLED_IN') {
+                return 'ALLEGRO PRO - BRAK WPŁATY';
+            }
+    
+            if ($status === 'CANCELLED') {
+                return 'ALLEGRO PRO - ANULOWANE';
+            }
+    
+            return 'ALLEGRO PRO - PRZETWARZANIE';
+        }
+
+    private function getModuleStatusGroups(array $rawStatuses): array
+        {
+            $groups = [
+                'PAID' => [
+                    'label' => 'ALLEGRO PRO - OPŁACONE',
+                    'raw' => [],
+                ],
+                'NO_PAYMENT' => [
+                    'label' => 'ALLEGRO PRO - BRAK WPŁATY',
+                    'raw' => [],
+                ],
+                'PROCESSING' => [
+                    'label' => 'ALLEGRO PRO - PRZETWARZANIE',
+                    'raw' => [],
+                ],
+                'CANCELLED' => [
+                    'label' => 'ALLEGRO PRO - ANULOWANE',
+                    'raw' => [],
+                ],
+            ];
+    
+            foreach ($rawStatuses as $raw) {
+                $label = $this->mapModuleStatusLabel((string)$raw);
+                if ($label === 'ALLEGRO PRO - OPŁACONE') {
+                    $groups['PAID']['raw'][] = (string)$raw;
+                } elseif ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
+                    $groups['NO_PAYMENT']['raw'][] = (string)$raw;
+                } elseif ($label === 'ALLEGRO PRO - ANULOWANE') {
+                    $groups['CANCELLED']['raw'][] = (string)$raw;
+                } else {
+                    $groups['PROCESSING']['raw'][] = (string)$raw;
+                }
+            }
+    
+            foreach ($groups as $key => $meta) {
+                $groups[$key]['raw'] = array_values(array_unique($meta['raw']));
+            }
+    
+            return $groups;
+        }
+
+    private function mapModuleStatusClass(string $label): string
+        {
+            if ($label === 'ALLEGRO PRO - OPŁACONE') {
+                return 'success';
+            }
+    
+            if ($label === 'ALLEGRO PRO - ANULOWANE') {
+                return 'danger';
+            }
+    
+            if ($label === 'ALLEGRO PRO - BRAK WPŁATY') {
+                return 'default';
+            }
+    
+            return 'warning';
+        }
+
+    public function renderList()
+        {
+            $accounts = (new AccountRepository())->all();
+    
+            $perPage = (int)Tools::getValue('per_page', 50);
+            $allowedPerPage = [20, 50, 100, 200];
+            if (!in_array($perPage, $allowedPerPage, true)) {
+                $perPage = 50;
+            }
+    
+            $page = (int)Tools::getValue('page', 1);
+            if ($page < 1) {
+                $page = 1;
+            }
+    
+            $deliveryMethods = Tools::getValue('filter_delivery_methods', []);
+            if (!is_array($deliveryMethods)) {
+                $deliveryMethods = [$deliveryMethods];
+            }
+            $deliveryMethods = array_values(array_filter(array_map('trim', array_map('strval', $deliveryMethods))));
+    
+            $statusCodes = Tools::getValue('filter_statuses', []);
+            if (!is_array($statusCodes)) {
+                $statusCodes = [$statusCodes];
+            }
+            $statusCodes = array_values(array_filter(array_map('trim', array_map('strval', $statusCodes))));
+    
+            $statusGroups = $this->getModuleStatusGroups($this->repo->getDistinctStatuses());
+            $statuses = [];
+            foreach ($statusCodes as $code) {
+                if (!isset($statusGroups[$code])) {
+                    continue;
+                }
+                foreach ($statusGroups[$code]['raw'] as $rawStatus) {
+                    $statuses[] = (string)$rawStatus;
+                }
+            }
+            $statuses = array_values(array_unique($statuses));
+    
+            $filters = [
+                'id_allegropro_account' => (int)Tools::getValue('filter_account'),
+                'date_from' => (string)Tools::getValue('filter_date_from'),
+                'date_to' => (string)Tools::getValue('filter_date_to'),
+                'delivery_methods' => $deliveryMethods,
+                'statuses' => $statuses,
+                'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id')),
+                // Globalne wyszukiwanie po całej bazie danych modułu (nie tylko po rekordach aktualnej strony).
+                // Implementacja w OrderRepository::applyFilters() obejmuje też powiązane tabele (buyer/shipping/items/payments/shipments/invoice).
+                'global_query' => trim((string)Tools::getValue('filter_global_query')),
+            ];
+    
+            // Minimalna sanityzacja: jeśli użytkownik wklei same białe znaki, traktuj jako brak filtra.
+            if (isset($filters['global_query']) && $filters['global_query'] === '') {
+                unset($filters['global_query']);
+            }
+    
+            if ($filters['id_allegropro_account'] <= 0) {
+                $filters['id_allegropro_account'] = 0;
+            }
+    
+            if ($filters['date_from'] !== '' && strtotime($filters['date_from']) === false) {
+                $filters['date_from'] = '';
+            }
+    
+            if ($filters['date_to'] !== '' && strtotime($filters['date_to']) === false) {
+                $filters['date_to'] = '';
+            }
+    
+            $totalRows = $this->repo->countFiltered($filters);
+            $totalPages = max(1, (int)ceil($totalRows / $perPage));
+            if ($page > $totalPages) {
+                $page = $totalPages;
+            }
+    
+            $offset = ($page - 1) * $perPage;
+            $orders = $this->repo->getPaginatedFiltered($filters, $perPage, $offset);
+            foreach ($orders as &$order) {
+                $order['module_status_label'] = $this->mapModuleStatusLabel((string)($order['status'] ?? ''));
+                $order['module_status_class'] = $this->mapModuleStatusClass((string)$order['module_status_label']);
+            }
+            unset($order);
+    
+            $selectedAccount = (int)Tools::getValue('id_allegropro_account');
+            if (!$selectedAccount && !empty($accounts)) {
+                $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
+            }
+    
+            $this->context->smarty->assign([
+                'allegropro_orders' => $orders,
+                'allegropro_accounts' => $accounts,
+                'allegropro_selected_account' => $selectedAccount,
+                'allegropro_filters' => $filters,
+                'allegropro_pagination' => [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'total_rows' => $totalRows,
+                    'total_pages' => $totalPages,
+                    'allowed_per_page' => $allowedPerPage,
+                ],
+                'allegropro_delivery_options' => $this->repo->getDistinctDeliveryMethods(),
+                'allegropro_status_options' => $statusGroups,
+                'allegropro_selected_status_codes' => $statusCodes,
+                'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders'),
+            ]);
+    
+            $this->context->smarty->assign([
+                'allegropro_refresh_orders_panel' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_panel.tpl'),
+                'allegropro_refresh_orders_script' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_script.tpl'),
+            ]);
+    
+            return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
+        }
+
     public function initContent()
-    {
-        parent::initContent();
-
-        $accountRepo = new AccountRepository();
-        $accounts = $accountRepo->all();
-
-        // Grupy statusów (checkboxy)
-        $statusGroups = $this->repo->getOrderStatusGroupsForFilters();
-
-        $statusRaw = Tools::getValue('status_code', []);
-        $statusCodes = [];
-        if (is_array($statusRaw)) {
-            foreach ($statusRaw as $code) {
-                $code = trim((string)$code);
-                if ($code !== '') {
-                    $statusCodes[] = $code;
-                }
+        {
+            if (Tools::getValue('action') === 'get_order_details') {
+                $this->ajaxGetOrderDetails();
+                return;
             }
-        } elseif (is_string($statusRaw) && trim($statusRaw) !== '') {
-            // Gdyby przyszło jako CSV
-            foreach (explode(',', $statusRaw) as $code) {
-                $code = trim((string)$code);
-                if ($code !== '') {
-                    $statusCodes[] = $code;
-                }
+    
+            if (Tools::getValue('action') === 'download_label') {
+                $this->downloadLabelFile();
+                return;
             }
-        }
-        $statusCodes = array_values(array_unique($statusCodes));
-
-        // Ustal konto
-        $selectedAccount = (int)Tools::getValue('id_allegropro_account');
-        if ($selectedAccount <= 0 && !empty($accounts)) {
-            $selectedAccount = (int)$accounts[0]['id_allegropro_account'];
+    
+            parent::initContent();
         }
 
-        // Budowanie filtrów
-        $filters = [
-            'q' => trim((string)Tools::getValue('q')),
-            'buyer_email' => trim((string)Tools::getValue('buyer_email')),
-            'checkout_id' => trim((string)Tools::getValue('checkout_id')),
-            'delivery_method' => trim((string)Tools::getValue('delivery_method')),
-            'date_from' => trim((string)Tools::getValue('date_from')),
-            'date_to' => trim((string)Tools::getValue('date_to')),
-            'id_allegropro_account' => $selectedAccount > 0 ? $selectedAccount : null,
-            // wiele statusów
-            'status_codes' => $statusCodes,
-        ];
-
-        // page / pageSize
-        $page = (int)Tools::getValue('page', 1);
-        if ($page <= 0) $page = 1;
-
-        $pageSize = (int)Tools::getValue('page_size', 50);
-        if ($pageSize <= 0) $pageSize = 50;
-        if ($pageSize > 500) $pageSize = 500;
-
-        $offset = ($page - 1) * $pageSize;
-
-        $rows = $this->repo->searchWithFiltersPaged($filters, $pageSize, $offset);
-        $total = $this->repo->countWithFilters($filters);
-
-        $pages = max(1, (int)ceil($total / max(1, $pageSize)));
-
-        // Kompatybilność z szablonem orders.tpl, który odczytuje tablicę allegropro_filters
-        // (m.in. klucz id_allegropro_account bez filtra default w Smarty).
-        $smartyFilters = [
-            'global_query' => trim((string)Tools::getValue('filter_global_query', '')),
-            'id_allegropro_account' => $selectedAccount > 0 ? $selectedAccount : 0,
-            'date_from' => trim((string)Tools::getValue('filter_date_from', $filters['date_from'])),
-            'date_to' => trim((string)Tools::getValue('filter_date_to', $filters['date_to'])),
-            'checkout_form_id' => trim((string)Tools::getValue('filter_checkout_form_id', $filters['checkout_id'])),
-            'delivery_methods' => array_values(array_filter(array_map(
-                'trim',
-                (array)Tools::getValue('filter_delivery_methods', [])
-            ))),
-        ];
-        // mapowanie status -> label
-        $statusMap = [
-            'BOUGHT' => 'Kupione',
-            'FILLED_IN' => 'Wypełnione',
-            'READY_FOR_PROCESSING' => 'Do realizacji',
-            'PROCESSING' => 'W realizacji',
-            'SENT' => 'Wysłane',
-            'CANCELLED' => 'Anulowane',
-        ];
-
-        foreach ($rows as &$r) {
-            $st = (string)($r['status_allegro'] ?? '');
-            $r['status_allegro_label'] = $statusMap[$st] ?? $st;
-        }
-        unset($r);
-
-        // Badge count for "Do wyjaśnienia" tab (avoid PHP 8 warnings when not assigned)
-        $issuesBadgeCount = 0;
-        try {
-            $issuesBadgeCount = $this->getIssuesBadgeCount((int)$selectedAccount);
-        } catch (Exception $e) {
-            // ignore; keep 0
-        }
-
-        // Pola filtrów dla smarty
-        $this->context->smarty->assign([
-            // used by views/templates/admin/orders.tpl (tabs)
-            'allegropro_view' => (string)Tools::getValue('view', 'orders'),
-            'allegropro_issues_badge_count' => (int)$issuesBadgeCount,
-            'allegropro_accounts' => $accounts,
-            'allegropro_selected_account' => $selectedAccount,
-            'allegropro_filters' => $smartyFilters,
-            'allegropro_pagination' => [
-                'page' => $page,
-                'per_page' => $pageSize,
-                'total_pages' => $pages,
-                'total_rows' => (int)$total,
-                'allowed_per_page' => [25, 50, 100, 200, 500],
-            ],
-            'allegropro_delivery_options' => [],
-
-            'allegropro_rows' => $rows,
-            'allegropro_total' => (int)$total,
-            'allegropro_page' => $page,
-            'allegropro_pages' => $pages,
-            'allegropro_page_size' => $pageSize,
-
-            'allegropro_filter_q' => $filters['q'],
-            'allegropro_filter_buyer_email' => $filters['buyer_email'],
-            'allegropro_filter_checkout_id' => $filters['checkout_id'],
-            'allegropro_filter_delivery_method' => $filters['delivery_method'],
-            'allegropro_filter_date_from' => $filters['date_from'],
-            'allegropro_filter_date_to' => $filters['date_to'],
-
-            'allegropro_status_options' => $statusGroups,
-            'allegropro_selected_status_codes' => $statusCodes,
-            'admin_link' => $this->context->link->getAdminLink('AdminAllegroProOrders'),
-        ]);
-
-        $this->context->smarty->assign([
-            'allegropro_refresh_orders_panel' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_panel.tpl'),
-            'allegropro_refresh_orders_script' => $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders_refresh_script.tpl'),
-        ]);
-
-        return $this->context->smarty->fetch(_PS_MODULE_DIR_ . 'allegropro/views/templates/admin/orders.tpl');
-    }
 
     /**
      * Count problematic Allegro order_ids discovered during settlements enrichment.

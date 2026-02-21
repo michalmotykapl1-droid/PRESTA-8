@@ -28,20 +28,15 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         if (!empty($this->module)) {
             $cssLocal = $this->module->getLocalPath() . 'views/css/settlements.css';
             $jsLocal = $this->module->getLocalPath() . 'views/js/settlements.js';
-            $jsBeLocal = $this->module->getLocalPath() . 'views/js/settlements_be_modal.js';
 
             $cssVer = @filemtime($cssLocal);
             $jsVer = @filemtime($jsLocal);
-            $jsBeVer = @filemtime($jsBeLocal);
 
             if (!$cssVer) { $cssVer = time(); }
             if (!$jsVer) { $jsVer = time(); }
-            if (!$jsBeVer) { $jsBeVer = time(); }
 
             $this->addCSS($this->module->getPathUri() . 'views/css/settlements.css?v=' . (int)$cssVer);
             $this->addJS($this->module->getPathUri() . 'views/js/settlements.js?v=' . (int)$jsVer);
-            // UX: improve "Nieprzypisane operacje" billing-entry modal (loaded after main settlements.js)
-            $this->addJS($this->module->getPathUri() . 'views/js/settlements_be_modal.js?v=' . (int)$jsBeVer);
         }
     }
 
@@ -360,21 +355,12 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'cancelled' => ['orders' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0],
         ];
         $issuesRows = [];
-        $unassignedLimit = 50;
-        $unassignedTotal = 0;
-        $unassignedSummary = ['entries_count' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0];
-        $unassignedRows = [];
-        $issuesBadgeTotal = 0;
         if (!empty($selectedAccountIds)) {
             $issuesSvc = new IssuesReportService($this->billingRepo);
             $issuesTotal = $issuesSvc->countIssuesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
             $issuesSummary = $issuesSvc->getIssuesSummary($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
             $issuesBreakdown = $issuesSvc->getIssuesBreakdown($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
             $issuesRows = $issuesSvc->getIssuesRows($selectedAccountIds, $dateFrom, $dateTo, $q, $issuesLimit, 0, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
-
-            $unassignedTotal = $issuesSvc->countUnassignedEntries($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory);
-            $unassignedSummary = $issuesSvc->getUnassignedSummary($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory);
-            $unassignedRows = $issuesSvc->getUnassignedRows($selectedAccountIds, $dateFrom, $dateTo, $q, $unassignedLimit, 0, $feeGroup, $feeTypesSelected, $issuesAllHistory);
 
             // Map account label onto rows
             $accMap = [];
@@ -390,15 +376,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
                 $r['account_label'] = $accMap[$aid] ?? ('#' . $aid);
             }
             unset($r);
-
-            foreach ($unassignedRows as &$r) {
-                $aid = (int)($r['id_allegropro_account'] ?? 0);
-                $r['account_label'] = $accMap[$aid] ?? ('#' . $aid);
-            }
-            unset($r);
         }
 
-        $issuesBadgeTotal = (int)$issuesTotal + (int)$unassignedTotal;
 
         $this->context->smarty->assign([
             'accounts' => $accounts,
@@ -425,11 +404,6 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'orders_from' => (int)$ordersFrom,
             'orders_to' => (int)$ordersTo,
             'issues_total' => (int)$issuesTotal,
-            'issues_badge_total' => (int)$issuesBadgeTotal,
-            'unassigned_total' => (int)$unassignedTotal,
-            'unassigned_limit' => (int)$unassignedLimit,
-            'unassigned_summary' => $unassignedSummary,
-            'unassigned_rows' => $unassignedRows,
             'issues_limit' => (int)$issuesLimit,
             'issues_summary' => $issuesSummary,
             'issues_breakdown' => $issuesBreakdown,
@@ -612,55 +586,6 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
      * URL: ...&ajax=1&action=syncOrderBilling
      * POST: id_allegropro_account, checkout_form_id, date_from, date_to, force_update
      */
-    /**
-     * AJAX: szczegóły pojedynczego wpisu billing (dla operacji bez order_id).
-     * URL: ...&ajax=1&action=BillingEntryDetails&id_allegropro_account=...&id_allegropro_billing_entry=...
-     */
-    public function ajaxProcessBillingEntryDetails(): void
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $accountId = (int)\Tools::getValue('id_allegropro_account', 0);
-        $idEntry = (int)\Tools::getValue('id_allegropro_billing_entry', 0);
-
-        if ($accountId <= 0 || $idEntry <= 0) {
-            $this->ajaxDie(json_encode(['ok' => 0, 'error' => 'Brak parametrów.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        }
-
-        $this->billingRepo->ensureSchema();
-
-        // Uwaga: Db::getRow() w PrestaShop potrafi sam dopinać LIMIT 1.
-        // Nie dodajemy LIMIT ręcznie, żeby uniknąć błędu "LIMIT 1 LIMIT 1" (SQLSTATE 1064).
-        $sql = 'SELECT * FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` WHERE id_allegropro_billing_entry=' . (int)$idEntry . ' AND id_allegropro_account=' . (int)$accountId;
-        $row = \Db::getInstance()->getRow($sql);
-
-        if (!$row) {
-            $this->ajaxDie(json_encode(['ok' => 0, 'error' => 'Nie znaleziono wpisu billing.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        }
-
-        // Nie wysyłamy wszystkiego bez potrzeby — ale raw_json jest kluczowy do diagnostyki.
-        $out = [
-            'id_allegropro_billing_entry' => (int)($row['id_allegropro_billing_entry'] ?? 0),
-            'billing_entry_id' => (string)($row['billing_entry_id'] ?? ''),
-            'occurred_at' => (string)($row['occurred_at'] ?? ''),
-            'type_id' => (string)($row['type_id'] ?? ''),
-            'type_name' => (string)($row['type_name'] ?? ''),
-            'offer_id' => (string)($row['offer_id'] ?? ''),
-            'offer_name' => (string)($row['offer_name'] ?? ''),
-            'order_id' => (string)($row['order_id'] ?? ''),
-            'value_amount' => (float)($row['value_amount'] ?? 0),
-            'value_currency' => (string)($row['value_currency'] ?? ''),
-            'balance_amount' => (float)($row['balance_amount'] ?? 0),
-            'balance_currency' => (string)($row['balance_currency'] ?? ''),
-            'tax_percentage' => isset($row['tax_percentage']) ? (float)$row['tax_percentage'] : null,
-            'tax_annotation' => (string)($row['tax_annotation'] ?? ''),
-            'raw_json' => (string)($row['raw_json'] ?? ''),
-        ];
-
-        $this->ajaxDie(json_encode(['ok' => 1, 'entry' => $out], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    }
-
-
     public function ajaxProcessSyncOrderBilling(): void
     {
         // ensure schema also for AJAX

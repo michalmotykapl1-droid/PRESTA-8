@@ -350,7 +350,3 @@
 #alproSubTabs .nav-link .badge{vertical-align:middle;}
 .tab-content .tab-pane{display:none;}
 .tab-content .tab-pane.is-active{display:block;}
-
-
-/* Highlight row after clicking badge in Zamówienia */
-#alproTabIssues tr.alpro-row-hl td { background: rgba(255, 193, 7, 0.18) !important; }

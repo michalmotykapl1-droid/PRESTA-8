@@ -372,51 +372,6 @@
     initSubTabs();
     initIssuesAllToggle();
     initIssuesRefundMode();
-    initIssuesInnerTabs();
-
-
-function initIssuesInnerTabs() {
-  var tabs = document.getElementById('alproIssuesInnerTabs');
-  if (!tabs) return;
-  var links = tabs.querySelectorAll('.js-alpro-issues-inner');
-  var wrapOrders = document.getElementById('alproIssuesOrdersWrap');
-  var wrapUn = document.getElementById('alproIssuesUnassignedWrap');
-  var refundWrap = document.getElementById('alproIssuesRefundModeWrap');
-  if (!links || !links.length || !wrapOrders || !wrapUn) return;
-
-  var key = 'alpro_issues_inner_view';
-
-  function show(view) {
-    var isUn = (view === 'unassigned');
-    wrapOrders.style.display = isUn ? 'none' : '';
-    wrapUn.style.display = isUn ? '' : 'none';
-    if (refundWrap) refundWrap.style.display = isUn ? 'none' : '';
-
-    for (var i = 0; i < links.length; i++) {
-      var a = links[i];
-      a.classList.toggle('active', (a.getAttribute('data-view') || 'orders') === view);
-    }
-    try { localStorage.setItem(key, view); } catch (e) {}
-  }
-
-  // initial
-  var initial = 'orders';
-  try {
-    var saved = localStorage.getItem(key);
-    if (saved === 'unassigned' || saved === 'orders') initial = saved;
-    if (window.location.hash && window.location.hash.indexOf('issues_unassigned') !== -1) initial = 'unassigned';
-  } catch (e) {}
-  show(initial);
-
-  for (var j = 0; j < links.length; j++) {
-    links[j].addEventListener('click', function (e) {
-      e.preventDefault();
-      var v = this.getAttribute('data-view') || 'orders';
-      show(v);
-      try { window.location.hash = (v === 'unassigned') ? '#issues_unassigned' : '#alproTabIssues'; } catch (err) {}
-    });
-  }
-}
 
 
 
@@ -879,127 +834,6 @@ function initIssuesInnerTabs() {
       }
     }
 
-
-
-function renderBillingEntryDetails(resp) {
-  var e = resp && resp.entry ? resp.entry : null;
-  if (!e) {
-    modalContent.innerHTML = '<div class="alert alert-danger">Brak danych wpisu billing.</div>';
-    modalLoading.style.display = 'none';
-    modalContent.style.display = 'block';
-    return;
-  }
-
-  var idTxt = e.billing_entry_id || ('#' + (e.id_allegropro_billing_entry || ''));
-  modalMeta.textContent = '• billing_entry: ' + idTxt;
-
-  var amount = Number(e.value_amount || 0);
-  var amountColor = (amount < 0) ? '#dc3545' : (amount > 0 ? '#28a745' : '#6c757d');
-
-  var metaHtml = '' +
-    '<div class="alpro-panel">' +
-      '<div class="hd"><div class="t">Szczegóły operacji billing (bez order_id)</div><div class="muted">ID: ' + escHtml(idTxt) + '</div></div>' +
-      '<div class="alpro-kpi-grid alpro-kpi-grid--modal">' +
-        '<div class="alpro-kpi"><div class="top"><div><div class="label">Data</div><div class="value">' + escHtml(e.occurred_at || '') + '</div></div></div></div>' +
-        '<div class="alpro-kpi"><div class="top"><div><div class="label">Typ</div><div class="value">' + escHtml(e.type_name || '') + '</div><div class="sub">' + escHtml(e.type_id || '') + '</div></div></div></div>' +
-        '<div class="alpro-kpi"><div class="top"><div><div class="label">Oferta</div><div class="value">' + escHtml(e.offer_name || '-') + '</div><div class="sub">offer_id: ' + escHtml(e.offer_id || '-') + '</div></div></div></div>' +
-        '<div class="alpro-kpi"><div class="top"><div><div class="label">Kwota</div><div class="value" style="color:' + amountColor + ';">' + fmtMoney(amount) + '</div><div class="sub">' + escHtml(e.value_currency || '') + '</div></div></div></div>' +
-      '</div>' +
-    '</div>';
-
-  var taxHtml = '';
-  if (e.tax_percentage !== null && e.tax_percentage !== undefined && String(e.tax_percentage) !== '') {
-    taxHtml = fmtPct(e.tax_percentage) + (e.tax_annotation ? (' • ' + escHtml(e.tax_annotation)) : '');
-  } else {
-    taxHtml = e.tax_annotation ? escHtml(e.tax_annotation) : '-';
-  }
-
-  var jsonTxt = String(e.raw_json || '');
-  var pretty = '';
-  try {
-    pretty = JSON.stringify(JSON.parse(jsonTxt), null, 2);
-  } catch (err) {
-    pretty = jsonTxt;
-  }
-
-  var detailsHtml = '' +
-    '<div class="alpro-panel">' +
-      '<div class="hd"><div class="t">Dane techniczne</div><div class="muted">VAT: ' + taxHtml + '</div></div>' +
-      '<div class="table-responsive">' +
-        '<table class="table table-sm mb-0">' +
-          '<tbody>' +
-            '<tr><td style="width:220px;color:#6c757d;">id_allegropro_billing_entry</td><td><strong>' + escHtml(e.id_allegropro_billing_entry || '') + '</strong></td></tr>' +
-            '<tr><td style="color:#6c757d;">billing_entry_id</td><td>' + escHtml(e.billing_entry_id || '') + '</td></tr>' +
-            '<tr><td style="color:#6c757d;">order_id</td><td>' + escHtml(e.order_id || '-') + '</td></tr>' +
-            '<tr><td style="color:#6c757d;">balance_amount</td><td>' + escHtml(String(e.balance_amount || '')) + ' ' + escHtml(e.balance_currency || '') + '</td></tr>' +
-          '</tbody>' +
-        '</table>' +
-      '</div>' +
-      '<div style="margin-top:10px;">' +
-        '<div class="alpro-muted" style="font-size:12px;margin-bottom:6px;">raw_json</div>' +
-        '<pre class="alpro-sync-log" style="max-height:360px;">' + escHtml(pretty) + '</pre>' +
-      '</div>' +
-    '</div>';
-
-  modalContent.innerHTML = metaHtml + detailsHtml;
-  modalLoading.style.display = 'none';
-  modalContent.style.display = 'block';
-}
-
-function loadBillingEntryDetails(accountId, idEntry) {
-  modalLoading.style.display = 'flex';
-  modalContent.style.display = 'none';
-  modalContent.innerHTML = '';
-  modalMeta.textContent = '';
-
-  var params = {
-    ajax: 1,
-    action: 'BillingEntryDetails',
-    id_allegropro_account: accountId,
-    id_allegropro_billing_entry: idEntry
-  };
-
-  if (window.jQuery) {
-    window.jQuery.get(cfg.ajaxUrl, params)
-      .done(function (resp) {
-        if (typeof resp === 'string') {
-          try { resp = JSON.parse(resp); } catch (e) {}
-        }
-        if (!resp || !resp.ok) {
-          modalContent.innerHTML = '<div class="alert alert-danger">Nie udało się pobrać wpisu billing. ' + escHtml(resp && resp.error ? resp.error : '') + '</div>';
-          modalLoading.style.display = 'none';
-          modalContent.style.display = 'block';
-          return;
-        }
-        renderBillingEntryDetails(resp);
-      })
-      .fail(function () {
-        modalContent.innerHTML = '<div class="alert alert-danger">Błąd AJAX — nie udało się pobrać danych.</div>';
-        modalLoading.style.display = 'none';
-        modalContent.style.display = 'block';
-      });
-  } else {
-    var url = new URL(cfg.ajaxUrl, window.location.origin);
-    Object.keys(params).forEach(function (k) { url.searchParams.set(k, params[k]); });
-    fetch(url.toString(), { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (resp) {
-        if (!resp || !resp.ok) {
-          modalContent.innerHTML = '<div class="alert alert-danger">Nie udało się pobrać wpisu billing.</div>';
-          modalLoading.style.display = 'none';
-          modalContent.style.display = 'block';
-          return;
-        }
-        renderBillingEntryDetails(resp);
-      })
-      .catch(function () {
-        modalContent.innerHTML = '<div class="alert alert-danger">Błąd AJAX — nie udało się pobrać danych.</div>';
-        modalLoading.style.display = 'none';
-        modalContent.style.display = 'block';
-      });
-  }
-}
-
     // Event delegation for details buttons
     document.addEventListener('click', function (e) {
       var target = e.target;
@@ -1010,18 +844,6 @@ function loadBillingEntryDetails(accountId, idEntry) {
       if (close === '1') {
         e.preventDefault();
         closeModal();
-        return;
-      }
-
-      // billing entry details (unassigned)
-      var bel = target.closest ? target.closest('.js-alpro-billing-details') : null;
-      if (bel) {
-        e.preventDefault();
-        var beId = bel.getAttribute('data-billing-entry') || '';
-        var beAcc = bel.getAttribute('data-account-id') || '';
-        if (!beId || !beAcc) return;
-        openModal();
-        loadBillingEntryDetails(beAcc, beId);
         return;
       }
 
