@@ -291,6 +291,71 @@
     initFeeTypesMultiselect();
     initFeeGroupFromUrl();
 
+    // Sub-tabs: Zamówienia / Do wyjaśnienia
+    function initSubTabs() {
+      var tabsWrap = document.getElementById('alproSubTabs');
+      if (!tabsWrap) return;
+      var links = tabsWrap.querySelectorAll('.js-alpro-subtab');
+      var paneOrders = document.getElementById('alproTabOrders');
+      var paneIssues = document.getElementById('alproTabIssues');
+      if (!paneOrders || !paneIssues || !links || !links.length) return;
+      var key = 'alpro_settlements_subtab';
+
+      function show(tab) {
+        var isIssues = (tab === 'issues');
+        // panes
+        paneOrders.classList.toggle('is-active', !isIssues);
+        paneIssues.classList.toggle('is-active', isIssues);
+        // links
+        for (var i = 0; i < links.length; i++) {
+          var a = links[i];
+          var t = a.getAttribute('data-tab');
+          a.classList.toggle('active', t === tab);
+        }
+        try { localStorage.setItem(key, tab); } catch (e) {}
+      }
+
+      // initial
+      var initial = 'orders';
+      try {
+        if (window.location.hash && window.location.hash.indexOf('alproTabIssues') !== -1) initial = 'issues';
+        else {
+          var saved = localStorage.getItem(key);
+          if (saved === 'issues' || saved === 'orders') initial = saved;
+        }
+      } catch (e) {}
+      show(initial);
+
+      for (var j = 0; j < links.length; j++) {
+        links[j].addEventListener('click', function (e) {
+          e.preventDefault();
+          var tab = this.getAttribute('data-tab') || 'orders';
+          show(tab);
+          // update hash for direct link
+          try { window.location.hash = (tab === 'issues') ? '#alproTabIssues' : '#alproTabOrders'; } catch (err) {}
+        });
+      }
+    }
+
+    function initIssuesAllToggle() {
+      var cb = document.getElementById('alproIssuesAll');
+      if (!cb) return;
+      cb.addEventListener('change', function () {
+        try {
+          var u = new URL(window.location.href);
+          if (cb.checked) u.searchParams.set('issues_all', '1');
+          else u.searchParams.delete('issues_all');
+          // restart pagination
+          u.searchParams.set('page', '1');
+          window.location.href = u.toString();
+        } catch (e) {}
+      });
+    }
+
+    initSubTabs();
+    initIssuesAllToggle();
+
+
 
     // Copy helper (ID zamówienia itd.)
     document.addEventListener('click', function (e) {

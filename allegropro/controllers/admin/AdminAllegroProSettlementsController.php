@@ -11,6 +11,7 @@ use AllegroPro\Service\AllegroApiClient;
 use AllegroPro\Service\BillingSyncService;
 use AllegroPro\Service\OrderFetcher;
 use AllegroPro\Service\SettlementsReportService;
+use AllegroPro\Service\IssuesReportService;
 use AllegroPro\Service\OrderEnrichSkipService;
 use AllegroPro\Service\OrderBillingManualSyncService;
 
@@ -342,6 +343,34 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
 
         $ajaxUrl = $this->context->link->getAdminLink('AdminAllegroProSettlements');
 
+        $issuesAllHistory = (int)Tools::getValue('issues_all', 0) ? true : false;
+        $issuesLimit = 50;
+        $issuesTotal = 0;
+        $issuesSummary = ['orders_count' => 0, 'billing_rows' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0];
+        $issuesRows = [];
+        if (!empty($selectedAccountIds)) {
+            $issuesSvc = new IssuesReportService($this->billingRepo);
+            $issuesTotal = $issuesSvc->countIssuesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory);
+            $issuesSummary = $issuesSvc->getIssuesSummary($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory);
+            $issuesRows = $issuesSvc->getIssuesRows($selectedAccountIds, $dateFrom, $dateTo, $q, $issuesLimit, 0, $feeGroup, $feeTypesSelected, $issuesAllHistory);
+
+            // Map account label onto rows
+            $accMap = [];
+            foreach ($accounts as $a) {
+                $aid = (int)($a['id_allegropro_account'] ?? 0);
+                if (!$aid) {
+                    continue;
+                }
+                $accMap[$aid] = (string)($a['label'] ?? $a['allegro_login'] ?? ('#' . $aid));
+            }
+            foreach ($issuesRows as &$r) {
+                $aid = (int)($r['id_allegropro_account'] ?? 0);
+                $r['account_label'] = $accMap[$aid] ?? ('#' . $aid);
+            }
+            unset($r);
+        }
+
+
         $this->context->smarty->assign([
             'accounts' => $accounts,
             'selected_account_id' => (int)($selectedAccountIds[0] ?? 0),
@@ -366,6 +395,11 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'orders_total' => (int)$ordersTotal,
             'orders_from' => (int)$ordersFrom,
             'orders_to' => (int)$ordersTo,
+            'issues_total' => (int)$issuesTotal,
+            'issues_limit' => (int)$issuesLimit,
+            'issues_summary' => $issuesSummary,
+            'issues_rows' => $issuesRows,
+            'issues_all_history' => $issuesAllHistory ? 1 : 0,
             'page' => (int)$page,
             'pages' => (int)$pages,
             'per_page' => (int)$perPage,
@@ -842,6 +876,9 @@ private function countMissingOrders(int $accountId, string $dateFrom, string $da
     $this->ensureEnrichSkipSchema();
     $this->prepareOrderFilledRange($accountId, $dateFrom, $dateTo);
 
+    // Backfill error markers from enrich-skip (older runs could have errors only in skip table).
+    try { $this->billingRepo->backfillOrderErrorsFromSkip($accountId); } catch (\Throwable $e) {}
+
     $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
 
     $normS = $this->normalizeIdSql('s.order_id');
@@ -874,6 +911,9 @@ private function listMissingOrderRows(int $accountId, string $dateFrom, string $
 {
     $this->ensureEnrichSkipSchema();
     $this->prepareOrderFilledRange($accountId, $dateFrom, $dateTo);
+
+    // Backfill error markers from enrich-skip (older runs could have errors only in skip table).
+    try { $this->billingRepo->backfillOrderErrorsFromSkip($accountId); } catch (\Throwable $e) {}
 
     $feeWhere = $this->feeWhereSql("LOWER(IFNULL(b.type_name,''))");
 

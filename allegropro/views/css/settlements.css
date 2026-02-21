@@ -344,3 +344,9 @@
 .alpro-sync-foot-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 #alproSyncModal .alpro-sync-foot-right .btn .material-icons{font-size:18px;vertical-align:middle;margin-right:6px;}
 
+
+/* Sub-tabs (Orders / Do wyjaśnienia) */
+#alproSubTabs .nav-link{cursor:pointer;}
+#alproSubTabs .nav-link .badge{vertical-align:middle;}
+.tab-content .tab-pane{display:none;}
+.tab-content .tab-pane.is-active{display:block;}

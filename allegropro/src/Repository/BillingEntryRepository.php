@@ -982,6 +982,39 @@ class BillingEntryRepository
     }
 
     /**
+     * Backfill order_error_* columns from enrich-skip table for orders that are currently throttled.
+     *
+     * Why: older runs could have created records in allegropro_order_enrich_skip before
+     * we started persisting errors into billing_entry. Those orders may be skipped now
+     * (skip_until in the future), so enrichment won't re-run and billing_entry would
+     * still have NULL error columns unless we propagate it.
+     */
+    public function backfillOrderErrorsFromSkip(int $accountId = 0): int
+    {
+        $p = _DB_PREFIX_;
+        $accWhere = ($accountId > 0) ? ('b.id_allegropro_account=' . (int)$accountId . ' AND ') : '';
+
+        $sql = "UPDATE `{$p}allegropro_billing_entry` b\n"
+            . "INNER JOIN `{$p}allegropro_order_enrich_skip` s\n"
+            . "  ON (s.id_allegropro_account=b.id_allegropro_account AND " . $this->normalizeIdSql('s.order_id') . "=" . $this->normalizeIdSql('b.order_id') . ")\n"
+            . "SET b.order_error_code=s.last_code,\n"
+            . "    b.order_error=s.last_error,\n"
+            . "    b.order_error_at=s.last_attempt_at,\n"
+            . "    b.updated_at=NOW()\n"
+            . "WHERE {$accWhere}b.order_filled=0\n"
+            . "  AND b.order_id IS NOT NULL AND b.order_id<>''\n"
+            . "  AND s.last_code IS NOT NULL\n"
+            . "  AND (b.order_error_code IS NULL OR b.order_error_at IS NULL OR b.order_error_at < s.last_attempt_at)";
+
+        try {
+            Db::getInstance()->execute($sql);
+            return (int)Db::getInstance()->Affected_Rows();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    /**
      * Persist enrichment error for all billing entries of given order.
      */
     public function setOrderError(int $accountId, string $orderId, int $code, string $error): int

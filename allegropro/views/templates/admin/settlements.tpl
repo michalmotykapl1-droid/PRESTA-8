@@ -460,9 +460,19 @@
   {* LISTA ZAMÓWIEŃ *}
   <div class="card">
     <div class="card-header d-flex align-items-center justify-content-between" style="gap:10px; flex-wrap:wrap;">
-      <strong>Zamówienia</strong>
-      <span class="alpro-badge">Pokazano <strong>{$orders_from|intval}-{$orders_to|intval}</strong> z <strong>{$orders_total|intval}</strong></span>
+      <ul class="nav nav-tabs" id="alproSubTabs" style="border-bottom:0;">
+        <li class="nav-item">
+          <a class="nav-link active js-alpro-subtab" href="#alproTabOrders" data-tab="orders">Zamówienia</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link js-alpro-subtab" href="#alproTabIssues" data-tab="issues">Do wyjaśnienia{if isset($issues_total) && $issues_total>0} <span class="badge badge-danger ml-1">{$issues_total|intval}</span>{/if}</a>
+        </li>
+      </ul>
+      <span class="alpro-badge" id="alproTabBadgeOrders">Pokazano <strong>{$orders_from|intval}-{$orders_to|intval}</strong> z <strong>{$orders_total|intval}</strong></span>
     </div>
+
+    <div class="tab-content" style="padding-top:10px;">
+      <div class="tab-pane is-active" id="alproTabOrders">
 
     <div class="table-responsive">
       <table class="table table-striped table-hover table-sm mb-0 alpro-table">
@@ -560,6 +570,135 @@
           </ul>
         </nav>
       {/if}
+    </div>
+
+  </div>
+      </div>
+
+      <div class="tab-pane" id="alproTabIssues">
+        <div class="d-flex align-items-center justify-content-between" style="gap:10px; flex-wrap:wrap; padding:6px 0 10px;">
+          <div class="alpro-muted" style="font-size:12px;">
+            Źródło: billing_entry.order_error_* (błędy enrichmentu checkout-form) + wykrycie: nieopłacone/anulowane z ujemnym saldem opłat.
+          </div>
+          <label class="form-check" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="alproIssuesAll" {if isset($issues_all_history) && $issues_all_history}checked{/if}>
+            <span style="font-size:12px; color:#6c757d;">Cała historia (bez filtra dat)</span>
+          </label>
+        </div>
+
+        <div class="alpro-kpi-grid alpro-kpi-grid--compact" style="margin: 0 0 12px 0;">
+          <div class="alpro-kpi">
+            <div class="top">
+              <div>
+                <div class="label">Problem order_id</div>
+                <div class="value">{if isset($issues_summary.orders_count)}{$issues_summary.orders_count|intval}{else}0{/if}</div>
+                <div class="sub">Zamówienia do wyjaśnienia</div>
+              </div>
+              <div class="icon" title="Problemy"><i class="material-icons" style="font-size:20px;">report_problem</i></div>
+            </div>
+          </div>
+
+          <div class="alpro-kpi">
+            <div class="top">
+              <div>
+                <div class="label">Wpisy billing</div>
+                <div class="value">{if isset($issues_summary.billing_rows)}{$issues_summary.billing_rows|intval}{else}0{/if}</div>
+                <div class="sub">Operacje w problemach</div>
+              </div>
+              <div class="icon" title="Billing"><i class="material-icons" style="font-size:20px;">receipt_long</i></div>
+            </div>
+          </div>
+
+          <div class="alpro-kpi">
+            <div class="top">
+              <div>
+                <div class="label">Opłaty pobrane</div>
+                <div class="value text-danger">{if isset($issues_summary.fees_neg)}{$issues_summary.fees_neg|number_format:2:',':' '}{else}0,00{/if} zł</div>
+                <div class="sub">Suma ujemnych (koszty)</div>
+              </div>
+              <div class="icon" title="Opłaty"><i class="material-icons" style="font-size:20px;">remove_circle</i></div>
+            </div>
+          </div>
+
+          <div class="alpro-kpi">
+            <div class="top">
+              <div>
+                <div class="label">Zwroty / korekty</div>
+                <div class="value {if isset($issues_summary.refunds_pos) && $issues_summary.refunds_pos>0}text-success{/if}">{if isset($issues_summary.refunds_pos) && $issues_summary.refunds_pos>0}+{/if}{if isset($issues_summary.refunds_pos)}{$issues_summary.refunds_pos|number_format:2:',':' '}{else}0,00{/if} zł</div>
+                <div class="sub">Suma dodatnich</div>
+              </div>
+              <div class="icon" title="Zwroty"><i class="material-icons" style="font-size:20px;">add_circle</i></div>
+            </div>
+          </div>
+
+          <div class="alpro-kpi">
+            <div class="top">
+              <div>
+                <div class="label">Saldo</div>
+                <div class="value {if isset($issues_summary.balance) && $issues_summary.balance<0}text-danger{elseif isset($issues_summary.balance) && $issues_summary.balance>0}text-success{/if}">{if isset($issues_summary.balance)}{$issues_summary.balance|number_format:2:',':' '}{else}0,00{/if} zł</div>
+                <div class="sub">Suma opłat i zwrotów</div>
+              </div>
+              <div class="icon" title="Saldo"><i class="material-icons" style="font-size:20px;">account_balance_wallet</i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover table-sm mb-0 alpro-table">
+            <thead>
+              <tr>
+                <th>Konto</th>
+                <th>Order ID</th>
+                <th>Błąd</th>
+                <th>Opis</th>
+                <th class="text-right">Opłaty</th>
+                <th class="text-right">Zwroty</th>
+                <th class="text-right">Saldo</th>
+                <th class="text-right">Próby</th>
+                <th>Ostatnia próba</th>
+                <th style="width:120px;">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody>
+              {if isset($issues_rows) && $issues_rows|@count>0}
+                {foreach from=$issues_rows item=ir}
+                  {assign var=_bal value=$ir.balance}
+                  <tr>
+                    <td><span class="alpro-badge">{$ir.account_label|default:'-'|escape:'htmlall':'UTF-8'}</span></td>
+                    <td>
+                      <div class="alpro-idwrap">
+                        <span class="alpro-id" title="{$ir.order_id|escape:'htmlall':'UTF-8'}">{$ir.order_id|escape:'htmlall':'UTF-8'}</span>
+                        <a href="#" class="alpro-copy js-alpro-copy" data-copy="{$ir.order_id|escape:'htmlall':'UTF-8'}" title="Kopiuj ID">
+                          <i class="material-icons" style="font-size:16px;">content_copy</i>
+                        </a>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge {$ir.badge_class|default:'badge-danger'|escape:'htmlall':'UTF-8'}">{$ir.badge_text|default:'ERR'|escape:'htmlall':'UTF-8'}</span>
+                    </td>
+                    <td title="{$ir.desc|default:''|escape:'htmlall':'UTF-8'}">{$ir.desc|default:''|escape:'htmlall':'UTF-8'}</td>
+                    <td class="text-right text-danger">{$ir.fees_neg|number_format:2:',':' '} zł</td>
+                    <td class="text-right {if $ir.refunds_pos>0}text-success{/if}">{if $ir.refunds_pos>0}+{/if}{$ir.refunds_pos|number_format:2:',':' '} zł</td>
+                    <td class="text-right {if $_bal<0}text-danger{elseif $_bal>0}text-success{/if}">{$_bal|number_format:2:',':' '} zł</td>
+                    <td class="text-right">{$ir.attempts|intval}</td>
+                    <td>{$ir.last_attempt_at|escape:'htmlall':'UTF-8'}</td>
+                    <td>
+                      <a class="btn btn-outline-secondary btn-sm js-alpro-details" href="#" data-checkout="{$ir.order_id|escape:'htmlall':'UTF-8'}" data-account-id="{$ir.id_allegropro_account|intval}">Szczegóły</a>
+                    </td>
+                  </tr>
+                {/foreach}
+              {else}
+                <tr><td colspan="10" class="p-3" style="color:#6c757d;">Brak problemów w wybranym zakresie.</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+
+        {if isset($issues_total) && isset($issues_limit) && $issues_total > $issues_limit}
+          <div class="alpro-muted" style="padding:10px 2px; font-size:12px;">Pokazano pierwsze {$issues_limit|intval} z {$issues_total|intval}. (Paginacja w kolejnych etapach)</div>
+        {/if}
+      </div>
+
     </div>
 
   </div>
