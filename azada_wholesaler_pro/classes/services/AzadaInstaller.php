@@ -180,6 +180,22 @@ class AzadaInstaller
 
 
         // 12. Pochodzenie produktów utworzonych przez moduł
+
+
+        // 13. Mapowanie kategorii hurtownia -> sklep
+        $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_category_map` (
+            `id_category_map` int(11) NOT NULL AUTO_INCREMENT,
+            `source_table` varchar(64) NOT NULL,
+            `source_category` varchar(255) NOT NULL,
+            `ps_category_ids` text DEFAULT NULL,
+            `id_category_default` int(11) DEFAULT 0,
+            `is_active` tinyint(1) NOT NULL DEFAULT 0,
+            `date_add` datetime NOT NULL,
+            `date_upd` datetime NOT NULL,
+            PRIMARY KEY (`id_category_map`),
+            UNIQUE KEY `uniq_source_category` (`source_table`,`source_category`),
+            KEY `idx_default_category` (`id_category_default`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_product_origin` (
             `id_origin` int(11) NOT NULL AUTO_INCREMENT,
             `id_product` int(11) NOT NULL,
@@ -225,6 +241,27 @@ class AzadaInstaller
         return Db::getInstance()->execute($sql);
     }
 
+
+
+    public static function ensureCategoryMapTables()
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_category_map` (
+            `id_category_map` int(11) NOT NULL AUTO_INCREMENT,
+            `source_table` varchar(64) NOT NULL,
+            `source_category` varchar(255) NOT NULL,
+            `ps_category_ids` text DEFAULT NULL,
+            `id_category_default` int(11) DEFAULT 0,
+            `is_active` tinyint(1) NOT NULL DEFAULT 0,
+            `date_add` datetime NOT NULL,
+            `date_upd` datetime NOT NULL,
+            PRIMARY KEY (`id_category_map`),
+            UNIQUE KEY `uniq_source_category` (`source_table`,`source_category`),
+            KEY `idx_default_category` (`id_category_default`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
+
+        return Db::getInstance()->execute($sql);
+    }
+
     public static function uninstallDatabase()
     {
         $tables = [
@@ -241,7 +278,8 @@ class AzadaInstaller
             'azada_wholesaler_pro_invoice_details',
             'azada_wholesaler_pro_analysis',
             'azada_wholesaler_pro_analysis_diff',
-            'azada_wholesaler_pro_product_origin'
+            'azada_wholesaler_pro_product_origin',
+            'azada_wholesaler_pro_category_map'
         ];
 
         foreach ($tables as $table) {

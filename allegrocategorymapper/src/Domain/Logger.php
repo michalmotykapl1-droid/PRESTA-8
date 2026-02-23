@@ -1,0 +1,3 @@
+<?php
+namespace ACM\Domain;
+class Logger{protected $lines=[],$enabled=false,$logFile;public function __construct($e=false){$this->enabled=(bool)$e;$dir=_PS_MODULE_DIR_.'allegrocategorymapper/logs/';if(!is_dir($dir))@mkdir($dir,0775,true);$this->logFile=$dir.'acm-'.date('Ymd').'.log';}public function isEnabled(){return $this->enabled;}public function add($m,array $c=[]){if(!$this->enabled)return;$l='['.date('Y-m-d H:i:s').'] '.$m;if(!empty($c))$l.=' | '.json_encode($c,320);$this->lines[]=$l;@file_put_contents($this->logFile,$l.PHP_EOL,FILE_APPEND);}public function getBuffer(){return $this->lines;}}

@@ -1,0 +1,11 @@
+{
+  "name": "dxna/allegrocategorymapper",
+  "description": "Allegro Category Mapper (OAuth2, logging, AJAX, strategy)",
+  "type": "prestashop-module",
+  "license": "proprietary",
+  "autoload": {
+    "psr-4": {
+      "ACM\\": "src/"
+    }
+  }
+}

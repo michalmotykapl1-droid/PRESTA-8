@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+  <name>allegrocategorymapper</name>
+  <displayName>Allegro Category Mapper</displayName>
+  <version>0.4.1</version>
+  <author>DXNA</author>
+  <description>OAuth2 + refresh, logging, AJAX skan partiami, strategia wyboru kategorii.</description>
+  <tab>administration</tab>
+  <is_configurable>1</is_configurable>
+</module>

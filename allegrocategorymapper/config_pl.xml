@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>allegrocategorymapper</name>
+    <displayName><![CDATA[Allegro Category Mapper]]></displayName>
+    <version><![CDATA[0.4.3]]></version>
+    <description><![CDATA[OAuth2 przez front controller + mapowanie kategorii.]]></description>
+    <author><![CDATA[DXNA]]></author>
+    <tab><![CDATA[administration]]></tab>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>

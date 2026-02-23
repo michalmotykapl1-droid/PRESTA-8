@@ -10,6 +10,7 @@ class AdminAzadaProductListController extends ModuleAdminController
     private $onlyMinimalQty = false;
     private $onlyInStock = false;
     private $productCreatedFilter = 'all';
+    private $hasProductOriginTable = false;
 
     public function __construct()
     {
@@ -24,6 +25,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $this->productCreatedFilter = $this->normalizeCreatedFilter(Tools::getValue('azada_product_created', 'all'));
 
         $this->buildGlobalSearchIndexTable();
+        $this->hasProductOriginTable = $this->tableExists(_DB_PREFIX_ . 'azada_wholesaler_pro_product_origin');
 
         // Źródłem listy jest indeks z wybranych hurtowni (lub wszystkich)
         $this->table = 'azada_raw_search_index';
@@ -99,6 +101,13 @@ class AdminAzadaProductListController extends ModuleAdminController
         }
 
         return array_values($this->availableRawTables);
+    }
+
+    private function tableExists($fullTableName)
+    {
+        return (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='" . pSQL($fullTableName) . "'"
+        );
     }
 
     private function normalizeCreatedFilter($raw)
@@ -447,15 +456,19 @@ class AdminAzadaProductListController extends ModuleAdminController
         $idSql = 'COALESCE(pe.`id_product`, pr.`id_product`)';
         $createdSql = '(CASE WHEN ' . $idSql . ' IS NOT NULL THEN 1 ELSE 0 END)';
 
-        $originJoin = "LEFT JOIN `" . bqSQL(_DB_PREFIX_ . 'azada_wholesaler_pro_product_origin') . "` apo ON (apo.`id_product` = " . $idSql . ")";
-        $this->_join .= ' ' . $originJoin;
+        $createdByModuleSql = '0';
+        if ($this->hasProductOriginTable) {
+            $originJoin = "LEFT JOIN `" . bqSQL(_DB_PREFIX_ . 'azada_wholesaler_pro_product_origin') . "` apo ON (apo.`id_product` = " . $idSql . ")";
+            $this->_join .= ' ' . $originJoin;
+            $createdByModuleSql = 'IFNULL(apo.`created_by_module`, 0)';
+        }
 
         if (trim((string)$this->_select) === '') {
-            $this->_select = "$createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, IFNULL(apo.`created_by_module`, 0) AS `azada_ps_created_module`, '' AS `azada_manual_create`";
+            $this->_select = "$createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, $createdByModuleSql AS `azada_ps_created_module`, '' AS `azada_manual_create`";
             return;
         }
 
-        $this->_select .= ", $createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, IFNULL(apo.`created_by_module`, 0) AS `azada_ps_created_module`, '' AS `azada_manual_create`";
+        $this->_select .= ", $createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, $createdByModuleSql AS `azada_ps_created_module`, '' AS `azada_manual_create`";
     }
 
     private function buildProductMatchJoinSql()
@@ -501,10 +514,10 @@ class AdminAzadaProductListController extends ModuleAdminController
             $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
         } elseif ($this->productCreatedFilter === 'created_module') {
             $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
-            $conditions[] = 'IFNULL(apo.`created_by_module`, 0) = 1';
+            $conditions[] = ($this->hasProductOriginTable ? 'IFNULL(apo.`created_by_module`, 0) = 1' : '1 = 0');
         } elseif ($this->productCreatedFilter === 'created_other') {
             $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
-            $conditions[] = 'IFNULL(apo.`created_by_module`, 0) = 0';
+            $conditions[] = ($this->hasProductOriginTable ? 'IFNULL(apo.`created_by_module`, 0) = 0' : '1 = 1');
         } elseif ($this->productCreatedFilter === 'missing') {
             $conditions[] = '(pe.`id_product` IS NULL AND pr.`id_product` IS NULL)';
         }

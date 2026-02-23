@@ -1,0 +1,49 @@
+/* /modules/allegrocategorymapper/views/css/admin.acm-tree.css */
+
+.acm-tree { list-style:none; margin:0; padding:0; font-size:13px }
+.acm-node { margin-left:0 }
+.acm-node-row { display:flex; align-items:center; gap:8px; padding:3px 4px }
+.acm-toggle { width:16px; height:16px; border:1px solid #bfc3c7; background:#fff; cursor:pointer; position:relative; border-radius:2px }
+.acm-toggle:before { content:'+'; position:absolute; left:3px; top:-1px; font-weight:bold; font-size:14px; line-height:16px }
+.acm-node.open > .acm-node-row > .acm-toggle:before { content:'–' }
+.acm-children { list-style:none; margin-left:20px; padding-left:14px; border-left:1px dashed #d9dde1; display:none }
+.acm-node.open > .acm-children { display:block }
+.acm-bullet { display:inline-block; width:16px }
+.acm-tree-wrap { max-height:420px; overflow:auto; border:1px solid #e3e6ea; padding:8px; border-radius:4px; background:#fff }
+.acm-tree-actions { margin-top:8px }
+.acm-check { display: flex; align-items: center; }
+
+.acm-status {
+    margin-left: 10px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 4px;
+    text-transform: uppercase;
+    line-height: 1.5;
+}
+
+.acm-status.mapped {
+    background-color: #5cb85c; /* Zielony */
+}
+
+/* --- NOWE STYLE --- */
+.acm-status.todo {
+    background-color: #f0ad4e; /* Pomarańczowy */
+}
+
+.acm-status.done {
+    background-color: #777777; /* Szary */
+}
+/* --- KONIEC NOWYCH STYLI --- */
+
+.acm-status.unmapped {
+    background-color: #777777;
+}
+
+.acm-product-count {
+    margin-left: 5px;
+    color: #999;
+    font-weight: normal;
+}

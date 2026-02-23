@@ -102,6 +102,11 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             $row['quality_require_price'] = isset($row['quality_require_price']) ? (int)$row['quality_require_price'] : 1;
             $row['quality_require_stock'] = isset($row['quality_require_stock']) ? (int)$row['quality_require_stock'] : 1;
             $row['quality_reject_missing_data'] = isset($row['quality_reject_missing_data']) ? (int)$row['quality_reject_missing_data'] : 1;
+$capabilities = $this->getHubActionCapabilities(isset($row['raw_table_name']) ? (string)$row['raw_table_name'] : '');
+            $row['can_clear_cache'] = (int)$capabilities['can_clear_cache'];
+            $row['can_force_sync'] = (int)$capabilities['can_force_sync'];
+            $row['can_disable_products'] = (int)$capabilities['can_disable_products'];
+            $row['can_delete_products'] = (int)$capabilities['can_delete_products'];
         }
 
         return $rows;
