@@ -27,6 +27,42 @@ if (is_dir($integrationsDir)) {
 
 class AdminAzadaWholesalerController extends ModuleAdminController
 {
+   private function getHubActionCapabilities($rawTableName)
+    {
+        $capabilities = [
+            'can_clear_cache' => 1,
+            'can_force_sync' => 1,
+            'can_disable_products' => 0,
+            'can_delete_products' => 0,
+        ];
+
+        $rawTableName = trim((string)$rawTableName);
+        if ($rawTableName === '') {
+            return $capabilities;
+        }
+
+        $fullTable = _DB_PREFIX_ . pSQL($rawTableName);
+
+        $tableExists = (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='".pSQL($fullTable)."'"
+        );
+
+        if (!$tableExists) {
+            return $capabilities;
+        }
+
+        $hasProductIdColumn = (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='".pSQL($fullTable)."' AND COLUMN_NAME='produkt_id'"
+        );
+
+        if ($hasProductIdColumn) {
+            $capabilities['can_disable_products'] = 1;
+            $capabilities['can_delete_products'] = 1;
+        }
+
+        return $capabilities;
+    }
+
     private function getHubCardsData()
     {
         $rows = Db::getInstance()->executeS('SELECT w.id_wholesaler, w.name, w.raw_table_name, w.active, w.last_import, w.connection_status, hs.hub_enabled, hs.sync_mode, hs.price_field, hs.notes, hs.use_local_cache, hs.cache_ttl_minutes, hs.price_multiplier, hs.price_markup_percent, hs.stock_buffer, hs.stock_min_limit, hs.stock_max_limit, hs.price_min_limit, hs.price_max_limit, hs.zero_below_stock, hs.seo_strip_style, hs.seo_strip_iframe, hs.seo_strip_links, hs.seo_short_desc_fallback, hs.seo_meta_title_template, hs.seo_meta_desc_template, hs.seo_description_prefix, hs.seo_description_suffix, hs.quality_require_ean, hs.quality_require_name, hs.quality_require_price, hs.quality_require_stock, hs.quality_reject_missing_data FROM `'._DB_PREFIX_.'azada_wholesaler_pro_integration` w LEFT JOIN `'._DB_PREFIX_.'azada_wholesaler_pro_hub_settings` hs ON hs.id_wholesaler = w.id_wholesaler ORDER BY w.name ASC');
@@ -155,10 +191,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             return;
         }
 
-        if ((string)$card['raw_table_name'] !== 'azada_raw_bioplanet') {
-            $this->errors[] = $this->l('Na tym etapie ustawienia szczegółowe są dostępne tylko dla BioPlanet.');
-            return;
-        }
+        
 
         $syncMode = trim((string)Tools::getValue('hub_settings_sync_mode', 'api'));
         if (!in_array($syncMode, ['api', 'file', 'hybrid'], true)) {
@@ -277,8 +310,7 @@ class AdminAzadaWholesalerController extends ModuleAdminController
             Db::getInstance()->insert('azada_wholesaler_pro_hub_settings', $payload);
         }
 
-        $this->confirmations[] = $this->l('Zapisano ustawienia szczegółowe dla BioPlanet.');
-    }
+        $this->confirmations[] = $this->l('Zapisano ustawienia szczegółowe hurtowni.');    }
 
     public function __construct()
     {

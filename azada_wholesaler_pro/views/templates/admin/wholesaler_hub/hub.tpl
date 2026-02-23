@@ -1,7 +1,7 @@
 <div class="panel azada-hub-panel">
     <h3><i class="icon-th-large"></i> Nowoczesny Panel Hurtowni</h3>
     <p class="text-muted azada-hub-lead">
-        Etap 2: BioPlanet z pełnym układem zakładek: Start integracji, Import i źródło danych, Ceny i stany, Treści i SEO, Reguły jakości, Akcje i utrzymanie.
+        Etap 2: konfiguracja wszystkich hurtowni z pełnym układem zakładek: Start integracji, Import i źródło danych, Ceny i stany, Treści i SEO, Reguły jakości, Akcje i utrzymanie.
     </p>
 
     <form method="post" action="{$azada_hub_post_url|escape:'html':'UTF-8'}" class="azada-hub-cards-form">
@@ -99,6 +99,10 @@
                             data-quality-require-price="{$card.quality_require_price|intval}"
                             data-quality-require-stock="{$card.quality_require_stock|intval}"
                             data-quality-reject-missing-data="{$card.quality_reject_missing_data|intval}"
+                            data-can-clear-cache="{$card.can_clear_cache|intval}"
+                            data-can-force-sync="{$card.can_force_sync|intval}"
+                            data-can-disable-products="{$card.can_disable_products|intval}"
+                            data-can-delete-products="{$card.can_delete_products|intval}"
                         >
                             <i class="icon-cog"></i> Ustawienia
                         </button>
@@ -130,10 +134,6 @@
             <div class="azada-modal-head">
                 <h4>Ustawienia hurtowni: <span id="azadaHubModalName">-</span></h4>
                 <button type="button" class="btn btn-default" id="azadaHubModalClose"><i class="icon-remove"></i></button>
-            </div>
-
-            <div class="azada-modal-info" id="azadaHubModalOnlyBio" style="display:none;">
-                Na tym etapie szczegółowe zakładki dotyczą wyłącznie BioPlanet (sql: <code>azada_raw_bioplanet</code>).
             </div>
 
             <div class="azada-modal-tabs" role="tablist" aria-label="Zakładki ustawień hurtowni">
@@ -369,15 +369,15 @@
                             <i class="icon-trash"></i> Usuń produkty hurtowni
                         </button>
                     </div>
-                    <p class="azada-inline-help">
-                        Akcje działają tylko dla BioPlanet na tym etapie. Po synchronizacji odśwież stronę, aby zobaczyć najnowsze statusy.
+                    <p class="azada-inline-help" id="azadaHubMaintenanceHint">
+                        Po wykonaniu akcji odśwież stronę, aby zobaczyć najnowsze statusy.
                     </p>
                 </div>
             </div>
 
             <div class="azada-modal-actions">
                 <button type="button" class="btn btn-default" id="azadaHubModalCancel">Anuluj</button>
-                <button type="submit" class="btn btn-primary" id="azadaHubModalSave">Zapisz ustawienia BioPlanet</button>
+                <button type="submit" class="btn btn-primary" id="azadaHubModalSave">Zapisz ustawienia hurtowni</button>
             </div>
         </form>
     </div>

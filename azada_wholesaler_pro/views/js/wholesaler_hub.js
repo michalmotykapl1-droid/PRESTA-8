@@ -43,7 +43,6 @@
         var modalClose = document.getElementById('azadaHubModalClose');
         var modalCancel = document.getElementById('azadaHubModalCancel');
         var modalName = document.getElementById('azadaHubModalName');
-        var modalOnlyBio = document.getElementById('azadaHubModalOnlyBio');
         var modalIdInput = document.getElementById('azada_hub_settings_id_wholesaler');
 
         var syncModeInput = document.getElementById('azada_hub_settings_sync_mode');
@@ -84,6 +83,7 @@
         var forceSyncBtn = document.getElementById('azadaHubForceSyncBtn');
         var disableProductsBtn = document.getElementById('azadaHubDisableProductsBtn');
         var deleteProductsBtn = document.getElementById('azadaHubDeleteProductsBtn');
+        var maintenanceHint = document.getElementById('azadaHubMaintenanceHint');
 
         var clearCacheUrl = modal ? (modal.getAttribute('data-clear-cache-url') || '') : '';
         var forceSyncUrl = modal ? (modal.getAttribute('data-force-sync-url') || '') : '';
@@ -246,8 +246,6 @@
         settingsButtons.forEach(function (button) {
             button.addEventListener('click', function () {
                 var name = button.getAttribute('data-name') || '-';
-                var table = button.getAttribute('data-table') || '';
-                var isBioPlanet = table === 'azada_raw_bioplanet';
 
                 if (modalName) {
                     modalName.textContent = name;
@@ -318,35 +316,38 @@
                     qualityRequireNameInput,
                     qualityRequirePriceInput,
                     qualityRequireStockInput,
-                    qualityRejectMissingDataInput
+                    qualityRejectMissingDataInput,
+                    saveBtn
                 ].forEach(function (field) {
                     if (field) {
-                        field.disabled = !isBioPlanet;
+                        field.disabled = false;
                     }
                 });
 
-                if (modalOnlyBio) {
-                    modalOnlyBio.style.display = isBioPlanet ? 'none' : 'block';
-                }
-
-                if (saveBtn) {
-                    saveBtn.disabled = !isBioPlanet;
-                }
+                var canClearCache = button.getAttribute('data-can-clear-cache') !== '0';
+                var canForceSync = button.getAttribute('data-can-force-sync') !== '0';
+                var canDisableProducts = button.getAttribute('data-can-disable-products') !== '0';
+                var canDeleteProducts = button.getAttribute('data-can-delete-products') !== '0';
 
                 if (clearCacheBtn) {
-                    clearCacheBtn.disabled = !isBioPlanet;
+                    clearCacheBtn.disabled = !canClearCache;
                 }
-
                 if (forceSyncBtn) {
-                    forceSyncBtn.disabled = !isBioPlanet;
+                    forceSyncBtn.disabled = !canForceSync;
                 }
-
                 if (disableProductsBtn) {
-                    disableProductsBtn.disabled = !isBioPlanet;
+                    disableProductsBtn.disabled = !canDisableProducts;
+                }
+                if (deleteProductsBtn) {
+                    deleteProductsBtn.disabled = !canDeleteProducts;
                 }
 
-                if (deleteProductsBtn) {
-                    deleteProductsBtn.disabled = !isBioPlanet;
+                if (maintenanceHint) {
+                    if (canClearCache && canForceSync && canDisableProducts && canDeleteProducts) {
+                        maintenanceHint.textContent = 'Po wykonaniu akcji odśwież stronę, aby zobaczyć najnowsze statusy.';
+                    } else {
+                        maintenanceHint.textContent = 'Część akcji jest niedostępna dla tej hurtowni (np. brak tabeli RAW lub kolumny produkt_id).';
+                    }
                 }
 
                 activateTab('tab-start');
