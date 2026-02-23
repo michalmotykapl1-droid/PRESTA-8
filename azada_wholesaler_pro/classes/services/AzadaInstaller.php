@@ -124,44 +124,42 @@ class AzadaInstaller
             `file_name` varchar(255) DEFAULT NULL,
             `is_downloaded` tinyint(1) DEFAULT 0,
             `date_add` datetime NOT NULL,
-            `date_upd` datetime NOT NULL,
-            PRIMARY KEY (`id_invoice`),
-            KEY `doc_number` (`doc_number`)
+            PRIMARY KEY (`id_invoice`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
         // 9. Detale Faktur
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_invoice_details` (
             `id_detail` int(11) NOT NULL AUTO_INCREMENT,
             `id_invoice` int(11) NOT NULL,
-            `doc_number` varchar(100) NOT NULL,
+            `doc_number` varchar(100) DEFAULT NULL,
+            `sku_wholesaler` varchar(64) DEFAULT NULL,
+            `product_id` varchar(50) DEFAULT NULL,
             `ean` varchar(50) DEFAULT NULL,
             `name` varchar(255) DEFAULT NULL,
-            `quantity` int(11) DEFAULT 0,
-            `price_net` decimal(20,2) DEFAULT 0.00,
-            `vat_rate` int(11) DEFAULT 0,
-            PRIMARY KEY (`id_detail`),
-            KEY `id_invoice` (`id_invoice`)
+            `quantity` varchar(50) DEFAULT NULL,
+            `unit` varchar(20) DEFAULT NULL,
+            `price_net` varchar(50) DEFAULT NULL,
+            `value_net` varchar(50) DEFAULT NULL,
+            `vat_rate` varchar(20) DEFAULT NULL,
+            `price_gross` varchar(50) DEFAULT NULL,
+            `value_gross` varchar(50) DEFAULT NULL,
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`id_detail`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 10. Analiza (Weryfikacja - Nagłówek)
+        // 10. Analiza
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_analysis` (
             `id_analysis` int(11) NOT NULL AUTO_INCREMENT,
             `id_wholesaler` int(11) NOT NULL,
-            `id_invoice_file` int(11) NOT NULL,
-            `id_order_file` int(11) DEFAULT NULL,
-            `doc_number_invoice` varchar(100) NOT NULL,
-            `doc_number_order` text DEFAULT NULL,
-            `status` varchar(20) DEFAULT "NEW", 
-            `total_diff_net` decimal(20,2) DEFAULT 0.00,
-            `items_match_count` int(11) DEFAULT 0,
-            `items_error_count` int(11) DEFAULT 0,
-            `date_analyzed` datetime NOT NULL,
-            PRIMARY KEY (`id_analysis`),
-            KEY `id_invoice_file` (`id_invoice_file`),
-            KEY `id_wholesaler` (`id_wholesaler`)
+            `doc_number_invoice` varchar(100) DEFAULT NULL,
+            `source_orders` text DEFAULT NULL,
+            `summary` text DEFAULT NULL,
+            `is_ok` tinyint(1) DEFAULT 0,
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`id_analysis`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        // 11. Analiza (Różnice - Diff)
+        // 11. Różnice analizy
         $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_analysis_diff` (
             `id_diff` int(11) NOT NULL AUTO_INCREMENT,
             `id_analysis` int(11) NOT NULL,
@@ -187,6 +185,7 @@ class AzadaInstaller
             `id_category_map` int(11) NOT NULL AUTO_INCREMENT,
             `source_table` varchar(64) NOT NULL,
             `source_category` varchar(255) NOT NULL,
+            `source_type` varchar(16) NOT NULL DEFAULT \'category\',
             `ps_category_ids` text DEFAULT NULL,
             `id_category_default` int(11) DEFAULT 0,
             `is_active` tinyint(1) NOT NULL DEFAULT 0,
@@ -249,6 +248,7 @@ class AzadaInstaller
             `id_category_map` int(11) NOT NULL AUTO_INCREMENT,
             `source_table` varchar(64) NOT NULL,
             `source_category` varchar(255) NOT NULL,
+            `source_type` varchar(16) NOT NULL DEFAULT \'category\',
             `ps_category_ids` text DEFAULT NULL,
             `id_category_default` int(11) DEFAULT 0,
             `is_active` tinyint(1) NOT NULL DEFAULT 0,
@@ -259,7 +259,21 @@ class AzadaInstaller
             KEY `idx_default_category` (`id_category_default`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        return Db::getInstance()->execute($sql);
+        $ok = Db::getInstance()->execute($sql);
+        if (!$ok) {
+            return false;
+        }
+
+        $table = _DB_PREFIX_ . 'azada_wholesaler_pro_category_map';
+        $hasSourceType = (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='" . pSQL($table) . "' AND COLUMN_NAME='source_type'"
+        );
+        if (!$hasSourceType) {
+            Db::getInstance()->execute("ALTER TABLE `" . bqSQL($table) . "` ADD COLUMN `source_type` varchar(16) NOT NULL DEFAULT 'category' AFTER `source_category`");
+            Db::getInstance()->execute("UPDATE `" . bqSQL($table) . "` SET source_type='category' WHERE source_type='' OR source_type IS NULL");
+        }
+
+        return true;
     }
 
     public static function uninstallDatabase()
