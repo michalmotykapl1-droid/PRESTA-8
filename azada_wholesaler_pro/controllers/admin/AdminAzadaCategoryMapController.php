@@ -1,6 +1,7 @@
 <?php
 
 require_once(dirname(__FILE__) . '/../../classes/services/AzadaInstaller.php');
+require_once(dirname(__FILE__) . '/../../classes/services/AzadaCategoryMapEditModalRenderer.php');
 
 class AdminAzadaCategoryMapController extends ModuleAdminController
 {
@@ -80,6 +81,11 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
 
     public function initContent()
     {
+        if ($this->isEditModalAjaxRequest()) {
+            $this->ajaxRenderEditModal();
+            return;
+        }
+
         parent::initContent();
 
         $this->postProcess();
@@ -87,10 +93,6 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         $content = '';
         $content .= $this->renderToolbarPanel();
         $content .= $this->renderMappingsList();
-
-        if (Tools::getIsset('edit_mapping')) {
-            $content .= $this->renderEditForm((int)Tools::getValue('edit_mapping'));
-        }
 
         $this->context->smarty->assign('content', $content);
     }
@@ -105,6 +107,30 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         if (Tools::isSubmit('submitAzadaCategoryMapSave')) {
             $this->saveMapping();
         }
+    }
+
+    private function isEditModalAjaxRequest()
+    {
+        return (bool)Tools::getValue('ajax') && Tools::getValue('action') === 'getEditModal';
+    }
+
+    private function ajaxRenderEditModal()
+    {
+        $idMapping = (int)Tools::getValue('id_category_map', 0);
+        if ($idMapping <= 0) {
+            $idMapping = (int)Tools::getValue('edit_mapping', 0);
+        }
+
+        if ($idMapping <= 0) {
+            die('<div class="alert alert-danger">' . $this->l('Nieprawidłowe ID mapowania.') . '</div>');
+        }
+
+        die($this->renderEditModalContent($idMapping));
+    }
+
+    public function ajaxProcessGetEditModal()
+    {
+        $this->ajaxRenderEditModal();
     }
 
     private function renderToolbarPanel()
@@ -166,7 +192,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
                 $categoriesHtml .= '<td>' . htmlspecialchars($this->prettyWholesalerName($row['source_table']), ENT_QUOTES, 'UTF-8') . '</td>';
                 $categoriesHtml .= '<td style="text-align:center;">' . $statusHtml . '</td>';
                 $categoriesHtml .= '<td style="text-align:center;">';
-                $categoriesHtml .= '<a class="btn btn-default" href="' . htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8') . '">';
+                $categoriesHtml .= '<a class="btn btn-default js-azada-edit" href="' . htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8') . '" data-edit-url="' . htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8') . '">';
                 $categoriesHtml .= '<i class="icon-pencil"></i> ' . $this->l('Edytuj');
                 $categoriesHtml .= '</a>';
                 $categoriesHtml .= '</td>';
@@ -199,6 +225,8 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         $html .= '<div class="' . $producersPaneActive . '">' . $producersHtml . '</div>';
         $html .= '</div>';
         $html .= '</div>';
+
+        $html .= $this->renderEditModalShell();
 
         return $html;
     }
@@ -720,7 +748,14 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         ];
     }
 
-    private function renderEditForm($idMapping)
+    private function renderEditModalShell()
+    {
+        $renderer = new AzadaCategoryMapEditModalRenderer($this);
+
+        return $renderer->renderShell($this->token, (int)Tools::getValue('edit_mapping'));
+    }
+
+    private function renderEditModalContent($idMapping)
     {
         $row = $this->getMappingById($idMapping);
         if (!$row) {
@@ -748,59 +783,17 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
                 . '</option>';
         }
 
-        $actionUrl = $this->buildFilterAwareUrl(['edit_mapping' => (int)$idMapping]);
+        $renderer = new AzadaCategoryMapEditModalRenderer($this);
 
-        $html = '<div class="panel">';
-        $html .= '<h3><i class="icon-edit"></i> ' . $this->l('Edycja mapowania kategorii') . '</h3>';
-        $html .= '<form method="post" action="' . htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8') . '">';
-        $html .= '<input type="hidden" name="id_category_map" value="' . (int)$idMapping . '" />';
-
-        $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->l('Kategoria hurtowni') . '</label>';
-        $html .= '<input type="text" class="form-control" disabled value="' . htmlspecialchars($row['source_category'], ENT_QUOTES, 'UTF-8') . '" />';
-        $html .= '</div>';
-
-        $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->l('Hurtownia') . '</label>';
-        $html .= '<input type="text" class="form-control" disabled value="' . htmlspecialchars($this->prettyWholesalerName($row['source_table']), ENT_QUOTES, 'UTF-8') . '" />';
-        $html .= '</div>';
-
-        $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->l('Kategorie w sklepie (drzewo)') . '</label>';
-        $html .= '<div style="max-height:430px; overflow:auto; border:1px solid #d3d8db; padding:10px; background:#fff;">' . $treeHtml . '</div>';
-        $html .= '<p class="help-block">' . $this->l('Możesz zaznaczyć wiele kategorii sklepu.') . '</p>';
-        $html .= '</div>';
-
-        $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->l('Kategoria domyślna') . '</label>';
-        $html .= '<select name="id_category_default" class="form-control">' . $categoryOptions . '</select>';
-        $html .= '</div>';
-
-        $isEnabled = (int)$row['is_active'] === 1;
-        $html .= '<div class="form-group">';
-        $html .= '<label class="control-label">' . $this->l('Import aktywny') . '</label>';
-        $html .= '<div class="switch prestashop-switch fixed-width-lg">';
-        $html .= '<input type="radio" name="is_active" id="is_active_on" value="1" ' . ($isEnabled ? 'checked="checked"' : '') . ' />';
-        $html .= '<label for="is_active_on">' . $this->l('Tak') . '</label>';
-        $html .= '<input type="radio" name="is_active" id="is_active_off" value="0" ' . (!$isEnabled ? 'checked="checked"' : '') . ' />';
-        $html .= '<label for="is_active_off">' . $this->l('Nie') . '</label>';
-        $html .= '<a class="slide-button btn"></a>';
-        $html .= '</div>';
-        $html .= '</div>';
-
-        $html .= '<div class="panel-footer">';
-        $html .= '<button type="submit" name="submitAzadaCategoryMapSave" class="btn btn-primary pull-right">';
-        $html .= '<i class="process-icon-save"></i> ' . $this->l('Zapisz');
-        $html .= '</button>';
-        $html .= '<a href="' . htmlspecialchars($this->buildFilterAwareUrl(), ENT_QUOTES, 'UTF-8') . '" class="btn btn-default">';
-        $html .= '<i class="process-icon-cancel"></i> ' . $this->l('Anuluj');
-        $html .= '</a>';
-        $html .= '</div>';
-
-        $html .= '</form>';
-        $html .= '</div>';
-
-        return $html;
+        return $renderer->renderContent(
+            (int)$idMapping,
+            (string)$row['source_category'],
+            $this->prettyWholesalerName($row['source_table']),
+            $treeHtml,
+            $categoryOptions,
+            ((int)$row['is_active'] === 1),
+            $this->buildFilterAwareUrl(['azada_tab' => 'categories'])
+        );
     }
 
     private function saveMapping()
