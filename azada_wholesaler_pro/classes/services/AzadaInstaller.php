@@ -188,6 +188,7 @@ class AzadaInstaller
             `source_type` varchar(16) NOT NULL DEFAULT \'category\',
             `ps_category_ids` text DEFAULT NULL,
             `id_category_default` int(11) DEFAULT 0,
+            `category_markup_percent` decimal(10,2) NOT NULL DEFAULT 0.00,
             `is_active` tinyint(1) NOT NULL DEFAULT 0,
             `date_add` datetime NOT NULL,
             `date_upd` datetime NOT NULL,
@@ -251,6 +252,7 @@ class AzadaInstaller
             `source_type` varchar(16) NOT NULL DEFAULT \'category\',
             `ps_category_ids` text DEFAULT NULL,
             `id_category_default` int(11) DEFAULT 0,
+            `category_markup_percent` decimal(10,2) NOT NULL DEFAULT 0.00,
             `is_active` tinyint(1) NOT NULL DEFAULT 0,
             `date_add` datetime NOT NULL,
             `date_upd` datetime NOT NULL,
@@ -259,18 +261,26 @@ class AzadaInstaller
             KEY `idx_default_category` (`id_category_default`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
-        $ok = Db::getInstance()->execute($sql);
-        if (!$ok) {
+        if (!Db::getInstance()->execute($sql)) {
             return false;
         }
 
         $table = _DB_PREFIX_ . 'azada_wholesaler_pro_category_map';
+
         $hasSourceType = (bool)Db::getInstance()->getValue(
             "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='" . pSQL($table) . "' AND COLUMN_NAME='source_type'"
         );
         if (!$hasSourceType) {
             Db::getInstance()->execute("ALTER TABLE `" . bqSQL($table) . "` ADD COLUMN `source_type` varchar(16) NOT NULL DEFAULT 'category' AFTER `source_category`");
-            Db::getInstance()->execute("UPDATE `" . bqSQL($table) . "` SET source_type='category' WHERE source_type='' OR source_type IS NULL");
+        }
+
+        Db::getInstance()->execute("UPDATE `" . bqSQL($table) . "` SET source_type='category' WHERE source_type='' OR source_type IS NULL");
+
+        $hasCategoryMarkupPercent = (bool)Db::getInstance()->getValue(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='" . pSQL($table) . "' AND COLUMN_NAME='category_markup_percent'"
+        );
+        if (!$hasCategoryMarkupPercent) {
+            Db::getInstance()->execute("ALTER TABLE `" . bqSQL($table) . "` ADD COLUMN `category_markup_percent` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `id_category_default`");
         }
 
         return true;

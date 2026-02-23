@@ -36,7 +36,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $this->filterStatus = 'all';
         }
 
-        $allowedSortBy = ['id', 'source_category', 'default_category_name', 'source_table', 'import'];
+$allowedSortBy = ['id', 'source_category', 'default_category_name', 'source_table', 'category_markup_percent', 'import'];
         $this->sortBy = trim((string)Tools::getValue('azada_sort', 'source_category'));
         if (!in_array($this->sortBy, $allowedSortBy, true)) {
             $this->sortBy = 'source_category';
@@ -171,6 +171,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $categoriesHtml .= $this->renderSortableHeader($this->l('Kategoria hurtowni'), 'source_category');
             $categoriesHtml .= $this->renderSortableHeader($this->l('Kategoria w sklepie'), 'default_category_name', 'width:220px;');
             $categoriesHtml .= $this->renderSortableHeader($this->l('Nazwa hurtowni'), 'source_table', 'width:190px;');
+	$categoriesHtml .= $this->renderSortableHeader($this->l('Narzut kat. (%)'), 'category_markup_percent', 'width:130px; text-align:right;');
             $categoriesHtml .= $this->renderSortableHeader($this->l('Import'), 'import', 'width:90px; text-align:center;');
             $categoriesHtml .= '<th style="width:170px; text-align:center;">' . $this->l('Akcja') . '</th>';
             $categoriesHtml .= '</tr></thead><tbody>';
@@ -190,6 +191,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
                 $categoriesHtml .= '<td>' . htmlspecialchars($row['source_category'], ENT_QUOTES, 'UTF-8') . '</td>';
                 $categoriesHtml .= '<td>' . htmlspecialchars($mappedName, ENT_QUOTES, 'UTF-8') . '</td>';
                 $categoriesHtml .= '<td>' . htmlspecialchars($this->prettyWholesalerName($row['source_table']), ENT_QUOTES, 'UTF-8') . '</td>';
+	$categoriesHtml .= '<td style="text-align:right;">' . number_format((float)$row['category_markup_percent'], 2, ',', '') . '%</td>';
                 $categoriesHtml .= '<td style="text-align:center;">' . $statusHtml . '</td>';
                 $categoriesHtml .= '<td style="text-align:center;">';
                 $categoriesHtml .= '<a class="btn btn-default js-azada-edit" href="' . htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8') . '" data-edit-url="' . htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8') . '">';
@@ -277,6 +279,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             'source_table' => $this->l('Sortuj: hurtownia'),
             'default_category_name' => $this->l('Sortuj: kategoria sklepu'),
             'id' => $this->l('Sortuj: ID'),
+	'category_markup_percent' => $this->l('Sortuj: narzut kategorii'),
             'import' => $this->l('Sortuj: import'),
         ];
         foreach ($sortOptions as $value => $label) {
@@ -647,6 +650,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             'source_category' => 'm.source_category',
             'default_category_name' => 'cl.name',
             'source_table' => 'm.source_table',
+	'category_markup_percent' => 'm.category_markup_percent',
             'import' => 'm.is_active',
         ];
 
@@ -667,7 +671,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
 
         $offset = ($this->page - 1) * $this->perPage;
 
-        $sql = 'SELECT m.id_category_map, m.source_table, m.source_category, m.id_category_default, m.is_active, cl.name AS default_category_name
+       $sql = 'SELECT m.id_category_map, m.source_table, m.source_category, m.id_category_default, m.category_markup_percent, m.is_active, cl.name AS default_category_name
                 FROM `' . _DB_PREFIX_ . 'azada_wholesaler_pro_category_map` m
                 LEFT JOIN `' . _DB_PREFIX_ . 'category_lang` cl
                     ON cl.id_category = m.id_category_default AND cl.id_lang = ' . (int)$idLang . '
@@ -684,6 +688,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             if (!isset($row['default_category_name']) || trim((string)$row['default_category_name']) === '') {
                 $row['default_category_name'] = '-';
             }
+    $row['category_markup_percent'] = isset($row['category_markup_percent']) ? (float)$row['category_markup_percent'] : 0.00;
         }
 
         return [
@@ -769,6 +774,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
 
         $selectedCategories = $this->decodeCategoryIds($row['ps_category_ids']);
         $idDefault = (int)$row['id_category_default'];
+$categoryMarkupPercent = isset($row['category_markup_percent']) ? (float)$row['category_markup_percent'] : 0.00;
 
         $tree = new HelperTreeCategories('azada_category_map_tree_' . $idMapping);
         $tree->setRootCategory((int)Category::getRootCategory()->id)
@@ -822,6 +828,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $this->prettyWholesalerName($row['source_table']),
             $treeHtml,
             $categoryOptions,
+	 $categoryMarkupPercent,
             ((int)$row['is_active'] === 1),
             $this->buildFilterAwareUrl(['azada_tab' => 'categories']),
             $categoryLabelsById,
@@ -839,6 +846,12 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
 
         $selectedClean = $this->extractPostedCategoryIds();
         $idDefault = (int)Tools::getValue('id_category_default', 0);
+  $categoryMarkupPercent = (float)Tools::getValue('category_markup_percent', 0);
+        if ($categoryMarkupPercent < -99.99) {
+            $categoryMarkupPercent = -99.99;
+        } elseif ($categoryMarkupPercent > 9999.99) {
+            $categoryMarkupPercent = 9999.99;
+        }
         $isActive = (int)Tools::getValue('is_active', 1) === 1 ? 1 : 0;
 
         if ($idDefault > 0 && !in_array($idDefault, $selectedClean, true)) {
@@ -855,6 +868,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         $ok = Db::getInstance()->update('azada_wholesaler_pro_category_map', [
             'ps_category_ids' => pSQL(json_encode($selectedClean)),
             'id_category_default' => (int)$idDefault,
+	 'category_markup_percent' => (float)$categoryMarkupPercent,
             'is_active' => (int)$isActive,
             'date_upd' => date('Y-m-d H:i:s'),
         ], 'id_category_map=' . (int)$id);
@@ -1035,7 +1049,7 @@ private function extractPostedCategoryIds()
                     $sourceType = (string)$sourceEntry['type'];
 
                     $existing = $db->getRow(
-                        "SELECT id_category_map, source_type, id_category_default, ps_category_ids
+                        "SELECT id_category_map, source_type, id_category_default, ps_category_ids, category_markup_percent
                          FROM `" . _DB_PREFIX_ . "azada_wholesaler_pro_category_map`
                          WHERE source_table='" . pSQL($sourceTable) . "' AND source_category='" . pSQL($sourceCategory) . "'"
                     );
@@ -1067,6 +1081,7 @@ private function extractPostedCategoryIds()
                         'source_type' => pSQL($sourceType),
                         'ps_category_ids' => pSQL('[]'),
                         'id_category_default' => 0,
+	'category_markup_percent' => 0.00,
                         'is_active' => 0,
                         'date_add' => date('Y-m-d H:i:s'),
                         'date_upd' => date('Y-m-d H:i:s'),
