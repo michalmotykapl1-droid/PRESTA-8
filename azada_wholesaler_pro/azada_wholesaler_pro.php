@@ -32,13 +32,18 @@ class Azada_Wholesaler_Pro extends Module
         $this->displayName = $this->l('INTEGRACJA HURTOWNI PRO');
         $this->description = $this->l('Zaawansowany system integracji B2B + Weryfikacja Faktur.');
         $this->confirmUninstall = $this->l('Czy na pewno chcesz usunąć moduł?');
+
+        if ($this->id && !$this->isRegisteredInHook('actionObjectProductAddAfter')) {
+            $this->registerHook('actionObjectProductAddAfter');
+        }
     }
 
     public function install()
     {
         return parent::install() &&
             AzadaInstaller::installDatabase() &&
-            AzadaTabInstaller::installTabs($this->name); // <-- Używamy nowej klasy
+            AzadaTabInstaller::installTabs($this->name) &&
+            $this->registerHook('actionObjectProductAddAfter'); // <-- Używamy nowej klasy
     }
 
     public function uninstall()
@@ -55,6 +60,43 @@ class Azada_Wholesaler_Pro extends Module
     public static function ensureVerificationTab()
     {
         return AzadaTabInstaller::installTabs('azada_wholesaler_pro');
+    }
+
+
+    public function hookActionObjectProductAddAfter($params)
+    {
+        AzadaInstaller::ensureProductOriginTable();
+
+        if (!Tools::getValue('azada_manual_create')) {
+            return;
+        }
+
+        if (empty($params['object']) || !($params['object'] instanceof Product)) {
+            return;
+        }
+
+        $product = $params['object'];
+        $idProduct = (int)$product->id;
+        if ($idProduct <= 0) {
+            return;
+        }
+
+        $sourceTable = trim((string)Tools::getValue('azada_source_table', ''));
+        $ean = trim((string)Tools::getValue('azada_ean', ''));
+        $sku = trim((string)Tools::getValue('azada_sku', ''));
+
+        $db = Db::getInstance();
+        $table = _DB_PREFIX_ . 'azada_wholesaler_pro_product_origin';
+
+        $db->execute('DELETE FROM `' . bqSQL($table) . '` WHERE `id_product` = ' . (int)$idProduct);
+        $db->insert('azada_wholesaler_pro_product_origin', [
+            'id_product' => (int)$idProduct,
+            'source_table' => pSQL($sourceTable),
+            'ean13' => pSQL($ean),
+            'reference' => pSQL($sku),
+            'created_by_module' => 1,
+            'date_add' => date('Y-m-d H:i:s'),
+        ]);
     }
 
     public function getContent()

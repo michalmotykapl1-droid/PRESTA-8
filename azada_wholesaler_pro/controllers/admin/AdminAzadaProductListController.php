@@ -9,6 +9,7 @@ class AdminAzadaProductListController extends ModuleAdminController
     private $globalSearchQuery = '';
     private $onlyMinimalQty = false;
     private $onlyInStock = false;
+    private $productCreatedFilter = 'all';
 
     public function __construct()
     {
@@ -20,6 +21,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $this->globalSearchQuery = trim((string)Tools::getValue('azada_q', ''));
         $this->onlyMinimalQty = (Tools::getValue('azada_only_min_qty', '0') === '1');
         $this->onlyInStock = (Tools::getValue('azada_only_in_stock', '0') === '1');
+        $this->productCreatedFilter = $this->normalizeCreatedFilter(Tools::getValue('azada_product_created', 'all'));
 
         $this->buildGlobalSearchIndexTable();
 
@@ -97,6 +99,16 @@ class AdminAzadaProductListController extends ModuleAdminController
         }
 
         return array_values($this->availableRawTables);
+    }
+
+    private function normalizeCreatedFilter($raw)
+    {
+        $value = strtolower(trim((string)$raw));
+        if (!in_array($value, ['all', 'created', 'created_module', 'created_other', 'missing'], true)) {
+            return 'all';
+        }
+
+        return $value;
     }
 
     private function buildGlobalSearchIndexTable()
@@ -195,6 +207,7 @@ class AdminAzadaProductListController extends ModuleAdminController
 
         $this->applyListFilters($existing);
         $this->prepareRequiredOzSupport($existing);
+        $this->prepareProductCreationSupport($existing);
         $this->applyGlobalSearchFilter($existing);
 
         $preferredOrder = [
@@ -203,6 +216,7 @@ class AdminAzadaProductListController extends ModuleAdminController
             'nazwa',
             'kod_kreskowy',
             'produkt_id',
+            'azada_ps_created',
             'marka',
             'kategoria',
             'jednostkapodstawowa',
@@ -212,13 +226,18 @@ class AdminAzadaProductListController extends ModuleAdminController
             'cenaporabacienetto',
             'vat',
             'LinkDoProduktu',
+            'azada_manual_create',
             'data_aktualizacji',
         ];
 
         $this->fields_list = [];
+        $virtualFields = [
+            'azada_ps_created' => true,
+            'azada_manual_create' => true,
+        ];
 
         foreach ($preferredOrder as $field) {
-            if (!isset($existing[$field])) {
+            if (!isset($existing[$field]) && !isset($virtualFields[$field])) {
                 continue;
             }
 
@@ -244,7 +263,6 @@ class AdminAzadaProductListController extends ModuleAdminController
                 'havingFilter' => true,
             ];
         }
-
         if ($field === 'zdjecieglownelinkurl') {
             return [
                 'title' => 'FOTO',
@@ -294,6 +312,16 @@ class AdminAzadaProductListController extends ModuleAdminController
             $base['title'] = 'Marka';
             $base['width'] = 120;
             return $base;
+        }
+
+        if ($field === 'azada_ps_created') {
+            return [
+                'title' => 'W Presta',
+                'align' => 'center',
+                'callback' => 'displayCreatedStatus',
+                'width' => 95,
+                'havingFilter' => true,
+            ];
         }
 
         if ($field === 'jednostkapodstawowa') {
@@ -365,6 +393,17 @@ class AdminAzadaProductListController extends ModuleAdminController
             ];
         }
 
+        if ($field === 'azada_manual_create') {
+            return [
+                'title' => 'Akcja',
+                'align' => 'center',
+                'callback' => 'displayManualCreateAction',
+                'search' => false,
+                'havingFilter' => false,
+                'width' => 145,
+            ];
+        }
+
         if ($field === 'data_aktualizacji') {
             return [
                 'title' => 'Aktualizacja',
@@ -392,6 +431,52 @@ class AdminAzadaProductListController extends ModuleAdminController
         $this->_select .= ', a.`ilosc_w_opakowaniu`';
     }
 
+    private function prepareProductCreationSupport(array $existing)
+    {
+        if (!isset($existing['kod_kreskowy']) && !isset($existing['produkt_id'])) {
+            return;
+        }
+
+        $joinSql = $this->buildProductMatchJoinSql();
+        if (trim((string)$this->_join) === '') {
+            $this->_join = $joinSql;
+        } else {
+            $this->_join .= ' ' . $joinSql;
+        }
+
+        $idSql = 'COALESCE(pe.`id_product`, pr.`id_product`)';
+        $createdSql = '(CASE WHEN ' . $idSql . ' IS NOT NULL THEN 1 ELSE 0 END)';
+
+        $originJoin = "LEFT JOIN `" . bqSQL(_DB_PREFIX_ . 'azada_wholesaler_pro_product_origin') . "` apo ON (apo.`id_product` = " . $idSql . ")";
+        $this->_join .= ' ' . $originJoin;
+
+        if (trim((string)$this->_select) === '') {
+            $this->_select = "$createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, IFNULL(apo.`created_by_module`, 0) AS `azada_ps_created_module`, '' AS `azada_manual_create`";
+            return;
+        }
+
+        $this->_select .= ", $createdSql AS `azada_ps_created`, $idSql AS `azada_ps_id_product`, IFNULL(apo.`created_by_module`, 0) AS `azada_ps_created_module`, '' AS `azada_manual_create`";
+    }
+
+    private function buildProductMatchJoinSql()
+    {
+        $productTable = _DB_PREFIX_ . 'product';
+        $productTableEscaped = bqSQL($productTable);
+
+        return "LEFT JOIN ("
+            . "SELECT p.`ean13`, MIN(p.`id_product`) AS `id_product` "
+            . "FROM `{$productTableEscaped}` p "
+            . "WHERE TRIM(IFNULL(p.`ean13`, '')) <> '' "
+            . "GROUP BY p.`ean13`"
+            . ") pe ON pe.`ean13` = a.`kod_kreskowy` "
+            . "LEFT JOIN ("
+            . "SELECT p.`reference`, MIN(p.`id_product`) AS `id_product` "
+            . "FROM `{$productTableEscaped}` p "
+            . "WHERE TRIM(IFNULL(p.`reference`, '')) <> '' "
+            . "GROUP BY p.`reference`"
+            . ") pr ON pr.`reference` = a.`produkt_id`";
+    }
+
     private function applyListFilters(array $existing)
     {
         $conditions = [];
@@ -410,6 +495,18 @@ class AdminAzadaProductListController extends ModuleAdminController
 
         if ($this->onlyInStock && isset($existing['NaStanie'])) {
             $conditions[] = "LOWER(REPLACE(TRIM(NaStanie), ' ', '')) = 'true'";
+        }
+
+        if ($this->productCreatedFilter === 'created') {
+            $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
+        } elseif ($this->productCreatedFilter === 'created_module') {
+            $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
+            $conditions[] = 'IFNULL(apo.`created_by_module`, 0) = 1';
+        } elseif ($this->productCreatedFilter === 'created_other') {
+            $conditions[] = '(pe.`id_product` IS NOT NULL OR pr.`id_product` IS NOT NULL)';
+            $conditions[] = 'IFNULL(apo.`created_by_module`, 0) = 0';
+        } elseif ($this->productCreatedFilter === 'missing') {
+            $conditions[] = '(pe.`id_product` IS NULL AND pr.`id_product` IS NULL)';
         }
 
         if (!empty($conditions)) {
@@ -437,7 +534,6 @@ class AdminAzadaProductListController extends ModuleAdminController
             $this->_where .= ' AND (' . implode(' OR ', $conditions) . ')';
         }
     }
-
     public function displayWholesalerName($value, $row)
     {
         return $this->getWholesalerDisplayName((string)$value);
@@ -515,6 +611,92 @@ class AdminAzadaProductListController extends ModuleAdminController
         return 'min (' . rtrim(rtrim(number_format((float)$packQty, 2, '.', ''), '0'), '.') . ')';
     }
 
+    public function displayCreatedStatus($value, $row)
+    {
+        $isCreated = (int)$value === 1;
+        if (!$isCreated) {
+            return '<span class="badge badge-warning" style="background:#f39c12; color:white;">Brak</span>';
+        }
+
+        $isCreatedByModule = isset($row['azada_ps_created_module']) && (int)$row['azada_ps_created_module'] === 1;
+        if ($isCreatedByModule) {
+            return '<span class="badge badge-success" style="background:#2ecc71; color:white;">Utw. moduł</span>';
+        }
+
+        return '<span class="badge badge-info" style="background:#5bc0de; color:white;">Utw. poza modułem</span>';
+    }
+
+    public function displayManualCreateAction($value, $row)
+    {
+        $idProduct = isset($row['azada_ps_id_product']) ? (int)$row['azada_ps_id_product'] : 0;
+        if ($idProduct > 0) {
+            $editUrl = $this->buildAdminProductEditUrl($idProduct);
+            return '<a href="'.$editUrl.'" class="btn btn-default btn-xs" target="_blank">Edytuj</a>';
+        }
+
+        $createUrl = $this->buildAdminProductCreateUrl($row);
+        return '<a href="'.$createUrl.'" class="btn btn-primary btn-xs" target="_blank">Dodaj ręcznie</a>';
+    }
+
+    private function buildAdminProductEditUrl($idProduct)
+    {
+        $idProduct = (int)$idProduct;
+        if ($idProduct <= 0) {
+            return $this->buildAdminProductCreateUrl([]);
+        }
+
+        $baseUrl = $this->context->link->getAdminLink('AdminProducts', true);
+        $parts = parse_url($baseUrl);
+
+        if (isset($parts['path']) && strpos($parts['path'], '/sell/catalog/products') !== false) {
+            $path = rtrim($parts['path'], '/') . '/' . $idProduct;
+            $query = isset($parts['query']) && $parts['query'] !== '' ? '?' . $parts['query'] : '';
+            return $path . $query;
+        }
+
+        return $this->context->link->getAdminLink('AdminProducts', true, [], [
+            'id_product' => $idProduct,
+            'updateproduct' => 1,
+        ]);
+    }
+
+    private function buildAdminProductCreateUrl(array $row)
+    {
+        $sourceTable = isset($row['source_table']) ? trim((string)$row['source_table']) : '';
+        $ean = isset($row['kod_kreskowy']) ? trim((string)$row['kod_kreskowy']) : '';
+        $sku = isset($row['produkt_id']) ? trim((string)$row['produkt_id']) : '';
+
+        $trackingParams = [
+            'azada_manual_create' => 1,
+            'azada_source_table' => $sourceTable,
+            'azada_ean' => $ean,
+            'azada_sku' => $sku,
+        ];
+
+        $baseUrl = $this->context->link->getAdminLink('AdminProducts', true);
+        $parts = parse_url($baseUrl);
+
+        if (isset($parts['path']) && strpos($parts['path'], '/sell/catalog/products') !== false) {
+            $path = rtrim($parts['path'], '/') . '/new';
+            $queryParts = [];
+            if (isset($parts['query']) && $parts['query'] !== '') {
+                parse_str($parts['query'], $parsed);
+                if (is_array($parsed)) {
+                    $queryParts = $parsed;
+                }
+            }
+
+            $queryParts = array_merge($queryParts, $trackingParams);
+            $query = http_build_query($queryParts);
+
+            return $path . ($query !== '' ? '?' . $query : '');
+        }
+
+        return $this->context->link->getAdminLink('AdminProducts', true, [], array_merge([
+            'addproduct' => 1,
+        ], $trackingParams));
+    }
+
     public function renderList()
     {
         $baseAction = self::$currentIndex . '&token=' . $this->token;
@@ -522,6 +704,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $query = htmlspecialchars($this->globalSearchQuery, ENT_QUOTES, 'UTF-8');
         $isMinQtyChecked = $this->onlyMinimalQty ? ' checked="checked"' : '';
         $isInStockChecked = $this->onlyInStock ? ' checked="checked"' : '';
+        $createdFilterEscaped = htmlspecialchars($this->productCreatedFilter, ENT_QUOTES, 'UTF-8');
 
         $html = '';
 
@@ -532,6 +715,7 @@ class AdminAzadaProductListController extends ModuleAdminController
         $html .= '<input type="hidden" name="token" value="'.htmlspecialchars($this->token, ENT_QUOTES, 'UTF-8').'" />';
         $html .= '<input type="hidden" name="azada_only_min_qty" value="'.($this->onlyMinimalQty ? '1' : '0').'" />';
         $html .= '<input type="hidden" name="azada_only_in_stock" value="'.($this->onlyInStock ? '1' : '0').'" />';
+        $html .= '<input type="hidden" name="azada_product_created" value="'.$createdFilterEscaped.'" />';
         $html .= '<div class="form-group" style="margin-right:10px;">';
         $html .= '<input type="text" name="azada_q" value="'.$query.'" class="form-control" style="min-width:420px;" placeholder="Szukaj we wszystkich hurtowniach: nazwa, EAN, SKU, marka..." />';
         $html .= '</div>';
@@ -562,6 +746,16 @@ class AdminAzadaProductListController extends ModuleAdminController
         $html .= '</label>';
         $html .= '<label class="checkbox" style="font-weight:600; margin:0;">';
         $html .= '<input type="checkbox" name="azada_only_in_stock" value="1"'.$isInStockChecked.' style="margin-right:10px;" /> Tylko produkty dostępne Na stanie TRUE';
+        $html .= '</label>';
+        $html .= '<label style="font-weight:600; margin:0; display:flex; align-items:center; gap:10px;">';
+        $html .= '<span>Status w Presta:</span>';
+        $html .= '<select name="azada_product_created" class="form-control" style="min-width:170px;">';
+        $html .= '<option value="all"'.($this->productCreatedFilter === 'all' ? ' selected="selected"' : '').'>Wszystkie</option>';
+        $html .= '<option value="created"'.($this->productCreatedFilter === 'created' ? ' selected="selected"' : '').'>Utworzone (wszystkie)</option>';
+        $html .= '<option value="created_module"'.($this->productCreatedFilter === 'created_module' ? ' selected="selected"' : '').'>Utworzone w module</option>';
+        $html .= '<option value="created_other"'.($this->productCreatedFilter === 'created_other' ? ' selected="selected"' : '').'>Utworzone poza modułem</option>';
+        $html .= '<option value="missing"'.($this->productCreatedFilter === 'missing' ? ' selected="selected"' : '').'>Brak</option>';
+        $html .= '</select>';
         $html .= '</label>';
         $html .= '</div>';
         $html .= '<div class="form-group" style="margin-bottom:12px;">';

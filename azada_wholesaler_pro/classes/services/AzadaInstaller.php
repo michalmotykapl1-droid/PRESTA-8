@@ -178,6 +178,23 @@ class AzadaInstaller
             KEY `id_analysis` (`id_analysis`)
         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
 
+
+        // 12. Pochodzenie produktów utworzonych przez moduł
+        $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_product_origin` (
+            `id_origin` int(11) NOT NULL AUTO_INCREMENT,
+            `id_product` int(11) NOT NULL,
+            `source_table` varchar(64) DEFAULT NULL,
+            `ean13` varchar(64) DEFAULT NULL,
+            `reference` varchar(64) DEFAULT NULL,
+            `created_by_module` tinyint(1) NOT NULL DEFAULT 1,
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`id_origin`),
+            UNIQUE KEY `uniq_id_product` (`id_product`),
+            KEY `idx_source_table` (`source_table`),
+            KEY `idx_ean13` (`ean13`),
+            KEY `idx_reference` (`reference`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
+
         foreach ($sql as $query) {
             if (!Db::getInstance()->execute($query)) {
                 return false;
@@ -185,6 +202,27 @@ class AzadaInstaller
         }
 
         return true;
+    }
+
+
+    public static function ensureProductOriginTable()
+    {
+        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'azada_wholesaler_pro_product_origin` (
+            `id_origin` int(11) NOT NULL AUTO_INCREMENT,
+            `id_product` int(11) NOT NULL,
+            `source_table` varchar(64) DEFAULT NULL,
+            `ean13` varchar(64) DEFAULT NULL,
+            `reference` varchar(64) DEFAULT NULL,
+            `created_by_module` tinyint(1) NOT NULL DEFAULT 1,
+            `date_add` datetime NOT NULL,
+            PRIMARY KEY (`id_origin`),
+            UNIQUE KEY `uniq_id_product` (`id_product`),
+            KEY `idx_source_table` (`source_table`),
+            KEY `idx_ean13` (`ean13`),
+            KEY `idx_reference` (`reference`)
+        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
+
+        return Db::getInstance()->execute($sql);
     }
 
     public static function uninstallDatabase()
@@ -202,7 +240,8 @@ class AzadaInstaller
             'azada_wholesaler_pro_invoice_files',
             'azada_wholesaler_pro_invoice_details',
             'azada_wholesaler_pro_analysis',
-            'azada_wholesaler_pro_analysis_diff'
+            'azada_wholesaler_pro_analysis_diff',
+            'azada_wholesaler_pro_product_origin'
         ];
 
         foreach ($tables as $table) {
