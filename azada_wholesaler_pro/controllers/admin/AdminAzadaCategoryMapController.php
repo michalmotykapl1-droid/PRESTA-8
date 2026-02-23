@@ -752,7 +752,12 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
     {
         $renderer = new AzadaCategoryMapEditModalRenderer($this);
 
-        return $renderer->renderShell($this->token, (int)Tools::getValue('edit_mapping'));
+        return $renderer->renderShell($this->token, (int)Tools::getValue('edit_mapping'), [
+            'loading' => $this->l('Ładowanie formularza...'),
+            'error' => $this->l('Nie udało się pobrać formularza edycji.'),
+            'close' => $this->l('Zamknij'),
+            'title' => $this->l('Edycja mapowania kategorii'),
+        ]);
     }
 
     private function renderEditModalContent($idMapping)
@@ -769,9 +774,17 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         $tree->setRootCategory((int)Category::getRootCategory()->id)
             ->setUseCheckBox(true)
             ->setUseSearch(true)
-            ->setUseToolbar(true)
+
             ->setSelectedCategories($selectedCategories)
             ->setInputName('ps_categories[]');
+  if (method_exists($tree, 'setUseToolbar')) {
+            $tree->setUseToolbar(true);
+        } elseif (method_exists($tree, 'useToolbar')) {
+            $tree->useToolbar(true);
+        } elseif (method_exists($tree, 'setToolbar')) {
+            $tree->setToolbar(true);
+        }
+
 
         $treeHtml = $tree->render();
 
@@ -792,7 +805,19 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $treeHtml,
             $categoryOptions,
             ((int)$row['is_active'] === 1),
-            $this->buildFilterAwareUrl(['azada_tab' => 'categories'])
+            $this->buildFilterAwareUrl(['azada_tab' => 'categories']),
+            [
+                'source_category' => $this->l('Kategoria hurtowni'),
+                'wholesaler' => $this->l('Hurtownia'),
+                'shop_categories_tree' => $this->l('Kategorie w sklepie (drzewo)'),
+                'tree_help' => $this->l('Możesz zaznaczyć wiele kategorii sklepu. Przypisanie zostanie zapisane w bazie i użyte w kolejnych synchronizacjach.'),
+                'default_category' => $this->l('Kategoria domyślna'),
+                'import_active' => $this->l('Import aktywny'),
+                'yes' => $this->l('Tak'),
+                'no' => $this->l('Nie'),
+                'cancel' => $this->l('Anuluj'),
+                'save' => $this->l('Zapisz przypisanie'),
+            ]
         );
     }
 

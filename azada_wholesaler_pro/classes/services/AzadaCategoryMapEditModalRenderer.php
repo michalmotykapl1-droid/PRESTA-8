@@ -12,9 +12,9 @@ class AzadaCategoryMapEditModalRenderer
 
     public function renderShell($token, $autoEditId)
     {
-        $loadingLabel = $this->controller->l('Ładowanie formularza...');
-        $errorLabel = $this->controller->l('Nie udało się pobrać formularza edycji.');
-        $closeLabel = $this->controller->l('Zamknij');
+        $loadingLabel = $this->translate('Ładowanie formularza...');
+        $errorLabel = $this->translate('Nie udało się pobrać formularza edycji.');
+        $closeLabel = $this->translate('Zamknij');
         $modalAjaxEndpoint = AdminController::$currentIndex . '&token=' . $token . '&ajax=1&action=getEditModal';
 
         $html = '<div class="modal fade" id="azadaCategoryEditModal" tabindex="-1" role="dialog" aria-hidden="true">';
@@ -22,7 +22,7 @@ class AzadaCategoryMapEditModalRenderer
         $html .= '<div class="modal-content">';
         $html .= '<div class="modal-header">';
         $html .= '<button type="button" class="close" data-dismiss="modal" aria-label="' . $this->escape($closeLabel) . '"><span aria-hidden="true">&times;</span></button>';
-        $html .= '<h4 class="modal-title"><i class="icon-edit"></i> ' . $this->controller->l('Edycja mapowania kategorii') . '</h4>';
+        $html .= '<h4 class="modal-title"><i class="icon-edit"></i> ' . $this->translate('Edycja mapowania kategorii') . '</h4>';
         $html .= '</div>';
         $html .= '<div class="modal-body" id="azadaCategoryEditModalBody">';
         $html .= '<div class="text-center" style="padding:18px; color:#7f8c8d;"><i class="icon-refresh icon-spin"></i> ' . $loadingLabel . '</div>';
@@ -68,7 +68,7 @@ class AzadaCategoryMapEditModalRenderer
         return $html;
     }
 
-    public function renderContent($idMapping, $sourceCategory, $wholesalerName, $treeHtml, $categoryOptionsHtml, $isEnabled, $actionUrl)
+    public function renderContent($idMapping, $sourceCategory, $wholesalerName, $treeHtml, $categoryOptionsHtml, $isEnabled, $actionUrl, array $categoryLabelsById)
     {
         $html = '<form method="post" action="' . $this->escape($actionUrl) . '">';
         $html .= '<input type="hidden" name="id_category_map" value="' . (int)$idMapping . '" />';
@@ -76,40 +76,41 @@ class AzadaCategoryMapEditModalRenderer
         $html .= '<div class="row">';
         $html .= '<div class="col-md-6">';
         $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->controller->l('Kategoria hurtowni') . '</label>';
+        $html .= '<label>' . $this->translate('Kategoria hurtowni') . '</label>';
         $html .= '<input type="text" class="form-control" disabled value="' . $this->escape($sourceCategory) . '" />';
         $html .= '</div>';
         $html .= '</div>';
         $html .= '<div class="col-md-6">';
         $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->controller->l('Hurtownia') . '</label>';
+        $html .= '<label>' . $this->translate('Hurtownia') . '</label>';
         $html .= '<input type="text" class="form-control" disabled value="' . $this->escape($wholesalerName) . '" />';
         $html .= '</div>';
         $html .= '</div>';
         $html .= '</div>';
 
         $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->controller->l('Kategorie w sklepie (drzewo)') . '</label>';
+        $html .= '<label>' . $this->translate('Kategorie w sklepie (drzewo)') . '</label>';
         $html .= '<div class="azada-tree-wrap">' . $treeHtml . '</div>';
-        $html .= '<p class="help-block">' . $this->controller->l('Możesz zaznaczyć wiele kategorii sklepu. Przypisanie zostanie zapisane w bazie i użyte w kolejnych synchronizacjach.') . '</p>';
+        $html .= '<p class="help-block">' . $this->translate('Możesz zaznaczyć wiele kategorii sklepu. Przypisanie zostanie zapisane w bazie i użyte w kolejnych synchronizacjach.') . '</p>';
+        $html .= '<p class="help-block text-primary js-azada-selected-count" style="font-weight:600;"></p>';
         $html .= '</div>';
 
         $html .= '<div class="row">';
         $html .= '<div class="col-md-6">';
         $html .= '<div class="form-group">';
-        $html .= '<label>' . $this->controller->l('Kategoria domyślna') . '</label>';
+        $html .= '<label>' . $this->translate('Kategoria domyślna') . '</label>';
         $html .= '<select name="id_category_default" class="form-control">' . $categoryOptionsHtml . '</select>';
         $html .= '</div>';
         $html .= '</div>';
 
         $html .= '<div class="col-md-6">';
         $html .= '<div class="form-group">';
-        $html .= '<label class="control-label">' . $this->controller->l('Import aktywny') . '</label>';
+        $html .= '<label class="control-label">' . $this->translate('Import aktywny') . '</label>';
         $html .= '<div class="switch prestashop-switch fixed-width-lg" style="margin-top:6px;">';
         $html .= '<input type="radio" name="is_active" id="is_active_on" value="1" ' . ($isEnabled ? 'checked="checked"' : '') . ' />';
-        $html .= '<label for="is_active_on">' . $this->controller->l('Tak') . '</label>';
+        $html .= '<label for="is_active_on">' . $this->translate('Tak') . '</label>';
         $html .= '<input type="radio" name="is_active" id="is_active_off" value="0" ' . (!$isEnabled ? 'checked="checked"' : '') . ' />';
-        $html .= '<label for="is_active_off">' . $this->controller->l('Nie') . '</label>';
+        $html .= '<label for="is_active_off">' . $this->translate('Nie') . '</label>';
         $html .= '<a class="slide-button btn"></a>';
         $html .= '</div>';
         $html .= '</div>';
@@ -117,13 +118,129 @@ class AzadaCategoryMapEditModalRenderer
         $html .= '</div>';
 
         $html .= '<div class="azada-modal-actions">';
-        $html .= '<button type="button" class="btn btn-default" data-dismiss="modal"><i class="icon-remove"></i> ' . $this->controller->l('Anuluj') . '</button>';
-        $html .= '<button type="submit" name="submitAzadaCategoryMapSave" class="btn btn-primary"><i class="icon-save"></i> ' . $this->controller->l('Zapisz przypisanie') . '</button>';
+        $html .= '<button type="button" class="btn btn-default" data-dismiss="modal"><i class="icon-remove"></i> ' . $this->translate('Anuluj') . '</button>';
+        $html .= '<button type="submit" name="submitAzadaCategoryMapSave" class="btn btn-primary"><i class="icon-save"></i> ' . $this->translate('Zapisz przypisanie') . '</button>';
         $html .= '</div>';
 
         $html .= '</form>';
 
+        $html .= '<script>';
+        $html .= '(function($){';
+        $html .= 'var labelsById = ' . json_encode($categoryLabelsById) . ';';
+        $html .= 'var countLabelTemplate = ' . json_encode($this->translate('Przypisano do %d kategorii sklepu.')) . ';';
+        $html .= 'var $modal = $("#azadaCategoryEditModal");';
+        $html .= 'var $form = $modal.find("form");';
+        $html .= 'if (!$form.length) { return; }';
+        $html .= 'var $defaultSelect = $form.find("select[name=\\"id_category_default\\"]");';
+        $html .= 'var $countInfo = $form.find(".js-azada-selected-count");';
+        $html .= 'var checkboxSelector = ".azada-tree-wrap input[type=\\"checkbox\\"]";';
+        $html .= 'var categoryCheckboxSelector = "input[name=\\"ps_categories[]\\"]";';
+        $html .= 'var manualDefaultOverride = false;';
+        $html .= 'function parseNumeric(value){';
+        $html .= 'var text = String(value || "");';
+        $html .= 'if (!text) { return 0; }';
+        $html .= 'if (/^\\d+$/.test(text)) { return parseInt(text, 10); }';
+        $html .= 'var bracketMatch = text.match(/\\[(\\d+)\\]/);';
+        $html .= 'if (bracketMatch) { return parseInt(bracketMatch[1], 10); }';
+        $html .= 'var matches = text.match(/(\\d+)/g);';
+        $html .= 'if (!matches || !matches.length) { return 0; }';
+        $html .= 'return parseInt(matches[matches.length - 1], 10) || 0;';
+        $html .= '}';
+        $html .= 'function extractNumericId($checkbox){';
+        $html .= 'var candidates = [';
+        $html .= '$checkbox.val(),';
+        $html .= '$checkbox.attr("data-id-category"),';
+        $html .= '$checkbox.attr("data-id_category"),';
+        $html .= '$checkbox.attr("data-id"),';
+        $html .= '$checkbox.attr("name"),';
+        $html .= '$checkbox.attr("id")';
+        $html .= '];';
+        $html .= 'var $li = $checkbox.closest("li");';
+        $html .= 'if ($li.length) {';
+        $html .= 'candidates.push($li.attr("data-id-category"));';
+        $html .= 'candidates.push($li.attr("data-id_category"));';
+        $html .= 'candidates.push($li.attr("data-id"));';
+        $html .= 'candidates.push($li.attr("id"));';
+        $html .= '}';
+        $html .= 'for (var i = 0; i < candidates.length; i++) {';
+        $html .= 'var parsed = parseNumeric(candidates[i]);';
+        $html .= 'if (parsed > 0) { return parsed; }';
+        $html .= '}';
+        $html .= 'return 0;';
+        $html .= '}';
+        $html .= 'function extractLabelFromCheckbox($checkbox, fallbackId){';
+        $html .= 'if (labelsById[fallbackId]) { return labelsById[fallbackId]; }';
+        $html .= 'var $li = $checkbox.closest("li");';
+        $html .= 'if ($li.length) {';
+        $html .= 'var text = $.trim($li.text());';
+        $html .= 'if (text) { return text.replace(/\\s+/g, " "); }';
+        $html .= '}';
+        $html .= 'return "ID: " + String(fallbackId);';
+        $html .= '}';
+        $html .= 'function selectedCategoryData(){';
+        $html .= 'var items = [];';
+        $html .= 'var seen = {};';
+        $html .= 'var $checked = $form.find(categoryCheckboxSelector + ":checked");';
+        $html .= 'if (!$checked.length) {';
+        $html .= '$checked = $form.find(checkboxSelector + ":checked");';
+        $html .= '}';
+        $html .= '$checked.each(function(){';
+        $html .= 'var $cb = $(this);';
+        $html .= 'var id = extractNumericId($cb);';
+        $html .= 'if (id <= 0 || seen[id]) { return; }';
+        $html .= 'seen[id] = true;';
+        $html .= 'items.push({ id: id, label: extractLabelFromCheckbox($cb, id) });';
+        $html .= '});';
+        $html .= 'return items;';
+        $html .= '}';
+        $html .= 'function renderCountInfo(total){';
+        $html .= 'if (!$countInfo.length) { return; }';
+        $html .= '$countInfo.text(countLabelTemplate.replace("%d", String(total)));';
+        $html .= '}';
+        $html .= 'function rebuildDefaultCategories(){';
+        $html .= 'if (!$defaultSelect.length) { return; }';
+        $html .= 'var selectedItems = selectedCategoryData();';
+        $html .= 'var selectedIds = $.map(selectedItems, function(item){ return item.id; });';
+        $html .= 'var currentValue = parseInt($defaultSelect.val(), 10) || 0;';
+        $html .= 'var currentStillValid = selectedIds.indexOf(currentValue) !== -1;';
+        $html .= 'var html = "<option value=\\"0\\">-</option>";';
+        $html .= '$.each(selectedItems, function(_, item){';
+        $html .= 'html += "<option value=\\"" + item.id + "\\">" + $("<div>").text(item.label).html() + "</option>";';
+        $html .= '});';
+        $html .= '$defaultSelect.html(html);';
+        $html .= 'if (selectedIds.length === 0) {';
+        $html .= '$defaultSelect.val("0");';
+        $html .= 'manualDefaultOverride = false;';
+        $html .= '} else if (manualDefaultOverride && currentStillValid) {';
+        $html .= '$defaultSelect.val(String(currentValue));';
+        $html .= '} else {';
+        $html .= '$defaultSelect.val(String(selectedIds[0]));';
+        $html .= '}';
+        $html .= 'renderCountInfo(selectedIds.length);';
+        $html .= '}';
+        $html .= '$defaultSelect.off("change.azadaDefaultManual").on("change.azadaDefaultManual", function(){';
+        $html .= 'manualDefaultOverride = true;';
+        $html .= '});';
+        $html .= '$form.off("change.azadaDefaultSync", checkboxSelector).on("change.azadaDefaultSync", checkboxSelector, function(){';
+        $html .= 'if (!selectedCategoryData().length) {';
+        $html .= 'manualDefaultOverride = false;';
+        $html .= '}';
+        $html .= 'setTimeout(rebuildDefaultCategories, 25);';
+        $html .= '});';
+        $html .= 'rebuildDefaultCategories();';
+        $html .= '})(jQuery);';
+        $html .= '</script>';
+
         return $html;
+    }
+
+    private function translate($message)
+    {
+        if (isset($this->controller->module) && is_object($this->controller->module) && method_exists($this->controller->module, 'l')) {
+            return (string)$this->controller->module->l($message);
+        }
+
+        return (string)$message;
     }
 
     private function escape($value)
