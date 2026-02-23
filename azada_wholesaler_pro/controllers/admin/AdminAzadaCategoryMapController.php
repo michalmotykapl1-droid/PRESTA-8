@@ -837,20 +837,7 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             return;
         }
 
-        $selected = Tools::getValue('ps_categories', []);
-        if (!is_array($selected)) {
-            $selected = [];
-        }
-
-        $selectedClean = [];
-        foreach ($selected as $categoryId) {
-            $categoryId = (int)$categoryId;
-            if ($categoryId > 0) {
-                $selectedClean[$categoryId] = $categoryId;
-            }
-        }
-        $selectedClean = array_values($selectedClean);
-
+        $selectedClean = $this->extractPostedCategoryIds();
         $idDefault = (int)Tools::getValue('id_category_default', 0);
         $isActive = (int)Tools::getValue('is_active', 1) === 1 ? 1 : 0;
 
@@ -878,7 +865,67 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $this->errors[] = $this->l('Nie udało się zapisać mapowania kategorii.');
         }
     }
+private function extractPostedCategoryIds()
+    {
+        $keys = [
+            'ps_categories',
+            'categoryBox',
+            'checkBoxShopAsso_category',
+            'checkBoxShopAsso_categories',
+        ];
 
+        $selectedClean = [];
+
+        foreach ($keys as $key) {
+            $rawValue = Tools::getValue($key, []);
+            if (!is_array($rawValue)) {
+                $rawValue = [$rawValue];
+            }
+
+            foreach ($rawValue as $rawCategory) {
+                foreach ($this->parsePostedCategoryRawValue($rawCategory) as $categoryId) {
+                    if ($categoryId > 0) {
+                        $selectedClean[$categoryId] = $categoryId;
+                    }
+                }
+            }
+        }
+
+        return array_values($selectedClean);
+    }
+
+    private function parsePostedCategoryRawValue($rawValue)
+    {
+        if (is_array($rawValue)) {
+            $ids = [];
+            foreach ($rawValue as $childValue) {
+                $ids = array_merge($ids, $this->parsePostedCategoryRawValue($childValue));
+            }
+
+            return $ids;
+        }
+
+        $text = trim((string)$rawValue);
+        if ($text === '') {
+            return [];
+        }
+
+        if (preg_match('/^\d+$/', $text)) {
+            return [(int)$text];
+        }
+
+        preg_match_all('/\d+/', $text, $matches);
+        if (empty($matches[0])) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($matches[0] as $match) {
+            $ids[] = (int)$match;
+        }
+
+        return $ids;
+    }
     private function getMappingById($idMapping)
     {
         $sql = 'SELECT * FROM `' . _DB_PREFIX_ . 'azada_wholesaler_pro_category_map` WHERE id_category_map=' . (int)$idMapping;
