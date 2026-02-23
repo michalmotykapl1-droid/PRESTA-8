@@ -22,6 +22,7 @@ class BillingEntryRepository
             `offer_id` VARCHAR(64) NULL,
             `offer_name` VARCHAR(512) NULL,
             `order_id` VARCHAR(64) NULL,
+            `payment_id` VARCHAR(64) NULL,
             `value_amount` DECIMAL(20,2) NOT NULL DEFAULT 0.00,
             `value_currency` VARCHAR(3) NOT NULL DEFAULT 'PLN',
             `balance_amount` DECIMAL(20,2) NULL,
@@ -35,6 +36,7 @@ class BillingEntryRepository
             UNIQUE KEY `uniq_billing_entry` (`billing_entry_id`),
             KEY `idx_acc_date` (`id_allegropro_account`,`occurred_at`),
             KEY `idx_order_id` (`order_id`),
+            KEY `idx_payment_id` (`payment_id`),
             KEY `idx_offer_id` (`offer_id`)
         ) ENGINE={$engine} DEFAULT CHARSET=utf8mb4;";
 
@@ -55,6 +57,9 @@ class BillingEntryRepository
             $alter = [];
             if (empty($have['order_id'])) {
                 $alter[] = 'ADD COLUMN `order_id` VARCHAR(64) NULL';
+            }
+            if (empty($have['payment_id'])) {
+                $alter[] = 'ADD COLUMN `payment_id` VARCHAR(64) NULL';
             }
 	        // Used by settlements Step 2 to mark if order details are already complete.
 	        if (empty($have['order_filled'])) {
@@ -97,7 +102,10 @@ class BillingEntryRepository
 	        if (empty($haveIdx['idx_acc_filled_date'])) {
 	            Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_filled_date` (`id_allegropro_account`,`order_filled`,`occurred_at`)');
 	        }
-	        if (empty($haveIdx['idx_acc_filled_order'])) {
+	        if (empty($haveIdx['idx_payment_id'])) {
+                Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_payment_id` (`payment_id`)');
+            }
+if (empty($haveIdx['idx_acc_filled_order'])) {
 	            Db::getInstance()->execute('ALTER TABLE `' . bqSQL($p . 'allegropro_billing_entry') . '` ADD KEY `idx_acc_filled_order` (`id_allegropro_account`,`order_filled`,`order_id`)');
 	        }
             if (empty($haveIdx['idx_acc_err_date'])) {
@@ -153,7 +161,7 @@ class BillingEntryRepository
         $existingMap = [];
         if (!empty($idsSql)) {
             $sql = 'SELECT id_allegropro_billing_entry, billing_entry_id, id_allegropro_account, occurred_at, '
-                . 'type_id, type_name, offer_id, offer_name, order_id, '
+                . 'type_id, type_name, offer_id, offer_name, order_id, payment_id, '
                 . 'value_amount, value_currency, balance_amount, balance_currency, tax_percentage, tax_annotation, raw_json '
                 . 'FROM `' . _DB_PREFIX_ . 'allegropro_billing_entry` '
                 . 'WHERE billing_entry_id IN (' . implode(',', $idsSql) . ')';
@@ -191,6 +199,9 @@ class BillingEntryRepository
 	    $orderIdRaw = $this->extractOrderId($e);
 	    $orderId = pSQL($orderIdRaw);
 
+            $paymentIdRaw = $this->extractPaymentId($e);
+            $paymentId = pSQL($paymentIdRaw);
+
             $valAmount = (float)($e['value']['amount'] ?? 0);
             $valCurrency = pSQL((string)($e['value']['currency'] ?? 'PLN'));
             $balAmount = isset($e['balance']['amount']) ? (float)$e['balance']['amount'] : null;
@@ -215,6 +226,8 @@ class BillingEntryRepository
 	                'offer_id' => $offerIdRaw !== '' ? $offerId : null,
 	                'offer_name' => $offerNameRaw !== '' ? $offerName : null,
 	                'order_id' => $orderIdRaw !== '' ? $orderId : null,
+                    'payment_id' => $paymentIdRaw !== '' ? $paymentId : null,
+                    'payment_id' => $paymentIdRaw !== '' ? $paymentId : null,
                     'value_amount' => (float)$valAmount,
                     'value_currency' => $valCurrency ?: 'PLN',
                     'balance_amount' => $balAmount,
@@ -426,6 +439,31 @@ class BillingEntryRepository
             }
         }
 
+
+        // 5) details.* (często Allegro chowa orderId w szczegółach)
+        if (!empty($e['details']) && is_array($e['details'])) {
+            $d = $e['details'];
+
+            if (!empty($d['order']) && is_array($d['order'])) {
+                $orderId = (string)($d['order']['id'] ?? $d['order']['checkoutFormId'] ?? $d['order']['checkout_form_id'] ?? '');
+                if ($orderId !== '') {
+                    return $orderId;
+                }
+            }
+
+            $orderId = (string)($d['orderId'] ?? $d['order_id'] ?? $d['checkoutFormId'] ?? $d['checkout_form_id'] ?? '');
+            if ($orderId !== '') {
+                return $orderId;
+            }
+
+            if (!empty($d['checkoutForm']) && is_array($d['checkoutForm'])) {
+                $orderId = (string)($d['checkoutForm']['id'] ?? $d['checkoutForm']['checkoutFormId'] ?? $d['checkoutForm']['checkout_form_id'] ?? '');
+                if ($orderId !== '') {
+                    return $orderId;
+                }
+            }
+        }
+
         return '';
     }
 
@@ -434,7 +472,63 @@ class BillingEntryRepository
 	 * Some entry types (delivery/smart/fees) may not have an offer at all.
 	 * @return array{0:string,1:string}
 	 */
-	private function extractOfferIdName(array $e): array
+	
+
+/**
+ * Try to extract Allegro payment id from multiple possible shapes.
+ */
+private function extractPaymentId(array $e): string
+{
+    // Most common: payment: { id: "..." }
+    if (!empty($e['payment']) && is_array($e['payment'])) {
+        $pid = (string)($e['payment']['id'] ?? '');
+        if ($pid !== '') {
+            return $pid;
+        }
+    }
+
+    // Sometimes nested in details
+    if (!empty($e['details']) && is_array($e['details'])) {
+        $d = $e['details'];
+        if (!empty($d['payment']) && is_array($d['payment'])) {
+            $pid = (string)($d['payment']['id'] ?? '');
+            if ($pid !== '') {
+                return $pid;
+            }
+        }
+        $pid = (string)($d['paymentId'] ?? $d['payment_id'] ?? '');
+        if ($pid !== '') {
+            return $pid;
+        }
+    }
+
+// Alternate keys
+    $pid = (string)($e['paymentId'] ?? $e['payment_id'] ?? '');
+    if ($pid !== '') {
+        return $pid;
+    }
+
+    // Sometimes nested in additionalInfo
+    if (!empty($e['additionalInfo']) && is_array($e['additionalInfo'])) {
+        foreach ($e['additionalInfo'] as $ai) {
+            if (!is_array($ai)) {
+                continue;
+            }
+            $type = strtolower((string)($ai['type'] ?? ''));
+            $val = (string)($ai['value'] ?? '');
+            if ($val === '') {
+                continue;
+            }
+            if (in_array($type, ['paymentid', 'payment_id', 'payment.id', 'payment'], true)) {
+                return $val;
+            }
+        }
+    }
+
+    return '';
+}
+
+private function extractOfferIdName(array $e): array
 	{
 	    $id = '';
 	    $name = '';
@@ -620,7 +714,94 @@ class BillingEntryRepository
         return Db::getInstance()->executeS($sql) ?: [];
     }
 
-    public function countUnassigned(int $accountId, string $dateFrom, string $dateTo): int
+    
+/**
+ * Dla wpisów billing, które mają payment_id, ale nie mają order_id:
+ * przypisz order_id na podstawie payment_id (użyteczne gdy Allegro w niektórych operacjach podaje tylko payment.id).
+ * Zwraca liczbę zaktualizowanych rekordów.
+ */
+public function attachOrderIdByPayment(int $accountId, string $paymentId, string $orderId): int
+{
+    $paymentId = trim($paymentId);
+    $orderId = trim($orderId);
+    if ($accountId <= 0 || $paymentId === '' || $orderId === '') {
+        return 0;
+    }
+
+    $now = pSQL(date('Y-m-d H:i:s'));
+    $sql = "UPDATE `" . _DB_PREFIX_ . "allegropro_billing_entry`
+            SET order_id='" . pSQL($orderId) . "', updated_at='" . $now . "'
+            WHERE id_allegropro_account=" . (int)$accountId . "
+              AND (order_id IS NULL OR order_id='')
+              AND payment_id='" . pSQL($paymentId) . "'";
+    Db::getInstance()->execute($sql);
+    return (int)Db::getInstance()->Affected_Rows();
+}
+
+
+/**
+ * Próba dopięcia order_id do wpisów billing na podstawie raw_json (gdy Allegro nie wystawiło order_id/payment_id w przewidywanym polu).
+ * Aktualizuje tylko rekordy z pustym order_id, w zakresie dat i dla danego konta.
+ *
+ * @param int $accountId
+ * @param string $canonicalOrderId checkoutFormId, który chcemy przypisać
+ * @param string[] $candidates warianty identyfikatora do wyszukania w raw_json
+ * @param string $dateFrom YYYY-mm-dd
+ * @param string $dateTo YYYY-mm-dd
+ * @return int liczba zaktualizowanych rekordów
+ */
+public function attachOrderIdByRawJsonCandidates(int $accountId, string $canonicalOrderId, array $candidates, string $dateFrom, string $dateTo): int
+{
+    $canonicalOrderId = trim($canonicalOrderId);
+    if ($accountId <= 0 || $canonicalOrderId === '') {
+        return 0;
+    }
+
+    // zbuduj warianty (bezpiecznie) — dopnij podstawowe transformacje
+    $cand = [];
+    foreach ($candidates as $c) {
+        $c = trim((string)$c);
+        if ($c === '') continue;
+        $cand[$c] = true;
+        $cand[str_replace('_','-',$c)] = true;
+        $cand[str_replace('-','_',$c)] = true;
+        $cand[str_replace(['-','_'], '', $c)] = true;
+        $cand[strtolower($c)] = true;
+        $cand[strtoupper($c)] = true;
+    }
+    $cand = array_keys(array_filter($cand, fn($v) => $v === true));
+    if (empty($cand)) {
+        $cand = [$canonicalOrderId];
+    }
+
+    $likes = [];
+    foreach ($cand as $c) {
+        $likes[] = "raw_json LIKE '%" . pSQL($c) . "%'";
+        if (count($likes) >= 20) { // limit bezpieczeństwa
+            break;
+        }
+    }
+
+    if (empty($likes)) {
+        return 0;
+    }
+
+    $from = pSQL($dateFrom . ' 00:00:00');
+    $to = pSQL($dateTo . ' 23:59:59');
+    $now = pSQL(date('Y-m-d H:i:s'));
+
+    $sql = "UPDATE `" . _DB_PREFIX_ . "allegropro_billing_entry`
+            SET order_id='" . pSQL($canonicalOrderId) . "', updated_at='" . $now . "'
+            WHERE id_allegropro_account=" . (int)$accountId . "
+              AND (order_id IS NULL OR order_id='')
+              AND occurred_at BETWEEN '" . $from . "' AND '" . $to . "'
+              AND (" . implode(' OR ', $likes) . ")";
+    Db::getInstance()->execute($sql);
+    return (int)Db::getInstance()->Affected_Rows();
+}
+
+
+public function countUnassigned(int $accountId, string $dateFrom, string $dateTo): int
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');

@@ -12,6 +12,8 @@ use AllegroPro\Service\BillingSyncService;
 use AllegroPro\Service\OrderFetcher;
 use AllegroPro\Service\SettlementsReportService;
 use AllegroPro\Service\IssuesReportService;
+use AllegroPro\Service\UnassignedBillingReportService;
+use AllegroPro\Service\BillingRawReportService;
 use AllegroPro\Service\OrderEnrichSkipService;
 use AllegroPro\Service\OrderBillingManualSyncService;
 
@@ -48,6 +50,17 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $this->billingRepo = new BillingEntryRepository();
         $this->orderRepo = new OrderRepository();
         $this->enrichSkip = new OrderEnrichSkipService();
+    }
+
+    public function postProcess()
+    {
+        // Eksport CSV: operacje billing (RAW)
+        if ((int)Tools::getValue('export_raw_billing', 0) === 1) {
+            $this->exportRawBillingCsv();
+            exit;
+        }
+
+        parent::postProcess();
     }
 
     public function initContent()
@@ -124,6 +137,16 @@ class AdminAllegroProSettlementsController extends ModuleAdminController
         $mode = in_array($mode, ['billing', 'orders'], true) ? $mode : 'billing';
 
 
+
+
+        // Sortowanie listy zamówień (bezpieczna biała lista zależna od trybu)
+        $sortBy = (string)Tools::getValue('sort_by', 'date');
+        $sortDir = (string)Tools::getValue('sort_dir', 'desc');
+        $sortDir = (strtolower($sortDir) === 'asc') ? 'asc' : 'desc';
+        $allowedSort = ($mode === 'billing') ? ['date','sales','fees','net'] : ['date','sales'];
+        if (!in_array($sortBy, $allowedSort, true)) {
+            $sortBy = 'date';
+        }
 
         $orderState = (string)Tools::getValue('order_state', 'all');
         $orderState = in_array($orderState, ['all', 'paid', 'unpaid', 'cancelled'], true) ? $orderState : 'all';
@@ -234,8 +257,8 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $ordersRows = [];
         if (!empty($selectedAccountIds)) {
             $ordersRows = ($mode === 'billing')
-                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected)
-                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
+                ? $report->getOrdersWithFeesBilling($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected, $sortBy, $sortDir)
+                : $report->getOrdersWithFeesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $perPage, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected, $sortBy, $sortDir);
         }
 
         $billingCount = (!empty($selectedAccountIds) && $mode === 'billing')
@@ -336,6 +359,10 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             . $this->buildFeeTypesQueryString($feeTypesSelected)
             . '&per_page=' . (int)$perPage;
 
+
+        $baseNoSort = $base;
+        $base .= '&sort_by=' . urlencode($sortBy) . '&sort_dir=' . urlencode($sortDir);
+
         $pageLinks = $this->buildPageLinks($base, $page, $pages);
 
         $ordersFrom = $ordersTotal > 0 ? ($offset + 1) : 0;
@@ -346,7 +373,12 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $issuesAllHistory = (int)Tools::getValue('issues_all', 0) ? true : false;
         $issuesRefundMode = (string)Tools::getValue('issues_refund', 'any');
         $issuesRefundMode = in_array($issuesRefundMode, ['any','balance_neg','no_refund'], true) ? $issuesRefundMode : 'any';
-        $issuesLimit = 50;
+        $issuesAllowedPerPage = [25, 50, 100, 200];
+        $issuesPerPage = (int)Tools::getValue('issues_per_page', 50);
+        if (!in_array($issuesPerPage, $issuesAllowedPerPage, true)) {
+            $issuesPerPage = 50;
+        }
+        $issuesPage = max(1, (int)Tools::getValue('issues_page', 1));
         $issuesTotal = 0;
         $issuesSummary = ['orders_count' => 0, 'billing_rows' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0];
         $issuesBreakdown = [
@@ -355,12 +387,20 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'cancelled' => ['orders' => 0, 'fees_neg' => 0.0, 'refunds_pos' => 0.0, 'balance' => 0.0],
         ];
         $issuesRows = [];
+        $issuesPages = 1;
+        $issuesOffset = 0;
+        $issuesFrom = 0;
+        $issuesTo = 0;
+        $issuesPageLinks = [];
         if (!empty($selectedAccountIds)) {
             $issuesSvc = new IssuesReportService($this->billingRepo);
             $issuesTotal = $issuesSvc->countIssuesOrders($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
             $issuesSummary = $issuesSvc->getIssuesSummary($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
             $issuesBreakdown = $issuesSvc->getIssuesBreakdown($selectedAccountIds, $dateFrom, $dateTo, $q, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
-            $issuesRows = $issuesSvc->getIssuesRows($selectedAccountIds, $dateFrom, $dateTo, $q, $issuesLimit, 0, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
+            $issuesPages = (int)max(1, (int)ceil(($issuesTotal ?: 0) / max(1, $issuesPerPage)));
+            if ($issuesPage > $issuesPages) { $issuesPage = $issuesPages; }
+            $issuesOffset = max(0, ($issuesPage - 1) * $issuesPerPage);
+            $issuesRows = $issuesSvc->getIssuesRows($selectedAccountIds, $dateFrom, $dateTo, $q, $issuesPerPage, $issuesOffset, $feeGroup, $feeTypesSelected, $issuesAllHistory, $issuesRefundMode);
 
             // Map account label onto rows
             $accMap = [];
@@ -378,6 +418,20 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             unset($r);
         }
 
+
+        // Paginacja problemów (oddzielna od listy zamówień)
+        $issuesFrom = $issuesTotal > 0 ? ($issuesOffset + 1) : 0;
+        $issuesTo = min($issuesTotal, $issuesOffset + count($issuesRows));
+
+        // base URL dla paginacji problemów (zachowuje wszystkie filtry)
+        $issuesBase = $baseNoSort
+            . '&sort_by=' . urlencode($sortBy) . '&sort_dir=' . urlencode($sortDir)
+            . '&page=' . (int)$page
+            . '&issues_per_page=' . (int)$issuesPerPage
+            . ($issuesAllHistory ? '&issues_all=1' : '')
+            . ($issuesRefundMode !== 'any' ? '&issues_refund=' . urlencode($issuesRefundMode) : '');
+
+        $issuesPageLinks = $this->buildPageLinks($issuesBase, $issuesPage, $issuesPages, 'issues_page');
 
         $this->context->smarty->assign([
             'accounts' => $accounts,
@@ -404,7 +458,13 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'orders_from' => (int)$ordersFrom,
             'orders_to' => (int)$ordersTo,
             'issues_total' => (int)$issuesTotal,
-            'issues_limit' => (int)$issuesLimit,
+            'issues_per_page' => (int)$issuesPerPage,
+            'issues_page' => (int)$issuesPage,
+            'issues_pages' => (int)$issuesPages,
+            'issues_from' => (int)$issuesFrom,
+            'issues_to' => (int)$issuesTo,
+            'issues_page_links' => $issuesPageLinks,
+            'issues_limit' => (int)$issuesPerPage,
             'issues_summary' => $issuesSummary,
             'issues_breakdown' => $issuesBreakdown,
             'issues_rows' => $issuesRows,
@@ -413,6 +473,10 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
             'page' => (int)$page,
             'pages' => (int)$pages,
             'per_page' => (int)$perPage,
+            'sort_by' => $sortBy,
+            'sort_dir' => $sortDir,
+            'orders_base_nosort' => $baseNoSort,
+            'admin_orders_link' => $this->context->link->getAdminLink('AdminOrders'),
             'page_links' => $pageLinks,
             'billing_count' => (int)$billingCount,
             'settlements_link' => $this->context->link->getAdminLink('AdminAllegroProSettlements'),
@@ -582,6 +646,209 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
     }
 
     /**
+     * AJAX: lista operacji nieprzypisanych do zamówienia (order_id NULL/empty).
+     * URL: ...&ajax=1&action=UnassignedList&id_allegropro_account[]=...&date_from=...&date_to=...&q=...&sign=any|neg|pos&page=1&per_page=50
+     */
+    public function ajaxProcessUnassignedList(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        // multi-account
+        $rawAcc = Tools::getValue('id_allegropro_account', []);
+        if (!is_array($rawAcc)) {
+            $rawAcc = [$rawAcc];
+        }
+        $accountIds = [];
+        foreach ($rawAcc as $v) {
+            $id = (int)$v;
+            if ($id > 0) {
+                $accountIds[$id] = $id;
+            }
+        }
+        $accountIds = array_values($accountIds);
+
+        $dateFrom = $this->sanitizeYmd((string)Tools::getValue('date_from', '')) ?: date('Y-m-01');
+        $dateTo = $this->sanitizeYmd((string)Tools::getValue('date_to', '')) ?: date('Y-m-d');
+        $q = trim((string)Tools::getValue('q', ''));
+        $sign = (string)Tools::getValue('sign', 'any');
+
+        $allowedPerPage = [25, 50, 100, 200];
+        $perPage = (int)Tools::getValue('per_page', 50);
+        if (!in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 50;
+        }
+        $page = max(1, (int)Tools::getValue('page', 1));
+
+        if (empty($accountIds)) {
+            $this->ajaxDie(json_encode(['ok' => 0, 'error' => 'Brak konta.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+
+        // fee filters (z URL) — spójne z widokiem
+        $feeGroup = (string)Tools::getValue('fee_group', '');
+        $allowedFeeGroups = ['', 'commission', 'delivery', 'smart', 'promotion', 'refunds', 'other'];
+        if (!in_array($feeGroup, $allowedFeeGroups, true)) {
+            $feeGroup = '';
+        }
+
+        $feeTypesSelected = Tools::getValue('fee_type', []);
+        if (!is_array($feeTypesSelected)) {
+            $feeTypesSelected = [$feeTypesSelected];
+        }
+        $feeTypesSelectedClean = [];
+        foreach ($feeTypesSelected as $t) {
+            $t = trim((string)$t);
+            if ($t === '') {
+                continue;
+            }
+            if (Tools::strlen($t) > 160) {
+                $t = Tools::substr($t, 0, 160);
+            }
+            $feeTypesSelectedClean[$t] = $t;
+            if (count($feeTypesSelectedClean) >= 80) {
+                break;
+            }
+        }
+        $feeTypesSelected = array_values($feeTypesSelectedClean);
+
+        // ensure schema
+        $this->billingRepo->ensureSchema();
+
+        $svc = new UnassignedBillingReportService($this->billingRepo);
+        $data = $svc->getUnassignedPage($accountIds, $dateFrom, $dateTo, $q, $sign, $page, $perPage, $feeGroup, $feeTypesSelected);
+
+        // Map account labels
+        $accMap = [];
+        foreach ($this->accounts->all() as $a) {
+            $aid = (int)($a['id_allegropro_account'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            $accMap[$aid] = (string)($a['label'] ?? $a['allegro_login'] ?? ('#' . $aid));
+        }
+        foreach (($data['items'] ?? []) as &$r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            $r['account_label'] = $accMap[$aid] ?? ('#' . $aid);
+        }
+        unset($r);
+
+        $this->ajaxDie(json_encode(['ok' => 1, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * AJAX: pełna lista operacji billing (RAW).
+     * URL: ...&ajax=1&action=BillingRawList
+     */
+    public function ajaxProcessBillingRawList(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $rawAcc = Tools::getValue('id_allegropro_account', []);
+        if (!is_array($rawAcc)) {
+            $rawAcc = [$rawAcc];
+        }
+        $accountIds = [];
+        foreach ($rawAcc as $v) {
+            $id = (int)$v;
+            if ($id > 0) {
+                $accountIds[$id] = $id;
+            }
+        }
+        $accountIds = array_values($accountIds);
+
+        if (empty($accountIds)) {
+            $this->ajaxDie(json_encode(['ok' => 0, 'error' => 'Brak konta.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
+
+        $dateFrom = $this->sanitizeYmd((string)Tools::getValue('date_from', '')) ?: date('Y-m-01');
+        $dateTo = $this->sanitizeYmd((string)Tools::getValue('date_to', '')) ?: date('Y-m-d');
+
+        $rawQ = trim((string)Tools::getValue('raw_q', ''));
+        $rawQ = Tools::substr($rawQ, 0, 140);
+
+        $sign = (string)Tools::getValue('raw_sign', 'any');
+        $assigned = (string)Tools::getValue('raw_assigned', 'any');
+        $orderState = (string)Tools::getValue('order_state', 'all');
+
+        $sortBy = (string)Tools::getValue('raw_sort_by', 'date');
+        $sortDir = (string)Tools::getValue('raw_sort_dir', 'desc');
+
+        $allowedPerPage = [25, 50, 100, 200, 500];
+        $perPage = (int)Tools::getValue('raw_per_page', 50);
+        if (!in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 50;
+        }
+        $page = max(1, (int)Tools::getValue('raw_page', 1));
+
+        // fee filters
+        $feeGroup = (string)Tools::getValue('fee_group', '');
+        $allowedFeeGroups = ['', 'commission', 'delivery', 'smart', 'promotion', 'refunds', 'other'];
+        if (!in_array($feeGroup, $allowedFeeGroups, true)) {
+            $feeGroup = '';
+        }
+
+        $feeTypesSelected = Tools::getValue('fee_type', []);
+        if (!is_array($feeTypesSelected)) {
+            $feeTypesSelected = [$feeTypesSelected];
+        }
+        $feeTypesSelectedClean = [];
+        foreach ($feeTypesSelected as $t) {
+            $t = trim((string)$t);
+            if ($t === '') {
+                continue;
+            }
+            if (Tools::strlen($t) > 160) {
+                $t = Tools::substr($t, 0, 160);
+            }
+            $feeTypesSelectedClean[$t] = $t;
+            if (count($feeTypesSelectedClean) >= 120) {
+                break;
+            }
+        }
+        $feeTypesSelected = array_values($feeTypesSelectedClean);
+
+        // ensure schema
+        $this->billingRepo->ensureSchema();
+
+        $svc = new BillingRawReportService($this->billingRepo);
+        $data = $svc->getPage(
+            $accountIds,
+            $dateFrom,
+            $dateTo,
+            $rawQ,
+            $sign,
+            $assigned,
+            $orderState,
+            $page,
+            $perPage,
+            $sortBy,
+            $sortDir,
+            $feeGroup,
+            $feeTypesSelected
+        );
+
+        // Map account labels
+        $accMap = [];
+        foreach ($this->accounts->all() as $a) {
+            $aid = (int)($a['id_allegropro_account'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            $accMap[$aid] = (string)($a['label'] ?? $a['allegro_login'] ?? ('#' . $aid));
+        }
+        foreach (($data['items'] ?? []) as &$r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            $r['account_label'] = $accMap[$aid] ?? ('#' . $aid);
+        }
+        unset($r);
+
+        $this->ajaxDie(json_encode([
+            'ok' => 1,
+            'data' => $data,
+            'admin_orders_link' => $this->context->link->getAdminLink('AdminOrders'),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
      * AJAX: ręczne pobranie billing-entries pod zakładkę "Rozliczenia Allegro" w szczegółach zamówienia.
      * URL: ...&ajax=1&action=syncOrderBilling
      * POST: id_allegropro_account, checkout_form_id, date_from, date_to, force_update
@@ -595,7 +862,30 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $checkoutFormId = trim((string)Tools::getValue('checkout_form_id', ''));
         $dateFrom = $this->sanitizeYmd((string)Tools::getValue('date_from', ''));
         $dateTo = $this->sanitizeYmd((string)Tools::getValue('date_to', ''));
+        $rangeKind = (string)Tools::getValue('range_kind', 'narrow');
+        $rangeKind = in_array($rangeKind, ['narrow', 'wide'], true) ? $rangeKind : 'narrow';
+
+        // Optional: both ranges for debug / diagnostics
+        $dateFromNarrow = $this->sanitizeYmd((string)Tools::getValue('date_from_narrow', '')) ?: $dateFrom;
+        $dateToNarrow = $this->sanitizeYmd((string)Tools::getValue('date_to_narrow', '')) ?: $dateTo;
+        $dateFromWide = $this->sanitizeYmd((string)Tools::getValue('date_from_wide', '')) ?: $dateFrom;
+        $dateToWide = $this->sanitizeYmd((string)Tools::getValue('date_to_wide', '')) ?: $dateTo;
         $forceUpdate = (int)Tools::getValue('force_update', 0) ? true : false;
+        $debugMode = (int)Tools::getValue('debug', 0) ? true : false;
+
+        // ISO (selected range)
+        $isoFrom = $this->toIsoStart($dateFrom ?: date('Y-m-d'));
+        $isoTo = $this->toIsoEnd($dateTo ?: date('Y-m-d'));
+
+        // ISO for both ranges (for debug)
+        $isoNarrowFrom = $this->toIsoStart($dateFromNarrow ?: $dateFrom ?: date('Y-m-d'));
+        $isoNarrowTo = $this->toIsoEnd($dateToNarrow ?: $dateTo ?: date('Y-m-d'));
+        $isoWideFrom = $this->toIsoStart($dateFromWide ?: $dateFrom ?: date('Y-m-d'));
+        $isoWideTo = $this->toIsoEnd($dateToWide ?: $dateTo ?: date('Y-m-d'));
+
+        // binding counters (after sync)
+        $boundByPayment = 0;
+        $boundByRaw = 0;
 
         if ($accountId <= 0 || $checkoutFormId === '' || $dateFrom === '' || $dateTo === '') {
             $this->ajaxJson(['ok' => 0, 'error' => 'Brak parametrów (konto / checkoutFormId / zakres dat).']);
@@ -612,34 +902,315 @@ $feeTypesAvailable = $this->listFeeTypesInBillingRange($selectedAccountIds, $dat
         $svc = new OrderBillingManualSyncService();
         $res = $svc->syncRangeForAccount(
             $accountId,
-            $this->toIsoStart($dateFrom),
-            $this->toIsoEnd($dateTo),
+            $isoFrom,
+            $isoTo,
             $forceUpdate
         );
 
+        // TARGETED SYNC: dociągnij wpisy billing z Allegro filtrowane po order.id/payment.id (pełny payload),
+        // bo globalny sync po dacie czasem nie zawiera pól order/payment dla części typów opłat.
+        $target = ['ok' => true, 'code' => 200, 'got' => 0, 'inserted' => 0, 'updated' => 0];
+        $targetDebug = [];
+        $payIdTarget = '';
+        try {
+            $payRowT = Db::getInstance()->getRow("SELECT payment_id FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE checkout_form_id='" . pSQL($checkoutFormId) . "' ORDER BY id_allegropro_payment DESC");
+            $payIdTarget = is_array($payRowT) ? trim((string)($payRowT['payment_id'] ?? '')) : '';
+        } catch (\Throwable $e) {
+            $payIdTarget = '';
+        }
+
+        try {
+            // Zawsze forceUpdateAll=TRUE dla target sync (mała paczka, chcemy uzupełnić braki w istniejących rekordach).
+            $target = $svc->syncTargetedForOrder($accountId, $isoFrom, $isoTo, $checkoutFormId, $payIdTarget, $targetDebug, true);
+        } catch (\Throwable $e) {
+            $target = ['ok' => false, 'code' => 0, 'got' => 0, 'inserted' => 0, 'updated' => 0];
+            $targetDebug[] = '[TARGET] exception: ' . $e->getMessage();
+        }
+
+        if (!empty($targetDebug)) {
+            // dopnij do debug globalnego (niezależnie od trybu, ale przycinamy w payloadzie)
+            $res['debug'] = array_merge((array)($res['debug'] ?? []), $targetDebug);
+        }
+
+
+
+        // Helper: build candidates for IN/LIKE
+        $cf = preg_replace('/[^A-Za-z0-9_-]/', '', $checkoutFormId);
+        $cf = $cf ?: $checkoutFormId;
+
+        $candidates = [];
+        $candidates[] = $cf;
+        $candidates[] = str_replace('_', '-', $cf);
+        $candidates[] = str_replace('-', '_', $cf);
+        $candidates[] = str_replace(['-','_'], '', $cf);
+        $candidates[] = strtolower($cf);
+        $candidates[] = strtoupper($cf);
+        $candidates = array_values(array_unique(array_filter(array_map('trim', $candidates))));
+
+        $diag = null;
+
         if (empty($res['ok'])) {
-            $this->ajaxJson([
+            $payload = [
                 'ok' => 0,
                 'error' => 'Nie udało się pobrać billing-entries. Sprawdź autoryzację/logi.',
                 'code' => (int)($res['code'] ?? 0),
                 'total' => (int)($res['total'] ?? 0),
                 'inserted' => (int)($res['inserted'] ?? 0),
                 'updated' => (int)($res['updated'] ?? 0),
-                'debug_tail' => array_slice((array)($res['debug'] ?? []), -3),
-            ]);
+            'target_got' => (int)($target['got'] ?? 0),
+            'target_inserted' => (int)($target['inserted'] ?? 0),
+            'target_updated' => (int)($target['updated'] ?? 0),
+                'iso_from' => $isoFrom,
+                'iso_to' => $isoTo,
+                'debug_tail' => array_slice((array)($res['debug'] ?? []), -6),
+            ];
+
+            if ($debugMode) {
+                $payload['debug'] = array_slice((array)($res['debug'] ?? []), -120);
+                $payload['diag'] = [
+                    'account_id' => $accountId,
+                    'checkout_form_id' => $checkoutFormId,
+                    'date_from' => $dateFrom,
+                    'date_to' => $dateTo,
+                    'iso_from' => $isoFrom,
+                    'iso_to' => $isoTo,
+                    'ranges' => [
+                        'selected' => $rangeKind,
+                        'narrow' => [
+                            'date_from' => $dateFromNarrow,
+                            'date_to' => $dateToNarrow,
+                            'iso_from' => $isoNarrowFrom,
+                            'iso_to' => $isoNarrowTo,
+                        ],
+                        'wide' => [
+                            'date_from' => $dateFromWide,
+                            'date_to' => $dateToWide,
+                            'iso_from' => $isoWideFrom,
+                            'iso_to' => $isoWideTo,
+                        ],
+                    ],
+                    'note' => 'Synchronizacja API zwróciła błąd — brak dalszej diagnostyki DB.',
+                ];
+            }
+
+            $this->ajaxJson($payload);
             return;
         }
 
-        $this->ajaxJson([
+        // Po synchronizacji spróbuj dopiąć wpisy do tego zamówienia (część typów ma tylko payment_id albo order_id schowane w raw_json).
+        try {
+            $payRow = Db::getInstance()->getRow("SELECT payment_id, finished_at FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE checkout_form_id='" . pSQL($checkoutFormId) . "' ORDER BY id_allegropro_payment DESC");
+            $payId = is_array($payRow) ? trim((string)($payRow['payment_id'] ?? '')) : '';
+            if ($payId !== '') {
+                try { $boundByPayment += (int)$this->billingRepo->attachOrderIdByPayment($accountId, $payId, $checkoutFormId); } catch (\Throwable $e) {}
+            }
+            try { $boundByRaw += (int)$this->billingRepo->attachOrderIdByRawJsonCandidates($accountId, $checkoutFormId, $candidates, $dateFrom, $dateTo); } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        $bound = (int)$boundByPayment + (int)$boundByRaw;
+
+        // Diagnostics (only when debug enabled)
+        if ($debugMode) {
+            // API probe: sprawdź, czy Allegro w ogóle zwraca wpisy dla order.id / payment.id w obu zakresach.
+            $apiProbe = null;
+            try {
+                $http = new HttpClient();
+                $api = new AllegroApiClient($http, $this->accounts);
+
+                $probe = function (string $isoFromX, string $isoToX, array $extra) use ($api, $acc): array {
+                    $q = array_merge([
+                        'occurredAt.gte' => $isoFromX,
+                        'occurredAt.lte' => $isoToX,
+                        'limit' => 5,
+                        'offset' => 0,
+                    ], $extra);
+                    $r = $api->get($acc, '/billing/billing-entries', $q);
+                    $got = null;
+                    $note = null;
+                    if (!empty($r['ok']) && is_array($r['json'])) {
+                        $list = $r['json']['billingEntries'] ?? [];
+                        $got = is_array($list) ? count($list) : null;
+                    } else {
+                        // Try to extract error message
+                        if (is_array($r['json'] ?? null) && !empty($r['json']['errors'][0]['message'])) {
+                            $note = (string)$r['json']['errors'][0]['message'];
+                        } elseif (!empty($r['error'])) {
+                            $note = (string)$r['error'];
+                        } else {
+                            $note = 'API error';
+                        }
+                    }
+                    return [
+                        'http' => (int)($r['code'] ?? 0),
+                        'ok' => !empty($r['ok']) ? 1 : 0,
+                        'got' => $got,
+                        'note' => $note,
+                    ];
+                };
+
+                // get payment id (already fetched later as payIdDiag)
+                $payIdProbe = '';
+                try {
+                    $payRowP = Db::getInstance()->getRow("SELECT payment_id FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE checkout_form_id='" . pSQL($checkoutFormId) . "' ORDER BY id_allegropro_payment DESC");
+                    $payIdProbe = is_array($payRowP) ? trim((string)($payRowP['payment_id'] ?? '')) : '';
+                } catch (\Throwable $e) {
+                    $payIdProbe = '';
+                }
+
+                $apiProbe = [
+                    'narrow' => [
+                        'order' => $probe($isoNarrowFrom, $isoNarrowTo, ['order.id' => $checkoutFormId]),
+                        'payment' => ($payIdProbe !== '') ? $probe($isoNarrowFrom, $isoNarrowTo, ['payment.id' => $payIdProbe]) : ['http' => 0, 'ok' => 0, 'got' => null, 'note' => 'Brak payment_id w dxna_allegropro_order_payment'],
+                    ],
+                    'wide' => [
+                        'order' => $probe($isoWideFrom, $isoWideTo, ['order.id' => $checkoutFormId]),
+                        'payment' => ($payIdProbe !== '') ? $probe($isoWideFrom, $isoWideTo, ['payment.id' => $payIdProbe]) : ['http' => 0, 'ok' => 0, 'got' => null, 'note' => 'Brak payment_id w dxna_allegropro_order_payment'],
+                    ],
+                ];
+            } catch (\Throwable $e) {
+                $apiProbe = [
+                    'error' => $e->getMessage(),
+                ];
+            }
+
+            $fromSql = pSQL($dateFrom . ' 00:00:00');
+            $toSql = pSQL($dateTo . ' 23:59:59');
+
+            $vals = [];
+            foreach ($candidates as $c) {
+                $vals[] = "'" . pSQL($c) . "'";
+                if (count($vals) >= 20) break;
+            }
+            $inSql = $vals ? implode(',', $vals) : ("'" . pSQL($checkoutFormId) . "'");
+
+            $likeParts = [];
+            foreach ($candidates as $c) {
+                $likeParts[] = "raw_json LIKE '%" . pSQL($c) . "%'";
+                if (count($likeParts) >= 10) break;
+            }
+            $likeSql = $likeParts ? implode(' OR ', $likeParts) : "raw_json LIKE '%" . pSQL($checkoutFormId) . "%'";
+
+            $table = _DB_PREFIX_ . "allegropro_billing_entry";
+
+            $cntInRange = (int)Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND occurred_at BETWEEN '{$fromSql}' AND '{$toSql}'");
+            $cntOrderInRange = (int)Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND order_id IN ({$inSql}) AND occurred_at BETWEEN '{$fromSql}' AND '{$toSql}'");
+            $cntOrderAll = (int)Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND order_id IN ({$inSql})");
+            $cntRawInRange = (int)Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND occurred_at BETWEEN '{$fromSql}' AND '{$toSql}' AND ({$likeSql})");
+
+            // payment_id column?
+            $hasPaymentIdCol = false;
+            try {
+                $col = Db::getInstance()->getValue("SHOW COLUMNS FROM `{$table}` LIKE 'payment_id'");
+                $hasPaymentIdCol = is_string($col) && $col === 'payment_id';
+            } catch (\Throwable $e) {
+                $hasPaymentIdCol = false;
+            }
+
+            $cntPayInRange = null;
+            $payIdDiag = '';
+            try {
+                $payRow2 = Db::getInstance()->getRow("SELECT payment_id, finished_at FROM `" . _DB_PREFIX_ . "allegropro_order_payment` WHERE checkout_form_id='" . pSQL($checkoutFormId) . "' ORDER BY id_allegropro_payment DESC");
+                $payIdDiag = is_array($payRow2) ? trim((string)($payRow2['payment_id'] ?? '')) : '';
+            } catch (\Throwable $e) {
+                $payIdDiag = '';
+            }
+            if ($hasPaymentIdCol && $payIdDiag !== '') {
+                $cntPayInRange = (int)Db::getInstance()->getValue("SELECT COUNT(*) FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND payment_id='" . pSQL($payIdDiag) . "' AND occurred_at BETWEEN '{$fromSql}' AND '{$toSql}'");
+            }
+
+            $selCols = "billing_entry_id, occurred_at, type_name, value_amount, order_id, offer_id";
+            if ($hasPaymentIdCol) {
+                $selCols .= ", payment_id";
+            }
+
+            $sampleOrder = Db::getInstance()->executeS("SELECT {$selCols} FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND order_id IN ({$inSql}) ORDER BY occurred_at DESC LIMIT 10") ?: [];
+            $sampleRaw = Db::getInstance()->executeS("SELECT {$selCols} FROM `{$table}` WHERE id_allegropro_account=" . (int)$accountId . " AND occurred_at BETWEEN '{$fromSql}' AND '{$toSql}' AND ({$likeSql}) ORDER BY occurred_at DESC LIMIT 10") ?: [];
+
+            $diag = [
+                'account_id' => $accountId,
+                'checkout_form_id' => $checkoutFormId,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'iso_from' => $isoFrom,
+                'iso_to' => $isoTo,
+                'force_update' => $forceUpdate ? 1 : 0,
+                'ranges' => [
+                    'selected' => $rangeKind,
+                    'narrow' => [
+                        'date_from' => $dateFromNarrow,
+                        'date_to' => $dateToNarrow,
+                        'iso_from' => $isoNarrowFrom,
+                        'iso_to' => $isoNarrowTo,
+                    ],
+                    'wide' => [
+                        'date_from' => $dateFromWide,
+                        'date_to' => $dateToWide,
+                        'iso_from' => $isoWideFrom,
+                        'iso_to' => $isoWideTo,
+                    ],
+                ],
+                'api_probe' => $apiProbe,
+                'sync' => [
+                    'total' => (int)($res['total'] ?? 0),
+                    'inserted' => (int)($res['inserted'] ?? 0),
+                    'updated' => (int)($res['updated'] ?? 0),
+                ],
+                'target' => [
+                    'got' => (int)($target['got'] ?? 0),
+                    'inserted' => (int)($target['inserted'] ?? 0),
+                    'updated' => (int)($target['updated'] ?? 0),
+                ],
+                'bound' => [
+                    'by_payment' => (int)$boundByPayment,
+                    'by_raw_json' => (int)$boundByRaw,
+                    'total' => (int)$bound,
+                ],
+                'db' => [
+                    'account_entries_in_range' => $cntInRange,
+                    'order_entries_in_range' => $cntOrderInRange,
+                    'order_entries_all_time' => $cntOrderAll,
+                    'raw_json_matches_in_range' => $cntRawInRange,
+                    'payment_id_matches_in_range' => $cntPayInRange,
+                    'payment_id' => $payIdDiag ?: null,
+                    'candidates' => $candidates,
+                ],
+                'samples' => [
+                    'by_order_id' => $sampleOrder,
+                    'by_raw_json' => $sampleRaw,
+                ],
+                'hint' => ($cntOrderAll > 0)
+                    ? 'Wpisy billing są w DB i mają order_id — jeśli nie widać w UI, problem leży w renderze/filtrach.'
+                    : (($cntRawInRange > 0)
+                        ? 'Wpisy w DB zawierają checkoutFormId w raw_json, ale nie mają order_id — powinny zostać przypięte po sync (sprawdź bound_by_raw_json).'
+                        : 'Brak jakichkolwiek dopasowań checkoutFormId w DB (order_id i raw_json). To sugeruje: (a) wpisy nie zostały pobrane w tym zakresie, albo (b) Allegro API nie zwraca identyfikatora zamówienia w billing-entries dla tych operacji.'),
+            ];
+        }
+
+        $payload = [
             'ok' => 1,
             'total' => (int)($res['total'] ?? 0),
             'inserted' => (int)($res['inserted'] ?? 0),
             'updated' => (int)($res['updated'] ?? 0),
-            'debug_tail' => array_slice((array)($res['debug'] ?? []), -2),
-        ]);
+            'bound' => (int)$bound,
+            'bound_by_payment' => (int)$boundByPayment,
+            'bound_by_raw' => (int)$boundByRaw,
+            'iso_from' => $isoFrom,
+            'iso_to' => $isoTo,
+            'debug_tail' => array_slice((array)($res['debug'] ?? []), -4),
+        ];
+
+        if ($debugMode) {
+            $payload['debug'] = array_slice((array)($res['debug'] ?? []), -120);
+            $payload['diag'] = $diag;
+        }
+
+        $this->ajaxJson($payload);
     }
 
-    
+
+
     /* ============================
      * AJAX: krokowa synchronizacja + uzupełnianie braków zamówień
      * ============================ */
@@ -1222,6 +1793,152 @@ private function rekeyCheckoutFormIdByNorm(int $accountId, string $rawId, string
         ]);
     }
 
+    /**
+     * Eksport CSV: operacje billing (RAW) dla bieżących filtrów.
+     * Trigger: GET export_raw_billing=1
+     */
+    private function exportRawBillingCsv(): void
+    {
+        // multi-account
+        $rawAcc = Tools::getValue('id_allegropro_account', []);
+        if (!is_array($rawAcc)) {
+            $rawAcc = [$rawAcc];
+        }
+        $accountIds = [];
+        foreach ($rawAcc as $v) {
+            $id = (int)$v;
+            if ($id > 0) {
+                $accountIds[$id] = $id;
+            }
+        }
+        $accountIds = array_values($accountIds);
+        if (empty($accountIds)) {
+            // nic do eksportu
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Brak konta.';
+            return;
+        }
+
+        $dateFrom = $this->sanitizeYmd((string)Tools::getValue('date_from', '')) ?: date('Y-m-01');
+        $dateTo = $this->sanitizeYmd((string)Tools::getValue('date_to', '')) ?: date('Y-m-d');
+
+        $rawQ = trim((string)Tools::getValue('raw_q', ''));
+        $rawQ = Tools::substr($rawQ, 0, 140);
+
+        $sign = (string)Tools::getValue('raw_sign', 'any');
+        $assigned = (string)Tools::getValue('raw_assigned', 'any');
+        $orderState = (string)Tools::getValue('order_state', 'all');
+
+        $sortBy = (string)Tools::getValue('raw_sort_by', 'date');
+        $sortDir = (string)Tools::getValue('raw_sort_dir', 'desc');
+
+        // fee filters
+        $feeGroup = (string)Tools::getValue('fee_group', '');
+        $allowedFeeGroups = ['', 'commission', 'delivery', 'smart', 'promotion', 'refunds', 'other'];
+        if (!in_array($feeGroup, $allowedFeeGroups, true)) {
+            $feeGroup = '';
+        }
+
+        $feeTypesSelected = Tools::getValue('fee_type', []);
+        if (!is_array($feeTypesSelected)) {
+            $feeTypesSelected = [$feeTypesSelected];
+        }
+        $feeTypesSelectedClean = [];
+        foreach ($feeTypesSelected as $t) {
+            $t = trim((string)$t);
+            if ($t === '') {
+                continue;
+            }
+            if (Tools::strlen($t) > 160) {
+                $t = Tools::substr($t, 0, 160);
+            }
+            $feeTypesSelectedClean[$t] = $t;
+            if (count($feeTypesSelectedClean) >= 200) {
+                break;
+            }
+        }
+        $feeTypesSelected = array_values($feeTypesSelectedClean);
+
+        $this->billingRepo->ensureSchema();
+
+        $svc = new BillingRawReportService($this->billingRepo);
+        // eksport: bierzemy dużą stronę 1 (dla billing entries w typowym zakresie to zwykle kilka tys.)
+        $data = $svc->getPage(
+            $accountIds,
+            $dateFrom,
+            $dateTo,
+            $rawQ,
+            $sign,
+            $assigned,
+            $orderState,
+            1,
+            100000,
+            $sortBy,
+            $sortDir,
+            $feeGroup,
+            $feeTypesSelected
+        );
+
+        // map account labels
+        $accMap = [];
+        foreach ($this->accounts->all() as $a) {
+            $aid = (int)($a['id_allegropro_account'] ?? 0);
+            if ($aid <= 0) continue;
+            $accMap[$aid] = (string)($a['label'] ?? $a['allegro_login'] ?? ('#' . $aid));
+        }
+
+        if (function_exists('ob_get_length') && ob_get_length()) {
+            @ob_clean();
+        }
+
+        $fname = 'allegro_billing_raw_' . $dateFrom . '_' . $dateTo . '.csv';
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $fname . '"');
+
+        // UTF-8 BOM for Excel
+        echo "\xEF\xBB\xBF";
+
+        $out = fopen('php://output', 'w');
+        if (!$out) {
+            return;
+        }
+
+        // nagłówki
+        fputcsv($out, [
+            'occurred_at',
+            'account',
+            'type_name',
+            'offer_id',
+            'offer_name',
+            'order_id',
+            'order_status',
+            'id_order_prestashop',
+            'value_amount',
+            'currency',
+            'billing_entry_id',
+        ], ';');
+
+        foreach (($data['items'] ?? []) as $r) {
+            $aid = (int)($r['id_allegropro_account'] ?? 0);
+            $label = $accMap[$aid] ?? ('#' . $aid);
+            $amount = (float)($r['value_amount'] ?? 0);
+            fputcsv($out, [
+                (string)($r['occurred_at'] ?? ''),
+                $label,
+                (string)($r['type_name'] ?? ''),
+                (string)($r['offer_id'] ?? ''),
+                (string)($r['offer_name'] ?? ''),
+                (string)($r['order_id'] ?? ''),
+                (string)($r['order_status'] ?? ''),
+                (int)($r['id_order_prestashop'] ?? 0),
+                number_format($amount, 2, '.', ''),
+                (string)($r['value_currency'] ?? 'PLN'),
+                (string)($r['billing_entry_id'] ?? ''),
+            ], ';');
+        }
+        fclose($out);
+    }
+
 
 private function toIsoStart(string $ymd): string
     {
@@ -1264,15 +1981,15 @@ private function toIsoStart(string $ymd): string
     /**
      * @return array<int, array{type:string,label:string,url?:string,active?:bool,disabled?:bool}>
      */
-    private function buildPageLinks(string $baseUrl, int $page, int $pages): array
+    private function buildPageLinks(string $baseUrl, int $page, int $pages, string $param = 'page'): array
     {
         $links = [];
 
-        $add = function (int $num) use (&$links, $baseUrl, $page) {
+        $add = function (int $num) use (&$links, $baseUrl, $page, $param) {
             $links[] = [
                 'type' => 'page',
                 'label' => (string)$num,
-                'url' => $baseUrl . '&page=' . $num,
+                'url' => $baseUrl . '&' . $param . '=' . $num,
                 'active' => ($num === $page),
             ];
         };
@@ -1285,7 +2002,7 @@ private function toIsoStart(string $ymd): string
         $links[] = [
             'type' => 'nav',
             'label' => '‹',
-            'url' => $baseUrl . '&page=' . max(1, $page - 1),
+            'url' => $baseUrl . '&' . $param . '=' . max(1, $page - 1),
             'disabled' => ($page <= 1),
         ];
 
@@ -1318,7 +2035,7 @@ private function toIsoStart(string $ymd): string
         $links[] = [
             'type' => 'nav',
             'label' => '›',
-            'url' => $baseUrl . '&page=' . min($pages, $page + 1),
+            'url' => $baseUrl . '&' . $param . '=' . min($pages, $page + 1),
             'disabled' => ($page >= $pages),
         ];
 

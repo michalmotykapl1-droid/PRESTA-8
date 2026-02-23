@@ -56,6 +56,11 @@
             Wymuś aktualizację
           </label>
 
+          <label class="m-0" style="font-size:12px; user-select:none; margin-left:6px;">
+            <input type="checkbox" id="apBillingDebug" />
+            Debug
+          </label>
+
           <button type="button" class="btn btn-primary" id="apBillingSyncBtn">
             <i class="material-icons ap-sync-icon" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span class="ap-sync-text">Pobierz z Allegro</span>
@@ -260,6 +265,23 @@
 
       <div class="mt-2">
         <small class="form-text text-muted" id="apBillingSyncMsg"></small>
+      </div>
+      <div class="mt-2" id="apBillingDebugWrap" style="display:none;">
+        <details open>
+          <summary style="cursor:pointer; user-select:none;">Debug pobrania (dla tego zamówienia)</summary>
+          <div class="d-flex align-items-center" style="gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="apBillingDebugReload">
+              <i class="material-icons" style="font-size:16px; vertical-align:middle;">refresh</i>
+              Odśwież widok zamówienia
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="apBillingDebugClear">
+              <i class="material-icons" style="font-size:16px; vertical-align:middle;">delete</i>
+              Wyczyść debug
+            </button>
+            <span class="text-muted" style="font-size:11px;">Debug jest zapamiętywany per zamówienie (localStorage) — możesz odświeżać stronę.</span>
+          </div>
+          <pre id="apBillingDebugOut" style="white-space:pre-wrap; font-size:11px; margin:8px 0 0; padding:10px; background:#0b1220; color:#e5e7eb; border-radius:8px; max-height:380px; overflow:auto;"></pre>
+        </details>
       </div>
     </div>
       {/if}

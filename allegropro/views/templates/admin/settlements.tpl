@@ -21,7 +21,7 @@
           </span>
 
           {if isset($summary.unassigned_count) && $summary.unassigned_count > 0}
-            <span class="badge badge-warning">Nieprzypisane: {$summary.unassigned_count|intval}</span>
+            <a href="#" class="badge badge-warning alpro-unassigned-open" id="alproUnassignedOpen" title="Pokaż operacje billing, które nie mają przypisanego order_id (nie są powiązane z zamówieniem).">Nieprzypisane: {$summary.unassigned_count|intval}</a>
           {/if}
         </div>
 
@@ -225,7 +225,7 @@
         </div>
 
         <div class="filters-right">
-          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&fee_group={$fee_group|default:''|escape:'url'}{if isset($fee_types_selected) && $fee_types_selected|@count>0}{foreach from=$fee_types_selected item=ft}&fee_type[]={$ft|escape:'url'}{/foreach}{/if}&page={$page|intval}&per_page={$per_page|intval}">
+          <a class="btn btn-outline-secondary" href="{$current_index|escape:'htmlall':'UTF-8'}&token={$token|escape:'htmlall':'UTF-8'}{foreach from=$selected_account_ids item=aid}&id_allegropro_account[]={$aid|intval}{/foreach}&mode={$mode|escape:'url'}&date_from={$date_from|escape:'url'}&date_to={$date_to|escape:'url'}&q={$q|escape:'url'}&order_state={$order_state|escape:'url'}&cancelled_no_refund={$cancelled_no_refund|intval}&fee_group={$fee_group|default:''|escape:'url'}{if isset($fee_types_selected) && $fee_types_selected|@count>0}{foreach from=$fee_types_selected item=ft}&fee_type[]={$ft|escape:'url'}{/foreach}{/if}&sort_by={$sort_by|default:'date'|escape:'url'}&sort_dir={$sort_dir|default:'desc'|escape:'url'}&issues_all={$issues_all_history|default:0|intval}&issues_refund={$issues_refund_mode|default:'any'|escape:'url'}&issues_page={$issues_page|default:1|intval}&issues_per_page={$issues_per_page|default:50|intval}&page={$page|intval}&per_page={$per_page|intval}">
             <i class="material-icons" style="font-size:18px; vertical-align:middle;">refresh</i>
             <span style="vertical-align:middle;">Odśwież</span>
           </a>
@@ -421,7 +421,38 @@
               </div>
             </div>
           </div>
+          
+          {if isset($refund_summary) && ( ($refund_summary.expected_orders|default:0) > 0 || ($refund_summary.pending_total|default:0) > 0.01 || ($refund_summary.pending_orders|default:0) > 0 )}
+          <div class="alpro-kpi alpro-kpi--refundsum">
+            <div class="top">
+              <div>
+                <div class="label">Zwroty opłat (anulowane / nieopłacone)</div>
+                <div class="value {if $refund_summary.pending_total|default:0 > 0.01}text-danger{else}text-success{/if}">
+                  Do zwrotu: {$refund_summary.pending_total|default:0|number_format:2:',':' '} zł
+                </div>
+                <div class="sub">
+                  Oczekiwane zwroty: <strong>{$refund_summary.expected_orders|default:0|intval}</strong>
+                  • Brak pełnego zwrotu: <strong>{$refund_summary.pending_orders|default:0|intval}</strong>
+                </div>
+                <div class="sub">
+                  Pobrane: <span class="text-danger">{$refund_summary.charged_total|default:0|number_format:2:',':' '} zł</span>
+                  • Zwrócone: <span class="text-success">+{$refund_summary.refunded_total|default:0|number_format:2:',':' '} zł</span>
+                </div>
+                {if ($refund_summary.missing_orders|default:0) > 0}
+                  <div class="sub" style="margin-top:6px;">
+                    Braki danych (order_filled=0): <strong>{$refund_summary.missing_orders|intval}</strong>
+                    • Do zwrotu w brakach: <strong>{$refund_summary.missing_pending_total|default:0|number_format:2:',':' '}</strong> zł
+                  </div>
+                {/if}
+              </div>
+              <div class="icon" title="Zwroty opłat">
+                <i class="material-icons" style="font-size:20px;">currency_exchange</i>
+              </div>
+            </div>
+          </div>
           {/if}
+
+{/if}
 
 
         </div>
@@ -470,33 +501,81 @@
   
 
   {* LISTA ZAMÓWIEŃ *}
-  <div class="card">
-    <div class="card-header d-flex align-items-center justify-content-between" style="gap:10px; flex-wrap:wrap;">
-      <ul class="nav nav-tabs" id="alproSubTabs" style="border-bottom:0;">
-        <li class="nav-item">
-          <a class="nav-link active js-alpro-subtab" href="#alproTabOrders" data-tab="orders">Zamówienia</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link js-alpro-subtab" href="#alproTabIssues" data-tab="issues">Do wyjaśnienia{if isset($issues_total) && $issues_total>0} <span class="badge badge-danger ml-1">{$issues_total|intval}</span>{/if}</a>
-        </li>
-      </ul>
-      <span class="alpro-badge" id="alproTabBadgeOrders">Pokazano <strong>{$orders_from|intval}-{$orders_to|intval}</strong> z <strong>{$orders_total|intval}</strong></span>
+  <div class="card alpro-subtabs-card">
+    <div class="card-header alpro-subtabs-head">
+      <div class="alpro-subtabs-head__row">
+        <ul class="alpro-subtabs-nav" id="alproSubTabs" role="tablist" aria-label="Sekcje rozliczeń">
+          <li class="alpro-subtabs-nav__item">
+            <a class="alpro-subtabs-nav__link active js-alpro-subtab" href="#alproTabOrders" data-tab="orders" role="tab" aria-controls="alproTabOrders">Zamówienia</a>
+          </li>
+          <li class="alpro-subtabs-nav__item">
+            <a class="alpro-subtabs-nav__link js-alpro-subtab" href="#alproTabIssues" data-tab="issues" role="tab" aria-controls="alproTabIssues">Do wyjaśnienia{if isset($issues_total) && $issues_total>0} <span class="alpro-pill alpro-pill--danger">{$issues_total|intval}</span>{/if}</a>
+          </li>
+          <li class="alpro-subtabs-nav__item">
+            <a class="alpro-subtabs-nav__link js-alpro-subtab" href="#alproTabRaw" data-tab="raw" role="tab" aria-controls="alproTabRaw">Operacje billing</a>
+          </li>
+        </ul>
+
+        <div class="alpro-subtabs-meta">
+          <span class="alpro-badge" id="alproTabBadgeOrders">Pokazano <strong>{$orders_from|intval}-{$orders_to|intval}</strong> z <strong>{$orders_total|intval}</strong></span>
+          <span class="alpro-badge" id="alproTabBadgeIssues" style="display:none;">Problemy: <strong>{$issues_total|intval}</strong></span>
+          <span class="alpro-badge" id="alproTabBadgeRaw" style="display:none;">Operacje: <strong id="alproRawTotal">—</strong></span>
+        </div>
+      </div>
     </div>
 
-    <div class="tab-content" style="padding-top:10px;">
+    <div class="tab-content alpro-subtabs-content">
       <div class="tab-pane is-active" id="alproTabOrders">
 
     <div class="table-responsive">
       <table class="table table-striped table-hover table-sm mb-0 alpro-table">
         <thead>
           <tr>
-            <th>{if $mode=='billing'}Data operacji{else}Data zamówienia{/if}</th>
+            <th>
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {assign var=_next value='asc'}
+              {if $_sb=='date' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+              <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=date&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                {if $mode=='billing'}Data operacji{else}Data zamówienia{/if}
+                {if $_sb=='date'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+              </a>
+            </th>
             <th>Konto</th>
             <th>Zamówienie</th>
             <th>Kupujący</th>
-            <th class="text-right">Sprzedaż</th>
-            <th class="text-right">Opłaty</th>
-            <th class="text-right">Saldo</th>
+            <th class="text-right">
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {assign var=_next value='asc'}{if $_sb=='sales' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+              <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=sales&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                Sprzedaż {if $_sb=='sales'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+              </a>
+            </th>
+            <th class="text-right">
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {if $mode=='billing'}
+                {assign var=_next value='asc'}{if $_sb=='fees' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+                <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=fees&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                  Opłaty {if $_sb=='fees'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+                </a>
+              {else}
+                Opłaty
+              {/if}
+            </th>
+            <th class="text-right">
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {if $mode=='billing'}
+                {assign var=_next value='asc'}{if $_sb=='net' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+                <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=net&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                  Saldo {if $_sb=='net'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+                </a>
+              {else}
+                Saldo
+              {/if}
+            </th>
             <th style="width:120px;">&nbsp;</th>
           </tr>
         </thead>
@@ -512,6 +591,11 @@
                   <a href="#" class="alpro-copy js-alpro-copy" data-copy="{$o.checkout_form_id|escape:'htmlall':'UTF-8'}" title="Kopiuj ID">
                     <i class="material-icons" style="font-size:16px;">content_copy</i>
                   </a>
+                  {if isset($o.id_order_prestashop) && $o.id_order_prestashop|intval > 0}
+                    <a class="alpro-ext" href="{$admin_orders_link|escape:'htmlall':'UTF-8'}&id_order={$o.id_order_prestashop|intval}&vieworder=1" title="Otwórz zamówienie w PrestaShop" target="_blank" rel="noopener">
+                      <i class="material-icons" style="font-size:16px;">open_in_new</i>
+                    </a>
+                  {/if}
                 </div>
                 {if $o.order_status}
                   {assign var=_st value=$o.order_status|upper}
@@ -604,6 +688,15 @@
               <option value="no_refund" {if isset($issues_refund_mode) && $issues_refund_mode=='no_refund'}selected{/if}>Tylko brak zwrotu</option>
             </select>
           </label>
+          <label class="form-check" style="margin:0; display:flex; align-items:center; gap:8px;">
+            <span style="font-size:12px; color:#6c757d;">Na stronę:</span>
+            <select id="alproIssuesPerPage" class="form-control form-control-sm" style="width:auto; min-width:90px;">
+              <option value="25" {if isset($issues_per_page) && $issues_per_page==25}selected{/if}>25</option>
+              <option value="50" {if !isset($issues_per_page) || $issues_per_page==50}selected{/if}>50</option>
+              <option value="100" {if isset($issues_per_page) && $issues_per_page==100}selected{/if}>100</option>
+              <option value="200" {if isset($issues_per_page) && $issues_per_page==200}selected{/if}>200</option>
+            </select>
+          </label>
         </div>
 
         <div class="alpro-kpi-grid alpro-kpi-grid--compact" style="margin: 0 0 12px 0;">
@@ -671,9 +764,31 @@
                 <th>Order ID</th>
                 <th>Błąd</th>
                 <th>Opis</th>
-                <th class="text-right">Opłaty</th>
+                <th class="text-right">
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {if $mode=='billing'}
+                {assign var=_next value='asc'}{if $_sb=='fees' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+                <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=fees&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                  Opłaty {if $_sb=='fees'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+                </a>
+              {else}
+                Opłaty
+              {/if}
+            </th>
                 <th class="text-right">Zwroty</th>
-                <th class="text-right">Saldo</th>
+                <th class="text-right">
+              {assign var=_sb value=$sort_by|default:'date'}
+              {assign var=_sd value=$sort_dir|default:'desc'}
+              {if $mode=='billing'}
+                {assign var=_next value='asc'}{if $_sb=='net' && $_sd=='asc'}{assign var=_next value='desc'}{/if}
+                <a class="alpro-sort" href="{$orders_base_nosort|escape:'htmlall':'UTF-8'}&sort_by=net&sort_dir={$_next|escape:'htmlall':'UTF-8'}&page=1">
+                  Saldo {if $_sb=='net'}<span class="alpro-sort__arr">{if $_sd=='asc'}▲{else}▼{/if}</span>{/if}
+                </a>
+              {else}
+                Saldo
+              {/if}
+            </th>
                 <th class="text-right">Próby</th>
                 <th>Ostatnia próba</th>
                 <th style="width:120px;">&nbsp;</th>
@@ -691,6 +806,11 @@
                         <a href="#" class="alpro-copy js-alpro-copy" data-copy="{$ir.order_id|escape:'htmlall':'UTF-8'}" title="Kopiuj ID">
                           <i class="material-icons" style="font-size:16px;">content_copy</i>
                         </a>
+                        {if isset($ir.id_order_prestashop) && $ir.id_order_prestashop|intval > 0}
+                          <a class="alpro-ext" href="{$admin_orders_link|escape:'htmlall':'UTF-8'}&id_order={$ir.id_order_prestashop|intval}&vieworder=1" title="Otwórz zamówienie w PrestaShop" target="_blank" rel="noopener">
+                            <i class="material-icons" style="font-size:16px;">open_in_new</i>
+                          </a>
+                        {/if}
                       </div>
                     </td>
                     <td>
@@ -714,10 +834,101 @@
           </table>
         </div>
 
-        {if isset($issues_total) && isset($issues_limit) && $issues_total > $issues_limit}
-          <div class="alpro-muted" style="padding:10px 2px; font-size:12px;">Pokazano pierwsze {$issues_limit|intval} z {$issues_total|intval}. (Paginacja w kolejnych etapach)</div>
-        {/if}
+        
+        <div class="alpro-table-footer">
+          <div class="muted">Pokazano {$issues_from|intval}-{$issues_to|intval} z {$issues_total|intval}</div>
+
+          {if isset($issues_page_links) && $issues_page_links|@count > 0}
+            <nav class="alpro-pagination" aria-label="Paginacja problemów">
+              <ul class="pagination pagination-sm">
+                {foreach from=$issues_page_links item=pl}
+                  {if $pl.type=='gap'}
+                    <li class="page-item disabled"><span class="page-link">{$pl.label|escape:'htmlall':'UTF-8'}</span></li>
+                  {elseif $pl.type=='nav'}
+                    <li class="page-item {if !empty($pl.disabled)}disabled{/if}">
+                      <a class="page-link" href="{if !empty($pl.disabled)}#{else}{$pl.url|escape:'htmlall':'UTF-8'}#alproTabIssues{/if}">{$pl.label|escape:'htmlall':'UTF-8'}</a>
+                    </li>
+                  {else}
+                    <li class="page-item {if !empty($pl.active)}active{/if}">
+                      <a class="page-link" href="{$pl.url|escape:'htmlall':'UTF-8'}#alproTabIssues">{$pl.label|escape:'htmlall':'UTF-8'}</a>
+                    </li>
+                  {/if}
+                {/foreach}
+              </ul>
+            </nav>
+          {/if}
+        </div>
+
       </div>
+
+{* OPERACJE BILLING (RAW) *}
+      <div class="tab-pane" id="alproTabRaw">
+        <div class="alpro-raw">
+          <div class="alpro-raw__top">
+            <div class="alpro-raw__kpis">
+              <span class="chip">Saldo: <strong id="alproRawSumTotal">—</strong></span>
+              <span class="chip">Koszty: <strong id="alproRawSumNeg">—</strong></span>
+              <span class="chip">Zwroty: <strong id="alproRawSumPos">—</strong></span>
+            </div>
+            <div class="alpro-raw__hint muted">
+              Widok RAW pokazuje pojedyncze operacje billing-entry (jak w Sales Center). Zakres dat = data księgowania opłat.
+            </div>
+          </div>
+
+          <div class="alpro-raw__toolbar">
+            <input type="text" class="form-control form-control-sm" id="alproRawQ" placeholder="Szukaj: typ / oferta / order_id / billing_entry_id" />
+
+            <select class="form-control form-control-sm" id="alproRawSign" title="Kwota">
+              <option value="any">Kwota: wszystkie</option>
+              <option value="neg">Tylko koszty (ujemne)</option>
+              <option value="pos">Tylko zwroty (dodatnie)</option>
+            </select>
+
+            <select class="form-control form-control-sm" id="alproRawAssigned" title="Powiązanie">
+              <option value="any">Powiązanie: wszystkie</option>
+              <option value="assigned">Tylko przypisane (ma order_id)</option>
+              <option value="unassigned">Tylko nieprzypisane (brak order_id)</option>
+            </select>
+
+            <select class="form-control form-control-sm" id="alproRawSortBy" title="Sortuj">
+              <option value="date">Sortuj: data</option>
+              <option value="amount">Sortuj: kwota</option>
+            </select>
+            <select class="form-control form-control-sm" id="alproRawSortDir" title="Kierunek">
+              <option value="desc">malejąco</option>
+              <option value="asc">rosnąco</option>
+            </select>
+
+            <select class="form-control form-control-sm" id="alproRawPerPage" title="Na stronę">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="alproRawApply">
+              <i class="material-icons" style="font-size:16px; vertical-align:middle;">tune</i>
+              <span style="vertical-align:middle;">Pokaż</span>
+            </button>
+
+            <a href="#" class="btn btn-sm btn-outline-primary" id="alproRawExport" target="_blank" rel="noopener">
+              <i class="material-icons" style="font-size:16px; vertical-align:middle;">download</i>
+              <span style="vertical-align:middle;">CSV</span>
+            </a>
+          </div>
+
+          <div class="alpro-raw__body">
+            <div class="alpro-modal__loading" id="alproRawLoading" style="display:none;">
+              <div class="alpro-spinner"></div>
+              <div>Ładowanie danych…</div>
+            </div>
+            <div id="alproRawContent"></div>
+            <div id="alproRawPager" class="alpro-raw__pager"></div>
+          </div>
+        </div>
+      </div>
+
 
     </div>
 
@@ -875,6 +1086,32 @@
           <button type="button" class="btn btn-primary" data-dismiss="modal" id="alproSyncClose" style="display:none">Zamknij</button>
         </div>
       </div>
+
+      
+    </div>
+  </div>
+</div>
+
+{* Modal: Nieprzypisane operacje billing *}
+<div class="alpro-modal" id="alproUnassignedModal" aria-hidden="true">
+  <div class="alpro-modal__backdrop" data-alpro-unassigned-close="1"></div>
+  <div class="alpro-modal__dialog alpro-modal__dialog--wide alpro-unassigned-modal" role="dialog" aria-modal="true" aria-label="Nieprzypisane operacje billing">
+    <div class="alpro-modal__head">
+      <div class="alpro-modal__title alpro-modal__title--row">
+        <span class="alpro-modal__icon"><i class="material-icons">receipt_long</i></span>
+        <div class="alpro-modal__titleText">
+          <strong>Nieprzypisane operacje billing</strong>
+          <span class="alpro-modal__meta" id="alproUnassignedMeta"></span>
+        </div>
+      </div>
+      <button type="button" class="alpro-modal__close" title="Zamknij" data-alpro-unassigned-close="1">×</button>
+    </div>
+    <div class="alpro-modal__body">
+      <div class="alpro-modal__loading" id="alproUnassignedLoading">
+        <div class="spinner"></div>
+        <div>Ładowanie…</div>
+      </div>
+      <div class="alpro-modal__content" id="alproUnassignedContent" style="display:none;"></div>
     </div>
   </div>
 </div>

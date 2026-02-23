@@ -89,7 +89,14 @@ class BillingSyncService
         $debug[] = sprintf('[BILLING] GET /billing/billing-entries offset=%d limit=%d: HTTP %d ok=%d', $offset, $limit, (int)$resp['code'], $resp['ok'] ? 1 : 0);
 
         if (empty($resp['ok']) || !is_array($resp['json'])) {
-            return ['ok' => false, 'code' => (int)($resp['code'] ?? 0), 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
+            $code = (int)($resp['code'] ?? 0);
+            // Allegro API potrafi zwrócić 422 gdy offset wychodzi poza zakres (np. offset == totalCount).
+            // W takiej sytuacji traktujemy to jako koniec listy, a nie błąd synchronizacji.
+            if ($code === 422 && $offset > 0) {
+                $debug[] = sprintf('[BILLING] offset_out_of_range: offset=%d limit=%d (treat as done)', $offset, $limit);
+                return ['ok' => true, 'code' => 200, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
+            }
+            return ['ok' => false, 'code' => $code, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
         }
 
         $list = $resp['json']['billingEntries'] ?? [];
@@ -97,10 +104,23 @@ class BillingSyncService
             return ['ok' => true, 'code' => 200, 'got' => 0, 'inserted' => 0, 'updated' => 0, 'next_offset' => $offset, 'done' => true];
         }
 
+        // totalCount/total z API pozwala nam nie wykonywać „pustego” wywołania z offset==totalCount (które może dać 422).
+        $totalCount = null;
+        foreach (['totalCount', 'total', 'totalElements', 'total_count'] as $k) {
+            if (isset($resp['json'][$k])) {
+                $totalCount = (int)$resp['json'][$k];
+                break;
+            }
+        }
+
         $res = $this->repo->upsertEntries($accountId, $list, $forceUpdateAll);
 
         $got = count($list);
+        $nextOffset = $offset + $got;
         $done = $got < $limit;
+        if ($totalCount !== null && $totalCount >= 0 && $nextOffset >= $totalCount) {
+            $done = true;
+        }
 
         return [
             'ok' => true,
@@ -108,7 +128,7 @@ class BillingSyncService
             'got' => $got,
             'inserted' => (int)($res['inserted'] ?? 0),
             'updated' => (int)($res['updated'] ?? 0),
-            'next_offset' => $offset + $limit,
+            'next_offset' => $nextOffset,
             'done' => $done,
         ];
     }

@@ -2,6 +2,7 @@
 namespace AllegroPro\Service;
 
 use AllegroPro\Repository\BillingEntryRepository;
+use AllegroPro\Repository\OrderPaymentRepository;
 use Db;
 
 /**
@@ -318,6 +319,7 @@ class SettlementsReportService
             $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
         }
 
+
         $inner = "SELECT b.id_allegropro_account, b.order_id, o.status AS order_status, MAX(IFNULL(b.order_filled,0)) AS order_filled, IFNULL(bf.neg_sum,0) AS neg_sum, IFNULL(bf.pos_sum,0) AS pos_sum
 "
             . "FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
@@ -430,6 +432,7 @@ class SettlementsReportService
         if ($cancelledNoRefund) {
             $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
         }
+
 
         $inner = "SELECT o.id_allegropro_account, o.checkout_form_id AS order_id, o.status AS order_status,
 "
@@ -584,7 +587,7 @@ class SettlementsReportService
     /**
      * TRYB A: lista zamówień (order_id) które mają opłaty zaksięgowane w okresie.
      */
-    public function getOrdersWithFeesBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = []): array
+    public function getOrdersWithFeesBilling($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = [], string $sortBy = 'date', string $sortDir = 'desc'): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
         $in = $this->buildIn($ids);
@@ -613,6 +616,7 @@ class SettlementsReportService
         $itemsAgg = $this->itemsAggSql();
         $shipAgg = $this->shippingAggSql();
 
+
         // agregacja opłat (bez filtra daty) do wykrycia "do zwrotu"
         $bfJoin = " LEFT JOIN (" . $this->feesAggNoDateSql($ids, $feeGroup, $feeTypesSelected) . ") bf\n"
             . "   ON (bf.id_allegropro_account=b.id_allegropro_account AND bf.order_key={$normB})";
@@ -620,6 +624,27 @@ class SettlementsReportService
         if ($cancelledNoRefund) {
             $bfWhere = " AND (ABS(IFNULL(bf.neg_sum,0)) - IFNULL(bf.pos_sum,0)) > 0.01 AND IFNULL(bf.neg_sum,0) < 0";
         }
+
+        // Sorting (bezpieczna biała lista)
+        $sortBy = in_array($sortBy, ['date', 'sales', 'fees', 'net'], true) ? $sortBy : 'date';
+        $sortDirSql = (strtolower((string)$sortDir) === 'asc') ? 'ASC' : 'DESC';
+
+        // Ten sam wyrażenie co sales_amount w SELECT (potrzebne dla sortowania "net")
+        $salesExpr = "CASE
+      WHEN o.checkout_form_id IS NULL THEN NULL
+      WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total
+      ELSE GREATEST(IFNULL(o.total_amount,0) - IFNULL(os.shipping_amount,0), 0)
+    END";
+
+        $orderExpr = 'occurred_at_max';
+        if ($sortBy === 'sales') {
+            $orderExpr = 'sales_amount';
+        } elseif ($sortBy === 'fees') {
+            $orderExpr = 'fees_total';
+        } elseif ($sortBy === 'net') {
+            $orderExpr = '(' . $salesExpr . ' + SUM(b.value_amount))';
+        }
+        $orderBySql = $orderExpr . ' ' . $sortDirSql . ', occurred_at_max DESC';
 
         $sql = "SELECT\n"
             . "    b.id_allegropro_account,\n"
@@ -629,6 +654,7 @@ class SettlementsReportService
             . "    SUM(CASE WHEN b.value_amount < 0 THEN b.value_amount ELSE 0 END) AS fees_neg_period,\n"
             . "    SUM(CASE WHEN b.value_amount > 0 THEN b.value_amount ELSE 0 END) AS fees_pos_period,\n"
             . "    o.status AS order_status,\n"
+            . "    o.id_order_prestashop,\n"
             . "    o.buyer_login,\n"
             . "    o.total_amount AS order_total_amount,\n"
             . "    o.currency,\n"
@@ -658,12 +684,13 @@ class SettlementsReportService
             . "  {$statusWhere}\n"
             . "  {$bfWhere}\n"
             . "GROUP BY b.id_allegropro_account, b.order_id\n"
-            . "ORDER BY occurred_at_max DESC\n"
+            . "ORDER BY " . $orderBySql . "\n"
             . "LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
+            $r['id_order_prestashop'] = (int)($r['id_order_prestashop'] ?? 0);
 
             $sales = isset($r['sales_amount']) ? (float)$r['sales_amount'] : 0.0;
             $r['sales_amount'] = ($sales > 0.0) ? $sales : null;
@@ -705,10 +732,10 @@ class SettlementsReportService
     /**
      * TRYB B: lista zamówień złożonych w okresie + opłaty policzone dla tych zamówień (bez filtra daty opłat).
      */
-    public function getOrdersWithFeesOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = []): array
+    public function getOrdersWithFeesOrders($accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = [], string $sortBy = 'date', string $sortDir = 'desc'): array
     {
         $ids = $this->normalizeAccountIds($accountIds);
-        $orders = $this->listOrdersMulti($ids, $dateFrom, $dateTo, $q, $limit, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected);
+        $orders = $this->listOrdersMulti($ids, $dateFrom, $dateTo, $q, $limit, $offset, $orderState, $cancelledNoRefund, $feeGroup, $feeTypesSelected, $sortBy, $sortDir);
 
         // Zbuduj listę kandydatów order_id dla widocznych zamówień (dokładny + bez myślników + lower/upper).
         $candidates = [];
@@ -848,10 +875,10 @@ class SettlementsReportService
 
         $filter = $this->billingEntryFilterSql('b.value_amount','b.type_id','b.type_name',$feeGroup,$feeTypesSelected);
 
-        $sql = "SELECT b.occurred_at, b.type_id, b.type_name, b.order_id, b.value_amount, b.value_currency, b.offer_id, b.offer_name
+        $sql = "SELECT b.billing_entry_id, b.occurred_at, b.type_id, b.type_name, b.order_id, b.payment_id, b.value_amount, b.value_currency, b.offer_id, b.offer_name
 FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
 WHERE b.id_allegropro_account=" . (int)$accountId . "
-  AND b.order_id IN (" . implode(',', $vals) . ")
+  AND (b.order_id IN (" . implode(',', $vals) . ") OR b.payment_id IN (" . implode(',', $vals) . "))
 ";
 
         if (!$ignoreDate) {
@@ -864,7 +891,60 @@ WHERE b.id_allegropro_account=" . (int)$accountId . "
         $sql .= "  AND {$filter}
 ORDER BY b.occurred_at DESC";
 
-        return Db::getInstance()->executeS($sql) ?: [];
+        $rows = Db::getInstance()->executeS($sql) ?: [];
+        if (!empty($rows)) {
+            return $rows;
+        }
+
+        // Fallback: niektóre wpisy billing w bazie mają puste order_id/payment_id mimo że w raw_json
+        // zawierają identyfikator checkoutFormId/paymentId. Wtedy wyszukujemy po raw_json LIKE.
+        // (to jest wolniejsze, ale wykonywane tylko gdy standardowe dopasowanie nic nie zwróciło).
+        $likeParts = [];
+        foreach ($orderIds as $id) {
+            $id = trim((string)$id);
+            if ($id === '') continue;
+            // UUID-y są bezpieczne; mimo wszystko escapujemy.
+            $likeParts[] = "b.raw_json LIKE '%" . pSQL($id) . "%'";
+            if (count($likeParts) >= 25) break;
+        }
+
+        if (empty($likeParts)) {
+            return [];
+        }
+
+        $sql2 = "SELECT b.billing_entry_id, b.occurred_at, b.type_id, b.type_name, b.order_id, b.payment_id, b.value_amount, b.value_currency, b.offer_id, b.offer_name
+FROM `" . _DB_PREFIX_ . "allegropro_billing_entry` b
+WHERE b.id_allegropro_account=" . (int)$accountId . "
+  AND (" . implode(' OR ', $likeParts) . ")
+";
+        if (!$ignoreDate) {
+            $from = pSQL($dateFrom . ' 00:00:00');
+            $to = pSQL($dateTo . ' 23:59:59');
+            $sql2 .= "  AND b.occurred_at BETWEEN '" . $from . "' AND '" . $to . "'\n";
+        }
+        $sql2 .= "  AND {$filter}
+ORDER BY b.occurred_at DESC";
+
+        $rows2 = Db::getInstance()->executeS($sql2) ?: [];
+
+        // Jeśli znaleźliśmy wpisy po raw_json, to podepnij je do zamówienia (uzupełnij order_id),
+        // żeby kolejne wejście działało już bez pełnotekstowego LIKE.
+        if (!empty($rows2) && method_exists($this->billing, 'attachOrderIdByBillingEntryIds')) {
+            $canonical = (string)($orderIds[0] ?? '');
+            $idsToAttach = [];
+            foreach ($rows2 as $r) {
+                $beid = trim((string)($r['billing_entry_id'] ?? ''));
+                $oid = trim((string)($r['order_id'] ?? ''));
+                if ($beid !== '' && $oid === '') {
+                    $idsToAttach[] = $beid;
+                }
+            }
+            if ($canonical !== '' && !empty($idsToAttach)) {
+                try { $this->billing->attachOrderIdByBillingEntryIds($accountId, $idsToAttach, $canonical); } catch (\Exception $e) {}
+            }
+        }
+
+        return $rows2;
     }
 
     public function getOrderDetails(int $accountId, string $checkoutFormId, string $dateFrom, string $dateTo, bool $ignoreBillingDate = false, string $feeGroup = '', array $feeTypesSelected = []): array
@@ -903,10 +983,91 @@ ORDER BY b.occurred_at DESC";
             if ($upper !== $cf) $candidates[] = $upper;
         }
 
+        // Dodatkowy kandydat: payment_id z tabeli {prefix}_allegropro_order_payment.
+        // Niektóre opłaty w billing-entry potrafią być powiązane tylko z payment.id.
+        try {
+            $paymentId = (string)\Db::getInstance()->getValue(
+                "SELECT payment_id FROM " . _DB_PREFIX_ . "allegropro_order_payment
+                 WHERE checkout_form_id = '" . pSQL($checkoutFormId) . "'
+                 ORDER BY id_allegropro_payment DESC"
+            );
+        } catch (\Throwable $e) {
+            $paymentId = '';
+        }
+
+        $paymentId = trim((string)$paymentId);
+        if ($paymentId !== '') {
+            $candidates[] = $paymentId;
+            $dash = str_replace('_', '-', $paymentId);
+            if ($dash !== '' && $dash !== $paymentId) $candidates[] = $dash;
+            $under = str_replace('-', '_', $paymentId);
+            if ($under !== '' && $under !== $paymentId) $candidates[] = $under;
+            $noSep = str_replace(['-','_'], '', $paymentId);
+            if ($noSep !== '' && $noSep !== $paymentId) $candidates[] = $noSep;
+            $lower = strtolower($paymentId);
+            if ($lower !== $paymentId) $candidates[] = $lower;
+            $upper = strtoupper($paymentId);
+            if ($upper !== $paymentId) $candidates[] = $upper;
+        }
+
+
+
+
+// --- Dodatkowe identyfikatory: payment_id (Allegro) i transaction_id (Presta) ---
+$paymentId = '';
+try {
+    $payRepo = new OrderPaymentRepository();
+    $payRow = $payRepo->getByCheckoutFormId($checkoutFormId);
+    if (is_array($payRow)) {
+        $paymentId = trim((string)($payRow['payment_id'] ?? ''));
+    }
+} catch (\Exception $e) {
+    $paymentId = '';
+}
+
+// Jeśli mamy payment_id i w DB są wpisy billing przypisane tylko do payment — podepnij je do tego zamówienia.
+if ($paymentId !== '' && method_exists($this->billing, 'attachOrderIdByPayment')) {
+    try {
+        $this->billing->attachOrderIdByPayment($accountId, $paymentId, $checkoutFormId);
+    } catch (\Exception $e) {}
+}
+
+// Presta: identyfikatory transakcji (order_payment.transaction_id) — bywają użyteczne jako fallback (np. gdy payment_id nie jest zapisane).
+$psTxIds = [];
+$psOrderId = (int)($order['id_order_prestashop'] ?? 0);
+if ($psOrderId > 0) {
+    $psTxIds = $this->getPrestaTransactionIds($psOrderId);
+}
+
+// Dopnij warianty payment_id / transaction_id do kandydatów.
+$extraIds = [];
+if ($paymentId !== '') {
+    $extraIds = array_merge($extraIds, $this->buildIdVariants($paymentId));
+}
+if (!empty($psTxIds)) {
+    foreach ($psTxIds as $tx) {
+        $extraIds = array_merge($extraIds, $this->buildIdVariants((string)$tx));
+    }
+}
+if (!empty($extraIds)) {
+    $candidates = array_values(array_unique(array_merge($candidates, $extraIds)));
+}
+
         $cand = $candidates ?: [$checkoutFormId];
 
         // Lista pozycji billing (zależnie od trybu: billing=zakres dat, orders=bez dat) + filtr fee_group / fee_type.
         $items = $this->listBillingEntriesForCandidates($accountId, $cand, $dateFrom, $dateTo, $ignoreBillingDate, $feeGroup, $feeTypesSelected);
+
+        // Jeśli brak pozycji, spróbuj naprawić przypisanie order_id na podstawie raw_json/payment_id i ponów odczyt.
+        if (empty($items)) {
+            try {
+                $this->billing->attachOrderIdByRawJsonCandidates($accountId, $cf, $cand, $dateFrom, $dateTo);
+                $items = $this->listBillingEntriesForCandidates($accountId, $cand, $dateFrom, $dateTo, $ignoreBillingDate, $feeGroup, $feeTypesSelected);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
 
         // Dodatkowe: globalne (bez filtra daty) pobrane/zwroty — pod ten sam filtr (żeby weryfikować zwroty konkretnej prowizji/typu).
         $itemsAll = $this->listBillingEntriesForCandidates($accountId, $cand, $dateFrom, $dateTo, true, $feeGroup, $feeTypesSelected);
@@ -998,6 +1159,7 @@ ORDER BY b.occurred_at DESC";
 
         $itemsAgg = $this->itemsAggSql();
         $shipAgg = $this->shippingAggSql();
+
 
         $statusWhere = $this->orderStateWhere('o.status', $orderState);
 
@@ -1108,6 +1270,7 @@ ORDER BY b.occurred_at DESC";
         $itemsAgg = $this->itemsAggSql();
         $shipAgg = $this->shippingAggSql();
 
+
         $statusWhere = $this->orderStateWhere('o.status', $orderState);
 
         $bfJoin = '';
@@ -1148,7 +1311,7 @@ ORDER BY b.occurred_at DESC";
     /**
      * Lista zamówień (orders) w okresie (created_at_allegro) — baza dla trybu orders.
      */
-    private function listOrdersMulti(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = []): array
+    private function listOrdersMulti(array $accountIds, string $dateFrom, string $dateTo, string $q = '', int $limit = 50, int $offset = 0, string $orderState = 'all', bool $cancelledNoRefund = false, string $feeGroup = '', array $feeTypesSelected = [], string $sortBy = 'date', string $sortDir = 'desc'): array
     {
         $from = pSQL($dateFrom . ' 00:00:00');
         $to = pSQL($dateTo . ' 23:59:59');
@@ -1169,6 +1332,11 @@ ORDER BY b.occurred_at DESC";
         $itemsAgg = $this->itemsAggSql();
         $shipAgg = $this->shippingAggSql();
 
+        // Sorting (tryb "orders": pozwalamy na date/sales)
+        $sortBy = in_array($sortBy, ['date', 'sales'], true) ? $sortBy : 'date';
+        $sortDirSql = (strtolower((string)$sortDir) === 'asc') ? 'ASC' : 'DESC';
+        $orderBySql = ($sortBy === 'sales') ? 'sales_amount ' . $sortDirSql . ', o.created_at_allegro DESC' : 'o.created_at_allegro ' . $sortDirSql;
+
         $bfJoin = '';
         $bfWhere = '';
         if ($cancelledNoRefund) {
@@ -1179,7 +1347,7 @@ ORDER BY b.occurred_at DESC";
         }
 
         $sql = "SELECT\n"
-            . "  o.id_allegropro_account, o.checkout_form_id, o.status AS order_status, o.buyer_login, o.total_amount AS order_total_amount, o.currency, o.created_at_allegro,\n"
+            . "  o.id_allegropro_account, o.checkout_form_id, o.id_order_prestashop, o.status AS order_status, o.buyer_login, o.total_amount AS order_total_amount, o.currency, o.created_at_allegro,\n"
             . "  a.label AS account_label,\n"
             . "  CASE\n"
             . "    WHEN oi.items_total IS NOT NULL AND oi.items_total > 0 THEN oi.items_total\n"
@@ -1196,12 +1364,13 @@ ORDER BY b.occurred_at DESC";
             . "  {$statusWhere}\n"
             . "  {$bfWhere}\n"
             . "  {$whereQ}\n"
-            . "ORDER BY o.created_at_allegro DESC\n"
+            . "ORDER BY " . $orderBySql . "\n"
             . "LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
         $rows = Db::getInstance()->executeS($sql) ?: [];
         foreach ($rows as &$r) {
             $r['id_allegropro_account'] = (int)($r['id_allegropro_account'] ?? 0);
+            $r['id_order_prestashop'] = (int)($r['id_order_prestashop'] ?? 0);
 
             $sales = isset($r['sales_amount']) ? (float)$r['sales_amount'] : 0.0;
             $r['sales_amount'] = ($sales > 0.0) ? $sales : null;
@@ -1511,7 +1680,7 @@ private function getCategorySumsBillingFilteredMulti(array $accountIds, string $
 
         $key = pSQL($this->normalizeId($cf));
 
-        $sql = 'SELECT checkout_form_id, status, buyer_login, total_amount, currency, created_at_allegro '
+        $sql = 'SELECT checkout_form_id, id_order_prestashop, status, buyer_login, total_amount, currency, created_at_allegro '
             . 'FROM `' . _DB_PREFIX_ . 'allegropro_order` '
             . 'WHERE id_allegropro_account=' . (int)$accountId . ' '
             . "AND (checkout_form_id='" . pSQL($cf) . "' OR LOWER(REPLACE(REPLACE(checkout_form_id,'-',''),'_',''))='" . $key . "') "
@@ -1522,6 +1691,7 @@ private function getCategorySumsBillingFilteredMulti(array $accountIds, string $
         if (!$row) {
             return null;
         }
+        $row['id_order_prestashop'] = (int)($row['id_order_prestashop'] ?? 0);
         $row['total_amount'] = (float)$row['total_amount'];
         return $row;
     }
@@ -1560,6 +1730,67 @@ private function getCategorySumsBillingFilteredMulti(array $accountIds, string $
         $id = preg_replace('/[^a-z0-9]/', '', $id);
         return (string)$id;
     }
+
+
+/**
+ * Buduje warianty identyfikatora (myślniki/podkreślenia/bez separatorów, lower/upper).
+ * @return string[]
+ */
+private function buildIdVariants(string $id): array
+{
+    $id = trim($id);
+    if ($id === '') {
+        return [];
+    }
+    // pozwalamy na znaki z sanitizeCheckoutFormId (wystarczy do UUID i podobnych)
+    $id = $this->sanitizeCheckoutFormId($id);
+    if ($id === '') {
+        return [];
+    }
+
+    $out = [$id];
+    $dash = str_replace('_', '-', $id);
+    if ($dash !== '' && $dash !== $id) $out[] = $dash;
+    $under = str_replace('-', '_', $id);
+    if ($under !== '' && $under !== $id) $out[] = $under;
+    $noSep = str_replace(['-','_'], '', $id);
+    if ($noSep !== '' && $noSep !== $id) $out[] = $noSep;
+    $lower = strtolower($id);
+    if ($lower !== $id) $out[] = $lower;
+    $upper = strtoupper($id);
+    if ($upper !== $id) $out[] = $upper;
+
+    return array_values(array_unique(array_filter($out)));
+}
+
+/**
+ * Pobiera identyfikatory transakcji z PrestaShop (order_payment.transaction_id) dla danego zamówienia.
+ * @return string[]
+ */
+private function getPrestaTransactionIds(int $psOrderId): array
+{
+    if ($psOrderId <= 0) {
+        return [];
+    }
+    try {
+        $ref = (string)Db::getInstance()->getValue("SELECT reference FROM `" . _DB_PREFIX_ . "orders` WHERE id_order=" . (int)$psOrderId);
+        $ref = trim($ref);
+        if ($ref === '') {
+            return [];
+        }
+        $rows = Db::getInstance()->executeS("SELECT transaction_id FROM `" . _DB_PREFIX_ . "order_payment` WHERE order_reference='" . pSQL($ref) . "'") ?: [];
+        $out = [];
+        foreach ($rows as $r) {
+            $tx = trim((string)($r['transaction_id'] ?? ''));
+            if ($tx !== '') {
+                $out[] = $tx;
+            }
+        }
+        return array_values(array_unique($out));
+    } catch (\Exception $e) {
+        return [];
+    }
+}
 
     private function sanitizeCheckoutFormId(string $id): string
     {

@@ -607,12 +607,25 @@
       var rangeSel = document.getElementById('apBillingRange');
       var rangeHint = document.getElementById('apBillingRangeHint');
       var forceCb = document.getElementById('apBillingForce');
+      var debugCb = document.getElementById('apBillingDebug');
+      var dbgWrap = document.getElementById('apBillingDebugWrap');
+      var dbgOut = document.getElementById('apBillingDebugOut');
+      var dbgReload = document.getElementById('apBillingDebugReload');
+      var dbgClear = document.getElementById('apBillingDebugClear');
       var btn = document.getElementById('apBillingSyncBtn');
       var msg = document.getElementById('apBillingSyncMsg');
 
       var viewSel = document.getElementById('apBillingView');
       var catSel = document.getElementById('apBillingCat');
       var table = document.getElementById('apBillingTable');
+
+      var accountId0 = panel.getAttribute('data-account-id') || '';
+      var cf0 = panel.getAttribute('data-checkout-form-id') || '';
+      var lsKey = 'ap_billing_dbg_' + (accountId0 || '0') + '_' + (cf0 || '');
+
+      function lsGet(k){ try { return localStorage.getItem(k); } catch(e) { return null; } }
+      function lsSet(k,v){ try { localStorage.setItem(k, v); } catch(e) {} }
+      function lsDel(k){ try { localStorage.removeItem(k); } catch(e) {} }
 
       function getRange(){
         var v = (rangeSel && rangeSel.value) ? rangeSel.value : 'narrow';
@@ -624,6 +637,26 @@
         }
         return { value: v, from: from, to: to };
       }
+
+      // --- persist ustawień per zamówienie (range/force/debug) ---
+      (function restoreBillingUiState(){
+        try {
+          var v = lsGet(lsKey + ':range');
+          if (rangeSel && v && (v === 'narrow' || v === 'wide')) {
+            rangeSel.value = v;
+          }
+          if (forceCb) {
+            forceCb.checked = (lsGet(lsKey + ':force') === '1');
+          }
+          if (debugCb) {
+            debugCb.checked = (lsGet(lsKey + ':debug') === '1');
+          }
+        } catch(e) {}
+      })();
+
+      if (rangeSel) rangeSel.addEventListener('change', function(){ lsSet(lsKey + ':range', rangeSel.value || 'narrow'); });
+      if (forceCb) forceCb.addEventListener('change', function(){ lsSet(lsKey + ':force', forceCb.checked ? '1' : '0'); });
+      if (debugCb) debugCb.addEventListener('change', function(){ lsSet(lsKey + ':debug', debugCb.checked ? '1' : '0'); });
 
       function setRangeHint(){
         if (!rangeHint) return;
@@ -665,6 +698,142 @@
         msg.textContent = text || '';
       }
 
+      function showDebug(d){
+        try {
+          if (!dbgOut) return;
+          var parts = [];
+          var diag = (d && d.diag) ? d.diag : null;
+
+          if (diag) {
+            parts.push('=== ORDER BILLING DEBUG (per zamówienie) ===');
+            parts.push('account_id=' + (diag.account_id || '') + '  checkout_form_id=' + (diag.checkout_form_id || ''));
+            if (diag.ranges) {
+              parts.push('');
+              parts.push('--- RANGES ---');
+              parts.push('selected=' + (diag.ranges.selected || '') + '  force_update=' + ((diag.force_update||0) ? 1 : 0));
+              if (diag.ranges.narrow) {
+                parts.push('narrow: ' + diag.ranges.narrow.date_from + ' → ' + diag.ranges.narrow.date_to + ' | ' + diag.ranges.narrow.iso_from + ' → ' + diag.ranges.narrow.iso_to);
+              }
+              if (diag.ranges.wide) {
+                parts.push('wide:   ' + diag.ranges.wide.date_from + ' → ' + diag.ranges.wide.date_to + ' | ' + diag.ranges.wide.iso_from + ' → ' + diag.ranges.wide.iso_to);
+              }
+            }
+
+            if (diag.api_probe) {
+              parts.push('');
+              parts.push('--- API PROBE (czy Allegro zwraca wpisy dla order.id/payment.id w danym zakresie) ---');
+              ['narrow','wide'].forEach(function(k){
+                if (!diag.api_probe[k]) return;
+                var p = diag.api_probe[k];
+                parts.push(k.toUpperCase() + ':');
+                if (p.order) parts.push('  order.id: http=' + p.order.http + ' ok=' + p.order.ok + ' got=' + p.order.got + (p.order.note ? ('  note=' + p.order.note) : ''));
+                if (p.payment) parts.push('  payment.id: http=' + p.payment.http + ' ok=' + p.payment.ok + ' got=' + p.payment.got + (p.payment.note ? ('  note=' + p.payment.note) : ''));
+              });
+            }
+
+            if (diag.sync) {
+              parts.push('');
+              parts.push('--- SYNC (pobranie po dacie) ---');
+              parts.push('total=' + (diag.sync.total||0) + ' inserted=' + (diag.sync.inserted||0) + ' updated=' + (diag.sync.updated||0));
+            }
+            if (diag.bound) {
+              parts.push('');
+              parts.push('--- BINDING (dopinam billing do order_id) ---');
+              parts.push('by_payment=' + (diag.bound.by_payment||0) + '  by_raw_json=' + (diag.bound.by_raw_json||0) + '  total=' + (diag.bound.total||0));
+            }
+            if (diag.db) {
+              parts.push('');
+              parts.push('--- DB COUNTS ---');
+              parts.push('entries_in_range=' + (diag.db.account_entries_in_range||0));
+              parts.push('order_entries_in_range=' + (diag.db.order_entries_in_range||0));
+              parts.push('order_entries_all_time=' + (diag.db.order_entries_all_time||0));
+              parts.push('raw_json_matches_in_range=' + (diag.db.raw_json_matches_in_range||0));
+              if (typeof diag.db.payment_id_matches_in_range !== 'undefined') {
+                parts.push('payment_id_matches_in_range=' + (diag.db.payment_id_matches_in_range===null?'null':diag.db.payment_id_matches_in_range));
+              }
+              if (diag.db.payment_id) parts.push('payment_id=' + diag.db.payment_id);
+              if (diag.db.transaction_id) parts.push('transaction_id=' + diag.db.transaction_id);
+              if (diag.db.candidates && diag.db.candidates.length) parts.push('candidates=' + diag.db.candidates.join(', '));
+            }
+            if (diag.hint) {
+              parts.push('');
+              parts.push('--- HINT ---');
+              parts.push(diag.hint);
+            }
+
+            if (diag.samples) {
+              parts.push('');
+              parts.push('--- SAMPLES (max 10) ---');
+              if (diag.samples.by_order_id && diag.samples.by_order_id.length) {
+                parts.push('by_order_id: ' + diag.samples.by_order_id.length + ' rows');
+              } else {
+                parts.push('by_order_id: 0 rows');
+              }
+              if (diag.samples.by_raw_json && diag.samples.by_raw_json.length) {
+                parts.push('by_raw_json: ' + diag.samples.by_raw_json.length + ' rows');
+              } else {
+                parts.push('by_raw_json: 0 rows');
+              }
+            }
+          } else {
+            parts.push(JSON.stringify(d || {}, null, 2));
+          }
+
+          if (d && d.debug && Array.isArray(d.debug) && d.debug.length) {
+            parts.push('');
+            parts.push('--- API debug ---');
+            parts.push(d.debug.join('\n'));
+          }
+          if (d && d.debug_tail && Array.isArray(d.debug_tail) && d.debug_tail.length) {
+            parts.push('');
+            parts.push('--- Debug tail ---');
+            parts.push(d.debug_tail.join('\n'));
+          }
+
+          dbgOut.textContent = parts.join('\n');
+          if (dbgWrap) dbgWrap.style.display = 'block';
+
+          // persist last output
+          try {
+            lsSet(lsKey + ':last', JSON.stringify(d || {}));
+            lsSet(lsKey + ':last_at', (new Date()).toISOString());
+          } catch(e) {}
+        } catch (e) {}
+      }
+
+      // restore last debug output on refresh
+      (function restoreLastDebug(){
+        try {
+          var last = lsGet(lsKey + ':last');
+          if (!last) return;
+          var obj = null;
+          try { obj = JSON.parse(last); } catch(e) { obj = null; }
+          if (obj && dbgOut) {
+            // pokaż tylko jeśli debug jest zaznaczony
+            if (debugCb && debugCb.checked) {
+              showDebug(obj);
+            }
+          }
+        } catch(e) {}
+      })();
+
+      if (dbgReload) {
+        dbgReload.addEventListener('click', function(e){
+          e.preventDefault();
+          try { sessionStorage.setItem('ap_order_tab', '#apTabSettlements'); } catch(ex) {}
+          window.location.reload();
+        });
+      }
+      if (dbgClear) {
+        dbgClear.addEventListener('click', function(e){
+          e.preventDefault();
+          lsDel(lsKey + ':last');
+          lsDel(lsKey + ':last_at');
+          if (dbgWrap) dbgWrap.style.display = 'none';
+          if (dbgOut) dbgOut.textContent = '';
+        });
+      }
+
       function setBtnLoading(isLoading){
         if (!btn) return;
         var icon = btn.querySelector('.ap-sync-icon');
@@ -692,6 +861,7 @@
           var accountId = panel.getAttribute('data-account-id') || '';
           var cf = panel.getAttribute('data-checkout-form-id') || '';
           var force = forceCb && forceCb.checked ? 1 : 0;
+          var debug = debugCb && debugCb.checked ? 1 : 0;
 
           if (!accountId || !cf || !r.from || !r.to) {
             setMsg('Brak parametrów do pobrania (konto/checkoutFormId/zakres).', true);
@@ -708,15 +878,31 @@
           fd.append('date_from', r.from);
           fd.append('date_to', r.to);
           fd.append('force_update', force ? '1' : '0');
+          fd.append('debug', debug ? '1' : '0');
+          fd.append('range_kind', r.value || 'narrow');
+          // send both ranges for diagnostic (debug)
+          fd.append('date_from_narrow', panel.getAttribute('data-range-narrow-from') || '');
+          fd.append('date_to_narrow', panel.getAttribute('data-range-narrow-to') || '');
+          fd.append('date_from_wide', panel.getAttribute('data-range-wide-from') || '');
+          fd.append('date_to_wide', panel.getAttribute('data-range-wide-to') || '');
 
           fetch(url, { method: 'POST', body: fd })
             .then(function(resp){ return resp.json(); })
             .then(function(d){
               if (!d || !d.ok) {
                 setMsg((d && d.error) ? d.error : 'Nie udało się pobrać billing-entries.', true);
+                if (debug) { showDebug(d || {}); }
                 setBtnLoading(false);
                 return;
               }
+              if (debug) {
+                // Debug: nie odświeżamy automatycznie — zostawiamy wynik, zapisujemy i dajemy przycisk "Odśwież widok".
+                showDebug(d || {});
+                setMsg('Synchronizacja zakończona — pobrano ' + (d.total||0) + ' (nowe: ' + (d.inserted||0) + ', zaktualizowane: ' + (d.updated||0) + '). Debug zapisany — możesz kliknąć "Odśwież widok zamówienia" w sekcji Debug.', false);
+                setBtnLoading(false);
+                return;
+              }
+
               setMsg('Synchronizacja zakończona — pobrano ' + (d.total||0) + ' (nowe: ' + (d.inserted||0) + ', zaktualizowane: ' + (d.updated||0) + '). Odświeżam widok…', false);
               try { sessionStorage.setItem('ap_order_tab', '#apTabSettlements'); } catch(e) {}
               setTimeout(function(){ window.location.reload(); }, 700);
