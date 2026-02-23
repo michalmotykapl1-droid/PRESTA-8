@@ -789,10 +789,28 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
         $treeHtml = $tree->render();
 
         $categoryOptions = '<option value="0">-</option>';
+        $categoryLabelsById = [];
         foreach ($this->getAllCategoriesForSelect() as $category) {
-            $selected = ((int)$category['id_category'] === $idDefault) ? ' selected="selected"' : '';
-            $categoryOptions .= '<option value="' . (int)$category['id_category'] . '"' . $selected . '>'
-                . htmlspecialchars($category['name_with_path'], ENT_QUOTES, 'UTF-8')
+            $categoryId = (int)$category['id_category'];
+            $categoryLabelsById[$categoryId] = (string)$category['name_with_path'];
+        }
+
+        $dropdownCategoryIds = array_values(array_filter($selectedCategories, function ($categoryId) {
+            return (int)$categoryId > 1;
+        }));
+        if ($idDefault > 1 && !in_array($idDefault, $dropdownCategoryIds, true)) {
+            $dropdownCategoryIds[] = $idDefault;
+        }
+
+        foreach ($dropdownCategoryIds as $categoryId) {
+            $categoryId = (int)$categoryId;
+            if ($categoryId <= 0) {
+                continue;
+            }
+            $selected = ($categoryId === $idDefault) ? ' selected="selected"' : '';
+            $label = isset($categoryLabelsById[$categoryId]) ? $categoryLabelsById[$categoryId] : ('ID: ' . $categoryId);
+            $categoryOptions .= '<option value="' . $categoryId . '"' . $selected . '>'
+                . htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
                 . '</option>';
         }
 
@@ -806,18 +824,8 @@ class AdminAzadaCategoryMapController extends ModuleAdminController
             $categoryOptions,
             ((int)$row['is_active'] === 1),
             $this->buildFilterAwareUrl(['azada_tab' => 'categories']),
-            [
-                'source_category' => $this->l('Kategoria hurtowni'),
-                'wholesaler' => $this->l('Hurtownia'),
-                'shop_categories_tree' => $this->l('Kategorie w sklepie (drzewo)'),
-                'tree_help' => $this->l('Możesz zaznaczyć wiele kategorii sklepu. Przypisanie zostanie zapisane w bazie i użyte w kolejnych synchronizacjach.'),
-                'default_category' => $this->l('Kategoria domyślna'),
-                'import_active' => $this->l('Import aktywny'),
-                'yes' => $this->l('Tak'),
-                'no' => $this->l('Nie'),
-                'cancel' => $this->l('Anuluj'),
-                'save' => $this->l('Zapisz przypisanie'),
-            ]
+            $categoryLabelsById,
+            $selectedCategories
         );
     }
 

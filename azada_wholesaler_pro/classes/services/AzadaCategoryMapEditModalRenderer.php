@@ -68,7 +68,7 @@ class AzadaCategoryMapEditModalRenderer
         return $html;
     }
 
-    public function renderContent($idMapping, $sourceCategory, $wholesalerName, $treeHtml, $categoryOptionsHtml, $isEnabled, $actionUrl, array $categoryLabelsById)
+    public function renderContent($idMapping, $sourceCategory, $wholesalerName, $treeHtml, $categoryOptionsHtml, $isEnabled, $actionUrl, array $categoryLabelsById, array $initialSelectedCategoryIds)
     {
         $html = '<form method="post" action="' . $this->escape($actionUrl) . '">';
         $html .= '<input type="hidden" name="id_category_map" value="' . (int)$idMapping . '" />';
@@ -127,6 +127,7 @@ class AzadaCategoryMapEditModalRenderer
         $html .= '<script>';
         $html .= '(function($){';
         $html .= 'var labelsById = ' . json_encode($categoryLabelsById) . ';';
+        $html .= 'var initialSelectedIds = ' . json_encode(array_values(array_map('intval', $initialSelectedCategoryIds))) . ';';
         $html .= 'var countLabelTemplate = ' . json_encode($this->translate('Przypisano do %d kategorii sklepu.')) . ';';
         $html .= 'var $modal = $("#azadaCategoryEditModal");';
         $html .= 'var $form = $modal.find("form");';
@@ -134,7 +135,7 @@ class AzadaCategoryMapEditModalRenderer
         $html .= 'var $defaultSelect = $form.find("select[name=\\"id_category_default\\"]");';
         $html .= 'var $countInfo = $form.find(".js-azada-selected-count");';
         $html .= 'var checkboxSelector = ".azada-tree-wrap input[type=\\"checkbox\\"]";';
-        $html .= 'var categoryCheckboxSelector = "input[name=\\"ps_categories[]\\"]";';
+        $html .= 'var categoryCheckboxSelector = "input[name=\'ps_categories[]\'], input[name=\'categoryBox[]\'], input[name=\'checkBoxShopAsso_category[]\'], input[name=\'checkBoxShopAsso_categories[]\']";';
         $html .= 'var manualDefaultOverride = false;';
         $html .= 'function parseNumeric(value){';
         $html .= 'var text = String(value || "");';
@@ -173,9 +174,21 @@ class AzadaCategoryMapEditModalRenderer
         $html .= 'var $li = $checkbox.closest("li");';
         $html .= 'if ($li.length) {';
         $html .= 'var text = $.trim($li.text());';
-        $html .= 'if (text) { return text.replace(/\\s+/g, " "); }';
+        $html .= 'if (text) { return text.replace(/^[\\s\\-–—•·]+/g, "").replace(/\\s+/g, " "); }';
         $html .= '}';
-        $html .= 'return "ID: " + String(fallbackId);';
+        $html .= 'return String(fallbackId);';
+        $html .= '}';
+        $html .= 'var useInitialFallback = true;';
+        $html .= 'function getInitialSelectedItems(){';
+        $html .= 'var items = [];';
+        $html .= 'var seen = {};';
+        $html .= '$.each(initialSelectedIds, function(_, rawId){';
+        $html .= 'var id = parseInt(rawId, 10) || 0;';
+        $html .= 'if (id <= 0 || seen[id]) { return; }';
+        $html .= 'seen[id] = true;';
+        $html .= 'items.push({ id: id, label: labelsById[id] ? labelsById[id] : ("ID: " + String(id)) });';
+        $html .= '});';
+        $html .= 'return items;';
         $html .= '}';
         $html .= 'function selectedCategoryData(){';
         $html .= 'var items = [];';
@@ -191,6 +204,9 @@ class AzadaCategoryMapEditModalRenderer
         $html .= 'seen[id] = true;';
         $html .= 'items.push({ id: id, label: extractLabelFromCheckbox($cb, id) });';
         $html .= '});';
+        $html .= 'if (!items.length && useInitialFallback) {';
+        $html .= 'return getInitialSelectedItems();';
+        $html .= '}';
         $html .= 'return items;';
         $html .= '}';
         $html .= 'function renderCountInfo(total){';
@@ -201,17 +217,19 @@ class AzadaCategoryMapEditModalRenderer
         $html .= 'if (!$defaultSelect.length) { return; }';
         $html .= 'var selectedItems = selectedCategoryData();';
         $html .= 'var selectedIds = $.map(selectedItems, function(item){ return item.id; });';
+        $html .= 'selectedIds = $.grep(selectedIds, function(id){ return parseInt(id, 10) > 1; });';
+        $html .= 'selectedItems = $.grep(selectedItems, function(item){ return parseInt(item.id, 10) > 1; });';
         $html .= 'var currentValue = parseInt($defaultSelect.val(), 10) || 0;';
         $html .= 'var currentStillValid = selectedIds.indexOf(currentValue) !== -1;';
-        $html .= 'var html = "<option value=\\"0\\">-</option>";';
+        $html .= 'var html = "";';
         $html .= '$.each(selectedItems, function(_, item){';
         $html .= 'html += "<option value=\\"" + item.id + "\\">" + $("<div>").text(item.label).html() + "</option>";';
         $html .= '});';
         $html .= '$defaultSelect.html(html);';
         $html .= 'if (selectedIds.length === 0) {';
-        $html .= '$defaultSelect.val("0");';
+        $html .= '$defaultSelect.val("");';
         $html .= 'manualDefaultOverride = false;';
-        $html .= '} else if (manualDefaultOverride && currentStillValid) {';
+        $html .= '} else if (currentStillValid) {';
         $html .= '$defaultSelect.val(String(currentValue));';
         $html .= '} else {';
         $html .= '$defaultSelect.val(String(selectedIds[0]));';
@@ -222,6 +240,7 @@ class AzadaCategoryMapEditModalRenderer
         $html .= 'manualDefaultOverride = true;';
         $html .= '});';
         $html .= '$form.off("change.azadaDefaultSync", checkboxSelector).on("change.azadaDefaultSync", checkboxSelector, function(){';
+        $html .= 'useInitialFallback = false;';
         $html .= 'if (!selectedCategoryData().length) {';
         $html .= 'manualDefaultOverride = false;';
         $html .= '}';
