@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>strefaprotuktowa</name>
+    <displayName><![CDATA[STREFA PRODUKTOWA (Full Speed)]]></displayName>
+    <version><![CDATA[3.7.0]]></version>
+    <description><![CDATA[Startuje pusto, ładuje produkty po przewinięciu + Hook do Menu.]]></description>
+    <author><![CDATA[Custom]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>0</is_configurable>
+    <need_instance>0</need_instance>
+</module>

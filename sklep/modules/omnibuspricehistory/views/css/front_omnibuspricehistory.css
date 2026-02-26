@@ -1,0 +1,382 @@
+/*
+ * 2007-2023 PrestaShop
+ *
+ * Style CSS dla pop-upu historii cen Omnibus (nowoczesny, premium styl - dopracowana kolorystyka).
+ */
+
+/* Ogólne style dla pop-upu */
+.omnibus-modal-overlay {
+    display: none; /* Domyślnie ukryty, zarządzany przez JS */
+    position: fixed;
+    z-index: 10000; /* Upewnij się, że jest na wierzchu */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Włącz przewijanie, jeśli zawartość jest za duża */
+    background-color: rgba(0, 0, 0, 0.4); /* Bardziej subtelne, półprzezroczyste tło */
+    display: flex; /* Użyj flexbox do centrowania */
+    align-items: center; /* Wyśrodkuj w pionie */
+    justify-content: center; /* Wyśrodkuj w poziomie */
+    font-family: 'Inter', sans-serif; /* Nowoczesna, czysta czcionka */
+    backdrop-filter: blur(5px); /* Delikatne rozmycie tła */
+    -webkit-backdrop-filter: blur(5px); /* Wsparcie dla Safari */
+    transition: background-color 0.3s ease, backdrop-filter 0.3s ease; /* Płynne przejście */
+}
+
+.omnibus-modal-content {
+    background-color: #ffffff; /* Czysta biel */
+    margin: auto;
+    padding: 2.5rem; /* Przestronny padding */
+    border-radius: 1.5rem; /* Bardzo zaokrąglone rogi */
+    max-width: 720px; /* Zoptymalizowana szerokość */
+    width: 90%;
+    box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.08); /* Miękki, rozproszony cień, mniej intensywny */
+    animation: fadeInScale 0.3s ease-out forwards; /* Animacja wejścia */
+    position: relative;
+    overflow: hidden; /* Zapobiega wyciekaniu cienia/zaokrągleń */
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.omnibus-modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #f5f5f5; /* Bardzo delikatna, prawie niewidoczna linia */
+    position: relative;
+}
+
+.omnibus-modal-title {
+    font-size: 1.75rem; /* Elegancki rozmiar tytułu */
+    color: #333333; /* Głęboka czerń, bardziej miękka */
+    margin: 0;
+    font-weight: 600; /* Półgruba czcionka */
+    text-align: center;
+    line-height: 1.2;
+}
+
+.omnibus-modal-subtitle {
+    font-size: 0.95rem; /* Subtelniejszy rozmiar podtytułu */
+    color: #777777; /* Delikatny szary */
+    margin-top: 0.5rem;
+    text-align: center;
+    width: 100%;
+}
+
+.omnibus-modal-close {
+    color: #aaaaaa; /* Stonowany szary dla ikony */
+    font-size: 2rem; /* Duży, ale nie agresywny X */
+    font-weight: normal;
+    background: none;
+    border: none;
+    cursor: pointer;
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    padding: 0.5rem; /* Obszar klikalny */
+    transition: color 0.2s ease, transform 0.2s ease;
+    line-height: 1;
+    border-radius: 50%; /* Okrągły obszar hover */
+}
+
+.omnibus-modal-close:hover,
+.omnibus-modal-close:focus {
+    color: #555555; /* Ciemniejszy na hover */
+    transform: rotate(90deg) scale(1.1); /* Delikatny obrót i powiększenie */
+    background-color: #f8f8f8; /* Bardzo delikatne tło na hover */
+    outline: none;
+}
+
+.omnibus-modal-body {
+    padding: 1.5rem 0;
+    max-height: 60vh; /* Zoptymalizowana wysokość dla przewijania */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Płynne przewijanie na iOS */
+}
+
+/* Ukrycie domyślnych pasków przewijania w WebKit (Chrome, Safari) */
+.omnibus-modal-body::-webkit-scrollbar {
+    width: 0.5rem;
+}
+
+.omnibus-modal-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0.25rem;
+}
+
+.omnibus-modal-body::-webkit-scrollbar-thumb {
+    background: #cccccc; /* Delikatny szary */
+    border-radius: 0.25rem;
+    transition: background 0.2s ease;
+}
+
+.omnibus-modal-body::-webkit-scrollbar-thumb:hover {
+    background: #aaaaaa; /* Ciemniejszy na hover */
+}
+
+
+#omnibusHistoryChartContainer {
+    position: relative;
+    height: 300px; /* Standardowa wysokość wykresu */
+    width: 100%;
+}
+
+#omnibusLowestInfo {
+    text-align: center;
+    margin-top: 1rem; /* Zmniejszono margines górny */
+    font-size: 1rem;
+    color: #555555; /* Stonowany kolor */
+    font-weight: normal;
+    padding: 0.75rem 1rem;
+    background-color: #fcfcfc; /* Bardzo jasne tło */
+    border-radius: 0.75rem;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.03); /* Bardzo delikatny wewnętrzny cień */
+    border: 1px solid #f0f0f0; /* Bardzo delikatna ramka */
+    line-height: 1.5;
+}
+
+#omnibusLowestInfo strong {
+    color: #333333; /* Głęboka czerń */
+    font-weight: 700;
+}
+
+.omnibus-modal-footer {
+    padding-top: 0.5rem; /* Zmniejszono padding-top */
+    margin-top: 0.5rem; /* Zmniejszono margin-top */
+    border-top: 1px solid #f5f5f5; /* Bardzo delikatna linia */
+    text-align: right;
+}
+
+/* Ukryj przycisk "Zamknij" w stopce */
+.omnibus-modal-footer .btn-secondary {
+    display: none;
+}
+
+/* Style dla tabeli, jeśli jest używana */
+.table {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    color: #333333; /* Stonowany kolor tekstu */
+    border-collapse: collapse;
+    border-radius: 0.75rem; /* Standardowe zaokrąglone rogi tabeli */
+    overflow: hidden;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.02); /* Bardzo delikatny cień */
+}
+
+.table th,
+.table td {
+    padding: 0.8rem; /* Standardowy padding */
+    vertical-align: middle;
+    border-top: 1px solid #f0f0f0; /* Bardzo delikatna linia */
+}
+
+.table thead th {
+    vertical-align: bottom;
+    border-bottom: 2px solid #e9e9e9; /* Delikatniejsza linia */
+    background-color: #f9f9f9; /* Bardzo jasne tło nagłówka */
+    font-weight: 600;
+    color: #555555; /* Stonowany kolor */
+    text-align: left;
+}
+
+.table-bordered {
+    border: 1px solid #e9e9e9; /* Delikatniejsza ramka */
+}
+
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #e9e9e9; /* Delikatniejsza ramka */
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.01); /* Prawie niewidoczny pasek */
+}
+
+/* Style dla sekcji "Najniższa cena z 30 dni przed promocją" (na stronie produktu) */
+.omnibus-promo-price-info {
+    font-size: 0.9rem; /* Standardowa czcionka */
+    color: #555555; /* Stonowany kolor tekstu, pasujący do reszty */
+    margin-top: 1rem; /* Standardowy margines */
+    padding: 0.6rem 1rem; /* Standardowy padding */
+    border: 1px solid #e0e0e0; /* Delikatna ramka */
+    background-color: #f8f8f8; /* Bardzo jasne, subtelne tło */
+    border-radius: 0.5rem; /* Standardowe zaokrąglone rogi */
+    display: flex; /* Użyj flexbox, aby połączyć tekst i przycisk */
+    align-items: center; /* Wyśrodkuj elementy w pionie */
+    justify-content: space-between; /* Rozmieść elementy na końcach */
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03); /* Bardzo delikatny cień, mniej intensywny */
+    transition: all 0.2s ease;
+    font-weight: 400; /* Normalna grubość czcionki */
+}
+
+.omnibus-promo-price-info .price {
+    color: #dc3545 !important; /* Czerwony dla ceny promocyjnej (wyrazisty, ale nie dominujący) */
+    font-weight: bold;
+    font-size: 1.05em; /* Nieco większa czcionka ceny */
+}
+
+/* Style dla bloku debugowania (zachowane, ale można je dopasować) */
+.omnibus-debug-info {
+    background-color: #fff8e1; /* Bardziej stonowany żółty dla debugowania */
+    color: #a1887f; /* Bardziej stonowany kolor tekstu */
+    padding: 0.75rem;
+    margin-top: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #ffecb3;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+/* Ukryj kontener przycisku, ponieważ przycisk jest teraz częścią .omnibus-promo-price-info */
+.omnibus-full-history-trigger-container {
+    display: none;
+}
+
+/* Style dla przycisku "Historia cen" (ULTRA SUBTELNY styl - jako część bloku info) */
+.omnibus-show-history-popup {
+    background: none; /* Całkowity brak tła */
+    color: #555555; /* Zmieniono na stonowany szary/czarny, aby pasował do tekstu */
+    border: none; /* Brak ramki */
+    padding: 0.2rem 0.5rem; /* Minimalny padding, aby był klikalny */
+    cursor: pointer;
+    font-size: 0.85rem; /* Bardzo dyskretna czcionka */
+    font-weight: 500; /* Półgruba czcionka */
+    letter-spacing: 0;
+    transition: all 0.2s ease-in-out; /* Szybkie, płynne przejścia */
+    box-shadow: none; /* Brak cienia */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem; /* Mały odstęp między tekstem a ikoną */
+    text-transform: none; /* Normalne litery */
+    text-decoration: none; /* Brak domyślnego podkreślenia */
+    position: relative;
+    line-height: 1; /* Wyrównanie ikony */
+}
+
+.omnibus-show-history-popup:hover {
+    color: #333333; /* Ciemniejszy szary/czarny na hover */
+    background-color: rgba(0, 0, 0, 0.03); /* Bardzo delikatne, prawie niewidoczne tło na hover */
+    transform: none; /* Brak uniesienia */
+    box-shadow: none; /* Brak cienia */
+    text-decoration: none; /* Brak podkreślenia na hover */
+    border-radius: 4px; /* Delikatne zaokrąglenie na hover */
+}
+
+.omnibus-show-history-popup:active {
+    transform: none;
+    box-shadow: none;
+    background-color: rgba(0, 0, 0, 0.05); /* Nieco bardziej widoczne tło po kliknięciu */
+    color: #111111; /* Jeszcze ciemniejszy po kliknięciu */
+}
+
+/* Styl dla ikony SVG w przycisku */
+.omnibus-show-history-popup svg {
+    width: 16px; /* Rozmiar ikony */
+    height: 16px;
+    fill: currentColor; /* Ikona dziedziczy kolor tekstu */
+    flex-shrink: 0; /* Zapobiega zmniejszaniu się ikony */
+}
+
+/* Responsywność */
+@media (max-width: 768px) {
+    .omnibus-modal-content {
+        width: 95%;
+        padding: 1.5rem;
+        border-radius: 1rem;
+    }
+
+    .omnibus-modal-title {
+        font-size: 1.4rem;
+    }
+
+    .omnibus-modal-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .omnibus-modal-close {
+        font-size: 1.8rem;
+        top: 1rem;
+        right: 1rem;
+        padding: 0.4rem;
+    }
+
+    .omnibus-modal-body {
+        padding: 1rem 0;
+    }
+
+    #omnibusHistoryChartContainer {
+        height: 250px;
+    }
+
+    #omnibusLowestInfo {
+        font-size: 0.9rem;
+        padding: 0.6rem 0.8rem;
+    }
+
+    .omnibus-promo-price-info {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.8rem;
+        flex-direction: column; /* Na małych ekranach ułóż w kolumnie */
+        align-items: flex-start; /* Wyrównaj do lewej */
+        gap: 0.5rem;
+    }
+
+    .omnibus-show-history-popup {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+        gap: 0.2rem;
+    }
+
+    .omnibus-show-history-popup svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.7rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .omnibus-modal-content {
+        padding: 1rem;
+    }
+
+    .omnibus-modal-title {
+        font-size: 1.2rem;
+    }
+
+    .omnibus-modal-subtitle {
+        font-size: 0.75rem;
+    }
+
+    .omnibus-modal-close {
+        font-size: 1.6rem;
+        top: 0.75rem;
+        right: 0.75rem;
+        padding: 0.3rem;
+    }
+
+    #omnibusHistoryChartContainer {
+        height: 200px;
+    }
+
+    .omnibus-show-history-popup {
+        padding: 0.1rem 0.3rem;
+        font-size: 0.75rem;
+    }
+}

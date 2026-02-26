@@ -1,0 +1,12 @@
+.tvall-page-top-title h1,
+#main .tvpage-header-title-wrapper h1,
+.tvleft-right-title.facet-label,
+.block-categories .category-top-menu>li.tv-category-title-wrapper a,
+.tvapp-logo-content-inner .tvdekstop-footer-all-title-wrapper .tvfooter-title span,
+.tvtab-title-wrapper .tvtabs-products li:hover span,
+.tvtab-title-wrapper .tvtabs-products li.active span,
+.tvinstagram-slider-title-wrapper .tvinstagram-title,
+.tvcms-main-title .tvmain-title h2,
+.tvtab-title-wrapper .tvtabs-products li span {
+    color: #customTitleColor;
+}

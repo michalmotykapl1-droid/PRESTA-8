@@ -1,0 +1,31 @@
+{**
+ * Copyright since 2021 InPost S.A.
+ *
+ * NOTICE OF LICENSE
+ *
+ * Licensed under the EUPL-1.2 or later.
+ * You may not use this work except in compliance with the Licence.
+ *
+ * You may obtain a copy of the Licence at:
+ * https://joinup.ec.europa.eu/software/page/eupl
+ * It is also bundled with this package in the file LICENSE.txt
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the Licence is distributed on an AS IS basis,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the Licence for the specific language governing permissions
+ * and limitations under the Licence.
+ *
+ * @author    InPost S.A.
+ * @copyright Since 2021 InPost S.A.
+ * @license   https://joinup.ec.europa.eu/software/page/eupl
+ *}
+<a class="btn tooltip-link js-{$action_name|default:'__name__'|escape:'html':'UTF-8'} dropdown-item"
+   href="{$action.url|default:'__url__'|escape:'html':'UTF-8'}"
+   data-id-shipment="{if isset($shipment.id)}{$shipment.id|intval}{else}__id__{/if}"
+>
+  <i class="material-icons">
+    {$action.icon|default:'__icon__'|escape:'html':'UTF-8'}
+  </i>
+  {$action.text|default:'__title__'|escape:'html':'UTF-8'}
+</a>

@@ -1,0 +1,133 @@
+/* ========================================================= */
+/* STREFA CZYSTOŚCI - FINALNA (LOADER + RWD)                 */
+/* ========================================================= */
+
+.czystosc-wrapper { background: #fff; padding: 60px 0; margin-bottom: 60px; border-top: 1px solid #f0f0f0; margin-top: -45px; }
+
+/* FIX: UKRYWANIE EDAN */
+.czystosc-item .product-flags, .czystosc-item .product-flag, .czystosc-item .tvproduct-flags { display: none !important; }
+.czystosc-item .product-flag.discount { display: block !important; }
+
+/* NAGŁÓWEK */
+.czystosc-header { text-align: center; margin-bottom: 40px; position: relative; }
+.czystosc-header-content { width: 100%; max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+.czystosc-main-title { font-size: 24px !important; font-weight: 700 !important; color: #222 !important; text-transform: uppercase !important; margin: 0 0 15px 0 !important; line-height: 1.2 !important; }
+.czystosc-line { width: 60px; height: 4px; background: #ff6600; margin: 0 auto 20px auto; border-radius: 2px; }
+.czystosc-main-desc { font-size: 14px !important; color: #777 !important; line-height: 1.6 !important; margin: 0 auto !important; max-width: 800px !important; }
+.czystosc-btn-container { position: absolute; right: 0; bottom: 0; z-index: 2; }
+.czystosc-btn-all { background: transparent; border: none; padding: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #222; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s ease; text-decoration: none !important; }
+.czystosc-btn-all:hover { color: #ff6600; transform: translateX(5px); }
+
+/* UKŁAD */
+.czystosc-layout { display: flex; gap: 30px; align-items: stretch; }
+.czystosc-info-col { flex: 0 0 380px; width: 380px; display: flex; flex-direction: column; }
+.czystosc-info-box { background: #fffbf7; border: 1px solid #f2e9e4; border-radius: 8px; height: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; position: relative; overflow: hidden; padding: 40px; transition: border-color 0.3s; }
+.czystosc-info-box:hover { border-color: #ff6600; }
+.czystosc-bg-icon { position: absolute; bottom: -20px; right: -20px; font-size: 180px; color: #f0eae5; transform: rotate(-15deg); z-index: 0; pointer-events: none; opacity: 0.6; }
+.czystosc-box-content { position: relative; z-index: 1; }
+.czystosc-badge { display: inline-block; background: #fff; color: #ff6600; border: 1px solid #ff6600; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; margin-bottom: 25px; }
+.czystosc-box-title { font-size: 32px !important; font-weight: 700 !important; color: #222; line-height: 1.2; margin-bottom: 20px; text-transform: none; }
+.czystosc-box-desc { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 0; }
+
+/* PRAWA KOLUMNA */
+.czystosc-grid-col { flex: 1; padding-top: 0; min-width: 0; display: flex; flex-direction: column; }
+.czystosc-grid { display: grid; grid-template-columns: repeat(var(--czystosc-cols, 4), 1fr); gap: 20px; height: 100%; }
+
+/* --- LOADER --- */
+.czystosc-loading-overlay { width: 100%; height: 100%; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 1px dashed #f0f0f0; border-radius: 8px; color: #999; gap: 15px; grid-column: 1 / -1; }
+.czystosc-loading-text { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+.czystosc-spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* CENTROWANIE PRODUKTÓW */
+.czystosc-item { margin: 0 !important; height: 100%; display: flex; }
+.czystosc-item .tvproduct-wrapper, .czystosc-item .product-miniature, .czystosc-item .thumbnail-container { width: 100% !important; display: flex !important; flex-direction: column !important; justify-content: center !important; min-height: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; background: transparent !important; }
+.czystosc-item .tvproduct-image { margin-top: auto !important; margin-bottom: 10px !important; align-self: center !important; }
+.czystosc-item .tvproduct-info-box-wrapper { margin-bottom: auto !important; margin-top: 0 !important; width: 100%; text-align: center; }
+
+/* RWD */
+@media (max-width: 1300px) { .czystosc-btn-container { position: relative; right: auto; bottom: auto; margin-top: 20px; display: flex; justify-content: center; } }
+@media (max-width: 991px) { 
+    .czystosc-layout { flex-direction: column; } .czystosc-info-col { width: 100%; flex: none; height: auto; margin-bottom: 30px; } 
+    .czystosc-info-box { padding: 30px; align-items: center; text-align: center; height: auto; } .czystosc-bg-icon { display: none; } 
+    .czystosc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } 
+}
+/* ========================================================= */
+/* STREFA CZYSTOŚCI - CSS (Mobile Slider + Grey Loader)      */
+/* ========================================================= */
+
+.czystosc-wrapper { background: #fff; padding: 60px 0; margin-bottom: 60px; border-top: 1px solid #f0f0f0; margin-top: -45px; }
+
+/* FIX: UKRYWANIE EDAN */
+.czystosc-item .product-flags, .czystosc-item .product-flag, .czystosc-item .tvproduct-flags { display: none !important; }
+.czystosc-item .product-flag.discount { display: block !important; }
+
+/* NAGŁÓWEK */
+.czystosc-header { text-align: center; margin-bottom: 40px; position: relative; }
+.czystosc-header-content { width: 100%; max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+.czystosc-main-title { font-size: 24px !important; font-weight: 700 !important; color: #222 !important; text-transform: uppercase !important; margin: 0 0 15px 0 !important; line-height: 1.2 !important; }
+.czystosc-line { width: 60px; height: 4px; background: #ff6600; margin: 0 auto 20px auto; border-radius: 2px; }
+.czystosc-main-desc { font-size: 14px !important; color: #777 !important; line-height: 1.6 !important; margin: 0 auto !important; max-width: 800px !important; }
+.czystosc-btn-container { position: absolute; right: 0; bottom: 0; z-index: 2; }
+.czystosc-btn-all { background: transparent; border: none; padding: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #222; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s ease; text-decoration: none !important; }
+.czystosc-btn-all:hover { color: #ff6600; transform: translateX(5px); }
+
+/* UKŁAD */
+.czystosc-layout { display: flex; gap: 30px; align-items: stretch; }
+.czystosc-info-col { flex: 0 0 380px; width: 380px; display: flex; flex-direction: column; }
+.czystosc-info-box { background: #fffbf7; border: 1px solid #f2e9e4; border-radius: 8px; height: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; position: relative; overflow: hidden; padding: 40px; transition: border-color 0.3s; }
+.czystosc-info-box:hover { border-color: #ff6600; }
+.czystosc-bg-icon { position: absolute; bottom: -20px; right: -20px; font-size: 180px; color: #f0eae5; transform: rotate(-15deg); z-index: 0; pointer-events: none; opacity: 0.6; }
+.czystosc-box-content { position: relative; z-index: 1; }
+.czystosc-badge { display: inline-block; background: #fff; color: #ff6600; border: 1px solid #ff6600; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; margin-bottom: 25px; }
+.czystosc-box-title { font-size: 32px !important; font-weight: 700 !important; color: #222; line-height: 1.2; margin-bottom: 20px; text-transform: none; }
+.czystosc-box-desc { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 0; }
+
+/* PRAWA KOLUMNA */
+.czystosc-grid-col { flex: 1; padding-top: 0; min-width: 0; display: flex; flex-direction: column; }
+.czystosc-grid { display: grid; grid-template-columns: repeat(var(--czystosc-cols, 4), 1fr); gap: 20px; height: 100%; }
+
+/* --- LOADER --- */
+.czystosc-loading-overlay { width: 100%; height: 100%; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 1px dashed #f0f0f0; border-radius: 8px; color: #999; gap: 15px; grid-column: 1 / -1; }
+.czystosc-loading-text { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+.czystosc-spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* CENTROWANIE PRODUKTÓW */
+.czystosc-item { margin: 0 !important; height: 100%; display: flex; }
+.czystosc-item .tvproduct-wrapper, .czystosc-item .product-miniature, .czystosc-item .thumbnail-container { width: 100% !important; display: flex !important; flex-direction: column !important; justify-content: center !important; min-height: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; background: transparent !important; }
+.czystosc-item .tvproduct-image { margin-top: auto !important; margin-bottom: 10px !important; align-self: center !important; }
+.czystosc-item .tvproduct-info-box-wrapper { margin-bottom: auto !important; margin-top: 0 !important; width: 100%; text-align: center; }
+
+/* RWD - LAPTOP */
+@media (max-width: 1300px) { .czystosc-btn-container { position: relative; right: auto; bottom: auto; margin-top: 20px; display: flex; justify-content: center; } }
+
+/* === MOBILE SLIDER (SWIPE) === */
+@media (max-width: 991px) { 
+    .czystosc-layout { flex-direction: column; } 
+    .czystosc-info-col { width: 100%; flex: none; height: auto; margin-bottom: 30px; } 
+    .czystosc-info-box { padding: 30px; align-items: center; text-align: center; height: auto; } 
+    .czystosc-bg-icon { display: none; } 
+    
+    /* Zmiana GRID na FLEX SLIDER */
+    .czystosc-grid { 
+        display: flex !important; 
+        overflow-x: auto; 
+        gap: 15px; 
+        padding-bottom: 15px; /* Miejsce na pasek przewijania */
+        scroll-snap-type: x mandatory; /* Przyciąganie */
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox - ukryj pasek */
+    }
+    
+    /* Ukrywanie paska w Chrome/Safari */
+    .czystosc-grid::-webkit-scrollbar { display: none; }
+
+    .czystosc-item {
+        min-width: 160px; /* Szerokość kafelka na mobile */
+        max-width: 160px;
+        scroll-snap-align: start;
+        border: 1px solid #f0f0f0; /* Delikatna ramka */
+        border-radius: 8px;
+    }
+}

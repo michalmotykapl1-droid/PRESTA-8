@@ -1,0 +1,81 @@
+/* ========================================================= */
+/* STREFA DZIECKA - CSS (Mobile Swipe + Grey Loader)         */
+/* ========================================================= */
+
+.dziecko-wrapper { background: #fff; padding: 60px 0; margin-bottom: 60px; border-top: 1px solid #f0f0f0; margin-top: -45px; }
+
+/* FIX: UKRYWANIE EDAN */
+.dziecko-item .product-flags, .dziecko-item .product-flag, .dziecko-item .tvproduct-flags { display: none !important; }
+.dziecko-item .product-flag.discount { display: block !important; }
+
+/* NAGŁÓWEK */
+.dziecko-header { text-align: center; margin-bottom: 40px; position: relative; }
+.dziecko-header-content { width: 100%; max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+.dziecko-main-title { font-size: 24px !important; font-weight: 700 !important; color: #222 !important; text-transform: uppercase !important; margin: 0 0 15px 0 !important; line-height: 1.2 !important; }
+.dziecko-line { width: 60px; height: 4px; background: #ff6600; margin: 0 auto 20px auto; border-radius: 2px; }
+.dziecko-main-desc { font-size: 14px !important; color: #777 !important; line-height: 1.6 !important; margin: 0 auto !important; max-width: 800px !important; }
+.dziecko-btn-container { position: absolute; right: 0; bottom: 0; z-index: 2; }
+.dziecko-btn-all { background: transparent; border: none; box-shadow: none; padding: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #222; text-decoration: none !important; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s ease; letter-spacing: 0.5px; }
+.dziecko-btn-all:hover { color: #ff6600; transform: translateX(5px); }
+
+/* UKŁAD */
+.dziecko-layout { display: flex; gap: 30px; align-items: stretch; }
+.dziecko-info-col { flex: 0 0 350px; width: 350px; display: flex; flex-direction: column; }
+.dziecko-info-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; height: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; position: relative; overflow: hidden; padding: 40px; transition: border-color 0.3s; }
+.dziecko-info-box:hover { border-color: #ff6600; }
+.dziecko-bg-icon { position: absolute; bottom: -30px; right: -40px; font-size: 200px; color: rgba(255, 102, 0, 0.08); transform: rotate(10deg); z-index: 0; pointer-events: none; }
+.dziecko-box-content { position: relative; z-index: 1; }
+.dziecko-badge { display: inline-block; background: #fff; color: #ff6600; border: 1px solid #ff6600; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; margin-bottom: 25px; }
+.dziecko-box-title { font-size: 32px !important; font-weight: 700 !important; color: #222; line-height: 1.2; margin-bottom: 20px; text-transform: none; }
+.dziecko-box-desc { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 0; }
+
+/* PRAWA KOLUMNA */
+.dziecko-right-col { flex: 1; display: flex; flex-direction: column; gap: 25px; min-width: 0; }
+.dziecko-cats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.dziecko-cat-tile { display: flex; align-items: center; padding: 25px; background: #fffbf7; border: 1px solid #f2e9e4; border-radius: 8px; text-decoration: none !important; transition: all 0.3s ease; position: relative; overflow: hidden; }
+.dziecko-cat-tile:hover { border-color: #ff6600; background: #fffdfb; transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+.cat-icon { width: 50px; height: 50px; background: #fff3e0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #ff6600; margin-right: 20px; flex-shrink: 0; }
+.cat-info { flex-grow: 1; display: flex; flex-direction: column; }
+.cat-name { font-size: 16px; font-weight: 700; color: #222; margin-bottom: 5px; text-transform: uppercase; }
+.cat-sub { font-size: 13px; color: #777; line-height: 1.3; }
+.arrow { color: #ccc; transition: 0.3s; }
+.dziecko-cat-tile:hover .arrow { color: #ff6600; transform: translateX(5px); }
+
+/* GRID I LOADER */
+.dziecko-products-row { flex-grow: 1; display: flex; flex-direction: column; }
+.dziecko-grid { display: grid; grid-template-columns: repeat(var(--dziecko-cols, 4), 1fr); gap: 20px; height: 100%; }
+
+.dziecko-loading-overlay { width: 100%; height: 100%; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 1px dashed #f0f0f0; border-radius: 8px; color: #999; gap: 15px; }
+.dziecko-loading-text { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+.dziecko-spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* PRODUKTY */
+.dziecko-item { margin: 0 !important; height: 100%; display: flex; }
+.dziecko-item .tvproduct-wrapper, .dziecko-item .product-miniature, .dziecko-item .thumbnail-container { height: 100% !important; width: 100% !important; display: flex !important; flex-direction: column !important; justify-content: center !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; background: transparent !important; }
+.dziecko-item .tvproduct-image { margin-top: auto !important; margin-bottom: 10px !important; flex-grow: 0 !important; display: block !important; align-self: center !important; }
+.dziecko-item .tvproduct-info-box-wrapper { margin-bottom: auto !important; margin-top: 0 !important; flex-grow: 0 !important; width: 100%; text-align: center; }
+
+/* RWD */
+@media (max-width: 1300px) { .dziecko-btn-container { position: relative; right: auto; bottom: auto; margin-top: 20px; display: flex; justify-content: center; } }
+
+/* === MOBILE SWIPE === */
+@media (max-width: 991px) { 
+    .dziecko-layout { flex-direction: column; } 
+    .dziecko-info-col { width: 100%; flex: none; height: auto; margin-bottom: 30px; } 
+    .dziecko-info-box { padding: 30px; align-items: center; text-align: center; height: auto; } 
+    .dziecko-cats-row { grid-template-columns: 1fr; gap: 10px; } 
+    
+    /* SLIDER */
+    .dziecko-grid { 
+        display: flex !important; 
+        overflow-x: auto; 
+        gap: 15px; 
+        padding-bottom: 15px; 
+        scroll-snap-type: x mandatory; 
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .dziecko-grid::-webkit-scrollbar { display: none; }
+    .dziecko-item { min-width: 160px; max-width: 160px; scroll-snap-align: start; border: 1px solid #f0f0f0; border-radius: 8px; }
+}

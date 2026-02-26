@@ -1,0 +1,33 @@
+<?php
+
+global $_MODULE;
+$_MODULE = array();
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_165fa301dc8eb43d63e5986cb440048d'] = 'ThemeVolty - Obsługa Klienta';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_afe85c17e44db2b3eb71914eac73fb18'] = 'Wyświetla Obsługę Klienta na stronie głównej (lub na stronie klienta).';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_077bd3a4f045db0eae3560ce0f149974'] = 'Ostrzeżenie: wszystkie dane zapisane w Twojej bazie danych zostaną usunięte! Czy na pewno chcesz odinstalować ten moduł?';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_7fb30a0e6554691c984d23d0bb9415b4'] = 'Obsługa Klienta została zaktualizowana';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_6a92afc00dd130d0fec645c9a4960ef2'] = 'Główny tytuł Obsługi Klienta został zaktualizowany.';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_65004b33aafa3c2f771c8b1576cbbbad'] = 'Główny tytuł strony głównej';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_34def7eb15204d6b90a53f0bd5b17bbc'] = 'Tytuł lewej kolumny';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_36e3402e4ddef43e92b99aef016c057e'] = 'Krótki opis';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_b5a7adde1af5c87d7fd797b6245c2a39'] = 'Opis';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_be53a0541a6d36f6ecb879fa2c584b08'] = 'Obraz ';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_8db7cc8d4b3d11934118481eb9a9e1c4'] = 'Pokaż na wszystkich stronach';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_93cba07454f06a4a960172bbd6e2a435'] = 'Tak';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_bafd7322c6e97d25b6299b5d6fe8920b'] = 'Nie';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_4f684b54bcd56e4be73ed5a60d5ec0c1'] = 'Główny tytuł Obsługi Klienta';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_c9cc8cce247e49bae79f15173ce97354'] = 'Zapisz';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_b1740475274fcf1c4fbad748b197264b'] = 'Services Image \' . $i), ]; } $input[] = [ \'col\' => 8, \'type\' => \'text';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_14ab4d75f9d67ea45672b461d6e33b3f'] = 'Display Caption Of Service \' . $i), ]; $input[] = [ \'col\' => 8, \'type\' => \'text';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_3dd0e5982cf1a89301eb25c708dc8096'] = 'Display description of service \' . $i), ]; $input[] = [ \'type\' => \'switch';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_182a0fd4632d82cf26b11124c106ccdd'] = 'Hide or show service \' . $i), \'is_bool\' => true, \'values\' => [ [ \'id\' => \'active_on';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_62a5e490880a92eef74f167d9dc6dca0'] = 'Ukryj';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomerservices_24f316a884edac1783f622f9abefa133'] = 'OBSŁUGA KLIENTA';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomer_services_image_upload.class_78d74457b54742f21fef23b2f29063cd'] = 'Problem z przesyłaniem obrazu';
+$_MODULE['<{tvcmscustomerservices}prestashop>tvcmscustomer_services_image_upload.class_d441d4ecb525cb8c94efee379f64c752'] = 'Proszę wybrać prawidłowy plik obrazu.';
+$_MODULE['<{tvcmscustomerservices}prestashop>form_92fbf0e5d97b8afd7e73126b52bdc4bb'] = 'Wybierz plik';
+$_MODULE['<{tvcmscustomerservices}prestashop>form_840044224ccac6db80b0166cd7465655'] = 'Proszę wybrać obraz.';
+$_MODULE['<{tvcmscustomerservices}prestashop>display_home_96a3be3cf272e017046d1b2674a52bd3'] = '01';
+$_MODULE['<{tvcmscustomerservices}prestashop>display_home_a2ef406e2c2351e0b9e80029c909242d'] = '02';
+$_MODULE['<{tvcmscustomerservices}prestashop>display_home_e45ee7ce7e88149af8dd32b27f9512ce'] = '03';
+$_MODULE['<{tvcmscustomerservices}prestashop>display_home_7d0665438e81d8eceb98c1e31fca80c1'] = '04';

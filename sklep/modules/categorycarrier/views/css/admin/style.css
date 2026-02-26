@@ -1,0 +1,24 @@
+/* views/css/admin/style.css */
+
+#categories-tree {
+    border: 1px solid #bbcdd2;
+    background-color: #fff;
+    padding: 10px;
+    margin-bottom: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 5px;
+}
+
+#category-carrier-form-container .form-group {
+    margin-bottom: 25px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 15px;
+}
+
+/* Pogrubienie i kolor dla etykiet checkboxów */
+#category-carrier-form-container input[type="checkbox"] + label {
+    font-weight: 600;
+    color: #363a41;
+    margin-left: 5px;
+}

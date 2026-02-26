@@ -1,0 +1,222 @@
+/* --- IMPORT IKON --- */
+@import url("https://fonts.googleapis.com/icon?family=Material+Icons");
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css");
+
+/**
+* Nowoczesny styl dla bloku lojalnościowego (CLEAN LINK STYLE)
+*/
+
+/* 1. KONTENER ZEWNĘTRZNY (Pełna szerokość) */
+.tvcmssingle-block-modern-wrapper {
+    width: 100%;
+    margin-bottom: 40px;
+    padding: 35px 0;
+    background-color: #ffffff;
+    border-top: 4px solid #2fb5d2; /* Niebieski pasek */
+    border-bottom: 1px solid #eaeaea; 
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.03);
+}
+
+/* 2. WEWNĘTRZNE PUDEŁKO */
+.tv-loyalty-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    background: transparent;
+}
+
+/* 3. LEWA KOLUMNA (Nagłówek + Link) */
+.tv-loyalty-intro {
+    flex: 0 0 28%;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    border-right: 1px solid #f0f0f0;
+    padding-right: 30px;
+    align-items: flex-start; /* Wyrównanie do lewej */
+}
+
+.tv-loyalty-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #2fb5d2;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.tv-loyalty-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #222;
+    margin: 0;
+    line-height: 1.2;
+    text-transform: none;
+}
+
+.tv-loyalty-title span {
+    color: #2fb5d2;
+}
+
+/* --- NOWY STYL LINKU (Zamiast przycisku) --- */
+.tv-loyalty-link {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #000;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #e5e5e5; /* Szara linia */
+    padding-bottom: 5px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none !important;
+}
+
+.tv-loyalty-link i {
+    font-size: 12px;
+    margin-left: 8px;
+    opacity: 0; /* Ukryta strzałka (pokazuje się na hover) */
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+}
+
+/* Efekt Hover - Zmiana na niebieski */
+.tv-loyalty-link:hover {
+    border-bottom-color: #2fb5d2; /* Niebieska linia */
+    color: #2fb5d2;
+}
+
+.tv-loyalty-link:hover i {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* 4. PRAWA STRONA (Kroki) */
+.tv-loyalty-steps {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.tv-step-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+    max-width: 30%;
+}
+
+/* Ikony */
+.tv-step-icon {
+    width: 56px;
+    height: 56px;
+    background: #eaf8fa;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #2fb5d2;
+    margin-bottom: 5px;
+    transition: transform 0.3s ease;
+}
+
+.tv-step-item:hover .tv-step-icon {
+    transform: scale(1.1);
+    background: #2fb5d2;
+    color: #fff;
+}
+
+.tv-step-icon i {
+    font-size: 24px;
+}
+
+.tv-step-info h4 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #333;
+    margin: 0 0 6px 0;
+    text-transform: none;
+}
+
+.tv-step-info p {
+    font-size: 13px;
+    color: #666;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.tv-step-info p strong {
+    color: #2fb5d2;
+}
+
+.tv-step-arrow {
+    align-self: flex-start;
+    margin-top: 16px;
+    color: #e0e0e0;
+}
+.tv-step-arrow i {
+    font-size: 20px;
+}
+
+/* --- RESPONSYWNOŚĆ --- */
+@media (max-width: 1200px) {
+    .tv-loyalty-intro {
+        flex: 0 0 35%;
+        padding-right: 20px;
+    }
+}
+
+@media (max-width: 991px) {
+    .tvcmssingle-block-modern-wrapper {
+        padding: 30px 0;
+    }
+
+    .tv-loyalty-box {
+        flex-direction: column;
+        align-items: center;
+        padding: 0 15px;
+    }
+    
+    .tv-loyalty-intro {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #f0f0f0;
+        padding-right: 0;
+        padding-bottom: 25px;
+        margin-bottom: 25px;
+        text-align: center;
+        align-items: center; /* Wyśrodkowanie na mobile */
+    }
+    
+    .tv-loyalty-title {
+        font-size: 20px;
+    }
+
+    .tv-loyalty-steps {
+        flex-direction: column;
+        width: 100%;
+        gap: 30px;
+    }
+
+    .tv-step-item {
+        max-width: 100%;
+        width: 100%;
+        flex-direction: row;
+        text-align: left;
+        align-items: flex-start;
+    }
+    
+    .tv-step-icon {
+        margin-bottom: 0;
+    }
+    
+    .tv-step-arrow {
+        display: none;
+    }
+}

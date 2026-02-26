@@ -1,0 +1,312 @@
+<?php
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*/
+
+#tv-wrapper-settings {
+    margin: 0 auto 20px;
+}
+#tv-wrapper-settings * {
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#tv-sub-header,
+#tv-header-tabs,
+#tv-wrapper-settings .tv-settings-inner,
+#tv-settings .panel-footer,
+#tv-footer .tv-title,
+#tv-footer .tv-footer-inner {
+    margin: 0;
+    padding: 30px;
+    background: #f5f5f5;
+    border-left: 1px solid #d5d5d5;
+    border-right: 1px solid #d5d5d5;
+}
+#tv-wrapper-settings .module_confirmation {
+    margin: 0;
+}
+
+
+/* Admin Header */
+#tv-header .tv-title {
+    position: relative;
+    padding: 30px 40px;
+    background: #303030;
+}
+#tv-header .tv-title .tv-logo {
+    margin-right: 10px;
+    vertical-align: top;
+}
+#tv-header .tv-title .module-name {
+    color: #fff;
+    font-size: 22px;
+    line-height: 57px;
+    text-transform: uppercase;
+}
+#tv-header .tv-title .module-version {
+    text-transform: none;
+}
+#tv-header .tv-title .tv-author {
+    float: right;
+    margin: 0;
+    color: #fff;
+    font-size: 11px;
+    line-height: 19px;
+    text-align: right;
+}
+#tv-header .tv-title .tv-author a {
+    color: #fff;
+}
+
+
+/* Admin Sub-Header */
+#tv-sub-header p {
+    margin-top: 0;
+}
+#tv-sub-header p:last-child {
+    margin-bottom: 0;
+}
+
+
+/* Admin Header Tabs */
+#tv-header-tabs {
+    padding-left: 40px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+#tv-header-tabs .tv-tabs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+#tv-header-tabs .tv-tabs .tab {
+    float: left;
+    margin-right: 6px;
+}
+#tv-header-tabs .tv-tabs .tab-link {
+    display: block;
+    padding: 10px 20px;
+    background: #eee; /* #039be5 */
+    border-radius: 2px 2px 0 0;
+    color: #222;
+    font-size: 12px;
+    text-transform: uppercase;
+    text-decoration: none;
+    font-weight: 600;
+
+    -webkit-transition: all .3s ease-out;
+    -moz-transition: all .3s ease-out;
+    -ms-transition: all .3s ease-out;
+    -o-transition: all .3s ease-out;
+    transition: all .3s ease-out;
+}
+#tv-header-tabs .tv-tabs .tab-link:hover {
+    background: #f1f1f1;
+}
+#tv-header-tabs .tv-tabs .tab-link.active {
+    background: #fff;
+}
+
+
+/* Admin Settings Section */
+#tv-settings .tv-settings-inner {
+    padding-bottom: 0;
+    background: #fff;
+}
+#tv-settings .tv-settings-inner .panel,
+#tv-settings .tv-settings-inner fieldset {
+    padding: 0;
+    margin: 0;
+    background: 0 none;
+    border: 0 none;
+}
+#tv-settings .tv-options-title {
+    margin: 0 0 30px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #F2F2F2;
+    cursor: pointer;
+    color: #303030;
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+#tv-settings .tv-options-title .tv-title-toggle {
+    float: right;
+    display: block;
+    margin: 5px 0 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid #333;
+    -webkit-transition: all 0.2s ease-out;
+    -moz-transition: all 0.2s ease-out;
+    -ms-transition: all 0.2s ease-out;
+    -o-transition: all 0.2s ease-out;
+    transition: all 0.2s ease-out;
+}
+#tv-settings .tv-options-title:hover .tv-title-toggle,
+#tv-settings .tv-options-title.up:hover .tv-title-toggle {
+    -webkit-transform: rotate(-90deg);
+    -moz-transform: rotate(-90deg);
+    -ms-transform: rotate(-90deg);
+    -o-transform: rotate(-90deg);
+    transform: rotate(-90deg);
+}
+#tv-settings .tv-options-title.up .tv-title-toggle {
+    -webkit-transform: rotate(-180deg);
+    -moz-transform: rotate(-180deg);
+    -ms-transform: rotate(-180deg);
+    -o-transform: rotate(-180deg);
+    transform: rotate(-180deg);
+}
+#tv-settings .tv-options-title.with-mgt {
+    margin-top: 30px;
+}
+#tv-settings fieldset .margin-form {
+    padding-bottom: 2em;
+}
+#tv-settings fieldset label {
+    width: auto;
+}
+@media (min-width: 1200px) {
+    #tv-settings fieldset label {
+        width: 25%;
+    }
+}
+#tv-settings .tv-settings-inner input[type="text"] {
+    min-width: 200px;
+    height: 30px;
+    line-height: 30px;
+}
+#tv-settings .panel-footer {
+    position: relative;
+    left: -31px;
+    width: 100%;
+    margin-top: 30px;
+    height: auto;
+    border-top: 0 none;
+    -webkit-box-sizing: content-box;
+    -moz-box-sizing: content-box;
+    box-sizing: content-box;
+    text-align: center;
+}
+#tv-settings .panel-footer .tv-input-submit {
+    display: inline-block;
+    min-width: 180px;
+    margin: 0;
+    padding: 0 20px;
+    background: #8bc34a;
+    border: 0 none;
+    border-radius: 3px;
+    box-shadow: 0 3px 0 #6F9C3B;
+    cursor: pointer;
+    outline: none;
+
+    color: #fff;
+    font-size: 14px;
+    line-height: 40px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-shadow: 0 -1px 1px #6f9c3b,1px 0 1px #6f9c3b,0 1px 1px #6f9c3b;
+
+    -webkit-transition: all .3s ease-out;
+    -moz-transition: all .3s ease-out;
+    -ms-transition: all .3s ease-out;
+    -o-transition: all .3s ease-out;
+    transition: all .3s ease-out;
+}
+#tv-settings .panel-footer .tv-input-submit i {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 5px;
+    color: #fff;
+    text-shadow: none;
+}
+#tv-settings .panel-footer .tv-input-submit:hover {
+    background: #6f9c3b;
+}
+#tv-settings .panel-footer .tv-input-submit:active {
+    box-shadow: inset 0 2px 5px -3px rgba(0,0,0,.5);
+    -webkit-transform: translateY(1px);
+    -moz-transform: translateY(1px);
+    -ms-transform: translateY(1px);
+    -o-transform: translateY(1px);
+    transform: translateY(1px);
+}
+
+
+/* Admin Footer */
+#tv-footer .tv-title {
+    padding-left: 40px;
+    padding-right: 40px;
+    background: #1c1c1c;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1.4em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+#tv-footer .tv-footer-inner {
+    background: #303030;
+    color: #bebebe;
+}
+#tv-footer p {
+    color: #bebebe;
+}
+#tv-footer .one-module {
+    float: left;
+    width: 20%;
+}
+#tv-footer .one-module .module-logo {
+    float: left;
+    height: 57px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+#tv-footer .one-module .module-infos {
+    padding: 0 10px 0 0;
+}
+#tv-footer .one-module .module-title {
+    color: #fff;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 14px;
+    text-decoration: none;
+}
+#tv-footer .one-module .module-infos p {
+    margin-bottom: 0;
+}
+
+
+/* Useful class */
+#tv-wrapper-settings .clearfix {
+    zoom: 1;
+}
+#tv-wrapper-settings .clearfix:before, #tv-wrapper-settings .clearfix:after {
+    content: " ";
+    display: table;
+}
+#tv-wrapper-settings .clearfix:after {
+    clear: both;
+}

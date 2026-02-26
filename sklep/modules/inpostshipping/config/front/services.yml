@@ -1,0 +1,19 @@
+imports:
+  - { resource: ../common.yml }
+
+services:
+  inpost.shipping.updater.cart_choice:
+    class: InPost\Shipping\CartChoiceUpdater
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+      - '@inpost.shipping.data_provider.point'
+      - '@inpost.shipping.configuration.checkout'
+
+  inpost.shipping.presenter.checkout_data:
+    class: InPost\Shipping\Presenter\CheckoutDataPresenter
+    public: true
+    arguments:
+      - '@inpost.shipping.data_provider.customer_choice'
+      - '@inpost.shipping.data_provider.point'
+      - '@inpost.shipping.context'

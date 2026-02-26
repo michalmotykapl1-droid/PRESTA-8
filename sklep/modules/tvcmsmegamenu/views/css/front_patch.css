@@ -1,0 +1,25 @@
+/* Patch: enforce submenu visibility & positioning */
+@media (min-width: 992px) {
+  .tv-menu-horizontal li.level-1.parent { position: relative; }
+  .tv-menu-horizontal li.level-1.parent .menu-dropdown,
+  .tv-menu-horizontal li.level-1.parent .tv-sub-menu {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: 2001;
+  }
+  .tv-menu-horizontal li.level-1.parent:hover > .menu-dropdown,
+  .tv-menu-horizontal li.level-1.parent:hover > .tv-sub-menu,
+  .tv-menu-horizontal li.level-1.parent.opened > .menu-dropdown,
+  .tv-menu-horizontal li.level-1.parent.opened > .tv-sub-menu {
+    display: block;
+  }
+}
+
+@media (max-width: 991px) {
+  .tv-menu-horizontal li.level-1.parent .menu-dropdown,
+  .tv-menu-horizontal li.level-1.parent .tv-sub-menu { display: none; }
+  .tv-menu-horizontal li.level-1.parent.opened > .menu-dropdown,
+  .tv-menu-horizontal li.level-1.parent.opened > .tv-sub-menu { display: block; }
+}

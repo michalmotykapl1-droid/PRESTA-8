@@ -1,0 +1,221 @@
+/* --- KONTENER GŁÓWNY --- */
+.strefa-section {
+    margin-top: -10px;
+    margin-bottom: 30px;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    padding: 20px 0;
+    position: relative;
+    display: block;
+    clear: both;
+}
+
+.strefa-container {
+    width: 100%;
+    padding: 0 15px;
+    position: relative;
+}
+
+/* --- NAGŁÓWEK --- */
+.strefa-top-bar {
+    position: relative;
+    text-align: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.strefa-title-wrapper {
+    position: relative;
+    z-index: 1;
+}
+
+.strefa-title {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #222;
+    text-transform: uppercase;
+    margin: 0 0 10px 0;
+}
+
+.strefa-line {
+    display: block !important;
+    width: 60px !important;
+    height: 3px !important;
+    background-color: #ea7404 !important;
+    margin: 0 auto;
+    border-radius: 2px;
+}
+
+/* --- KONTENER NAWIGACJI (Strzałki + Przycisk) --- */
+.strefa-arrows-wrapper {
+    display: flex;
+    align-items: center; /* Wyrównanie w pionie */
+    gap: 8px;          /* Odstęp między elementami */
+    z-index: 5;
+    position: absolute;
+    top: 0;
+    right: 15px;
+}
+
+/* Mały separator między przyciskiem a strzałkami */
+.strefa-sep {
+    width: 1px;
+    height: 20px;
+    background: #eee;
+    margin: 0 5px;
+}
+
+/* --- PRZYCISK ODŚWIEŻANIA --- */
+.strefa-refresh-btn {
+    background-color: #fff; /* Tło białe, żeby pasowało do strzałek */
+    color: #ea7404;         /* Tekst pomarańczowy */
+    border: 1px solid #ea7404;
+    border-radius: 20px;    /* Zaokrąglony */
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    height: 30px; /* Taka sama wysokość jak strzałki */
+}
+
+.strefa-refresh-btn:hover {
+    background-color: #ea7404;
+    color: #fff;
+}
+
+.strefa-refresh-btn .material-icons {
+    font-size: 16px;
+}
+
+/* Animacja ładowania */
+.strefa-refresh-btn.loading .refresh-icon {
+    animation: spin 1s infinite linear;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* --- STRZAŁKI --- */
+.strefa-arrow {
+    width: 30px;
+    height: 30px;
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #555;
+}
+
+.strefa-arrow:hover {
+    background: #ea7404;
+    border-color: #ea7404;
+    color: #fff;
+}
+
+/* --- SLIDER --- */
+.strefa-slider-wrapper {
+    overflow: hidden;
+    position: relative;
+    padding: 10px 0;
+}
+
+.strefa-slider {
+    display: flex;
+    gap: 15px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+.strefa-slider::-webkit-scrollbar { display: none; }
+
+/* --- PRODUKT --- */
+.strefa-item {
+    flex: 0 0 20%;
+    max-width: 20%;
+    scroll-snap-align: start;
+    position: relative;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    overflow: hidden; 
+    display: flex;
+    flex-direction: column;
+}
+
+/* FIX MOTYWU */
+.strefa-item .product-miniature, 
+.strefa-item .tvproduct-wrapper {
+    width: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important;
+}
+.strefa-item .product-description-list,
+.strefa-item .tvproduct-list-btn-wrapper,
+.strefa-item .tv-product-list-price,
+.strefa-item .tvproduct-defult-caption {
+    display: none !important;
+}
+.strefa-item .thumbnail-container { margin: 0 auto !important; width: 100% !important; }
+.strefa-item .product-description { text-align: center; padding: 10px !important; width: 100% !important; }
+
+/* --- RWD --- */
+@media (max-width: 1200px) {
+    .strefa-item { flex: 0 0 25%; max-width: 25%; }
+}
+@media (max-width: 991px) {
+    .strefa-item { flex: 0 0 33.333%; max-width: 33.333%; }
+    
+    /* Na tablecie i mobile nawigacja ląduje pod spodem */
+    .strefa-arrows-wrapper {
+        position: static;
+        justify-content: center;
+        margin-top: 15px;
+    }
+}
+@media (max-width: 600px) {
+    .strefa-item { flex: 0 0 50%; max-width: 50%; }
+}
+/* --- ANIMACJA PRZYCISKU "LOSUJ INNE" --- */
+
+/* Definicja animacji: Rozchodząca się pomarańczowa fala */
+@keyframes pulse-orange-ring {
+    0% {
+        box-shadow: 0 0 0 0 rgba(234, 116, 4, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(234, 116, 4, 0); /* Cień oddala się i znika */
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(234, 116, 4, 0);
+    }
+}
+
+/* Przypisanie animacji do przycisku */
+.strefa-refresh-btn {
+    /* Animacja trwa 2 sekundy i powtarza się w nieskończoność */
+    animation: pulse-orange-ring 2s infinite;
+    
+    /* Dodatkowo: lekka transformacja przy najechaniu (hover), żeby zatrzymać pulsowanie */
+}
+
+/* Gdy klient najedzie myszką, zatrzymujemy pulsowanie, żeby nie przeszkadzało */
+.strefa-refresh-btn:hover {
+    animation: none;
+}
+
+/* Opcjonalnie: Ruchoma ikonka przy starcie (obrót o 180 stopni raz) */
+.strefa-refresh-btn .refresh-icon {
+    transition: transform 0.5s ease;
+}
+
+/* Jak klient najedzie, ikonka się lekko obróci */
+.strefa-refresh-btn:hover .refresh-icon {
+    transform: rotate(180deg);
+}

@@ -1,0 +1,157 @@
+/* ==========================================================================
+   STREFA FRESH - STYL MODERN (CZYTELNE ZASADY)
+   ========================================================================== */
+
+.fresh-wrapper {
+    background: #fff;
+    padding: 40px 0 60px 0;
+    margin-top: 5px !important;
+    margin-bottom: 60px !important;
+    font-family: inherit;
+    border-top: none;
+}
+
+/* --- NAGŁÓWEK --- */
+.fresh-header-section { text-align: center; margin-bottom: 50px; max-width: 900px; margin-left: auto; margin-right: auto; }
+.fresh-header-accent { color: #00a8cc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; display: block; }
+.fresh-header-title { font-size: 36px; font-weight: 700; color: #222; margin-bottom: 15px; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1.2; margin-top: 0; }
+.fresh-header-line { width: 60px; height: 4px; background: #00a8cc; margin: 0 auto 25px auto; border-radius: 2px; }
+.fresh-header-desc { font-size: 16px; color: #666; line-height: 1.8; margin-bottom: 0; max-width: 750px; margin-left: auto; margin-right: auto; font-weight: 400; }
+
+/* --- UKŁAD GŁÓWNY --- */
+.fresh-mosaic-layout {
+    display: grid;
+    grid-template-columns: 35% 1fr; 
+    gap: 30px;
+    min-height: 500px;
+}
+
+/* --- LEWY PANEL (INFO) --- */
+.fresh-info-panel {
+    background-color: #f4fcff; 
+    border-radius: 12px; 
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    border: 1px solid #e0f7fa;
+}
+.fresh-info-badge {
+    background: #00a8cc; color: #fff; font-size: 10px; font-weight: 700;
+    padding: 5px 10px; border-radius: 4px; text-transform: uppercase; margin-bottom: 20px; width: fit-content;
+}
+.fresh-info-title {
+    font-size: 28px; font-weight: 700; color: #111; line-height: 1.2; margin-bottom: 15px;
+}
+.fresh-info-desc {
+    font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 30px;
+}
+
+/* LISTA OPCJI DOSTAWY (NOWY UKŁAD) */
+.fresh-delivery-options {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    margin-bottom: auto; 
+}
+
+.delivery-option-item {
+    display: flex;
+    align-items: flex-start; /* Ikona na górze */
+    gap: 15px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e1f5fe;
+    box-shadow: 0 4px 10px rgba(0,168,204, 0.03);
+}
+
+.del-icon {
+    width: 40px; height: 40px;
+    background: #e0f7fa;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #00a8cc; 
+    flex-shrink: 0;
+}
+.del-icon i { font-size: 18px; }
+
+.del-content { display: flex; flex-direction: column; }
+
+.del-title {
+    font-size: 15px; font-weight: 700; color: #222; margin: 0 0 5px 0;
+    text-transform: uppercase;
+}
+
+.del-text {
+    font-size: 13px; color: #555; line-height: 1.5; margin: 0;
+}
+.del-text strong {
+    color: #00a8cc;
+    font-weight: 700;
+}
+
+/* Footer panelu */
+.fresh-info-footer { margin-top: 30px; }
+.btn-fresh-more {
+    font-size: 12px; font-weight: 700; color: #00a8cc; text-transform: uppercase; text-decoration: none !important;
+    display: flex; align-items: center; gap: 5px; transition: 0.3s;
+}
+.btn-fresh-more i { font-size: 10px; transition: transform 0.3s; }
+.btn-fresh-more:hover { color: #007c91; }
+.btn-fresh-more:hover i { transform: translateX(5px); }
+
+
+/* --- PRAWA STRONA (GRID) --- */
+.fresh-categories-grid-4 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; }
+
+.fresh-cat-card {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-decoration: none !important;
+    background-color: #fff; 
+    border: 1px solid #eee;
+    transition: all 0.3s ease;
+    height: 100%;
+    text-align: center;
+}
+
+.fresh-cat-card:hover {
+    transform: none; 
+    border-color: #00a8cc; 
+    box-shadow: 0 0 15px rgba(0, 168, 204, 0.1);
+}
+
+.cat-main-icon {
+    font-size: 60px;
+    color: #cccccc; 
+    margin-bottom: 25px;
+    transition: all 0.4s ease;
+}
+
+.fresh-cat-card:hover .cat-main-icon {
+    color: #00a8cc; 
+    transform: scale(1.1); 
+}
+
+.cat-content-simple { z-index: 2; }
+.cat-title-simple { font-size: 18px; font-weight: 700; color: #222; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px; transition: color 0.3s; }
+.cat-btn-simple { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; transition: color 0.3s; }
+
+.fresh-cat-card:hover .cat-title-simple { color: #000; }
+.fresh-cat-card:hover .cat-btn-simple { color: #00a8cc; }
+
+/* RWD */
+@media (max-width: 991px) {
+    .fresh-mosaic-layout { grid-template-columns: 1fr; gap: 40px; }
+    .fresh-categories-grid-4 { grid-template-columns: 1fr; gap: 15px; }
+    .fresh-cat-card { min-height: 200px; flex-direction: row; justify-content: flex-start; text-align: left; padding: 20px; }
+    .cat-main-icon { font-size: 40px; margin-bottom: 0; margin-right: 20px; }
+    .fresh-header-title { font-size: 26px; }
+}

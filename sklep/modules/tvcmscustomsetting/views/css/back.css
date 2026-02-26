@@ -1,0 +1,244 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*
+* Don't forget to prefix your containers with your own identifier
+* to avoid any conflicts with others containers.
+*/
+
+.tvcmsall-pattern-show {
+    height: auto;
+    width: 200px;
+}
+.tvall-pattern-show,
+.tvall-body-pattern-show {
+    border: 1px solid #ccc;
+    cursor: pointer;
+    float: left;
+    height: 22px;
+    margin: 0 5px 5px 0;
+    width: 22px;
+}
+.tvcms_custom_setting_active,
+.tvcms_custom_setting_body_active {
+    border-color: #f00 !important;
+}
+
+.tvall-pattern-show:hover,
+.tvall-body-pattern-show:hover {
+    border-color: #000;
+}
+.custom_pattern,
+.custom_body_pattern {
+    margin-top: 5px;
+}
+
+
+.tvcmsadmincustom-setting {
+    width: 100%;
+    position: relative;
+}
+.tvcmsadmincustom-setting .panel {
+    display: none;
+}
+.tvadmincustom-setting-all-tabs {
+    display: block;
+    padding: 5px 10px 0 10px;
+    margin: 0 !important;
+
+}
+.tvadmincustom-setting-tab {
+    display: inline-block;
+    padding: 5px 20px;
+    font-size: 14px;
+    -webkit-transition: 0.3s ease-out;
+    -moz-transition: 0.3s ease-out;
+    -ms-transition: 0.3s ease-out;
+    -o-transition: 0.3s ease-out;
+    transition: 0.3s ease-out;
+    border-left: 1px solid #eff1f2;
+    border-right: 1px solid #eff1f2;
+    border-top: 1px solid #eff1f2;
+}
+
+.tvadmincustom-setting-tab:hover,
+.tvadmincustom-setting-active {
+    cursor: pointer;
+    border-left: 1px solid #8b8b8b;
+    border-right: 1px solid #8b8b8b;
+    border-top: 1px solid #8b8b8b;
+    border-radius: 5px 5px 0px 0px;
+}
+
+#TVCMSCUSTOMSETTING_THEME_OPTION input[type="radio"] {
+    float: left;
+
+}
+.color-wrapper {
+    float: left;
+}
+#TVCMSCUSTOMSETTING_THEME_OPTION .col-lg-9 p {
+    float: left;
+    margin-right: 10px;
+}
+#TVCMSCUSTOMSETTING_THEME_OPTION .col-lg-9 p.help-block {
+    width: 18%;
+}
+
+.color-wrapper.theme1 .first {
+    background-color: #df3437;
+}
+.color-wrapper.theme1 .second {
+    background-color: #00ebff;
+}
+
+.color-wrapper.theme2 .first {
+    background-color: #00a9ff;
+}
+.color-wrapper.theme2 .second {
+    background-color: #ffea00;
+}
+
+.color-wrapper.theme3 .first {
+    background-color: #ffb800;
+}
+.color-wrapper.theme3 .second {
+    background-color: #e93a3a;
+}
+
+.color-wrapper.theme4 .first {
+    background-color: #ff4e00;
+}
+.color-wrapper.theme4 .second {
+    background-color: #ab6cf7;
+}
+
+.color-wrapper .first,
+.color-wrapper .second {
+    width: 20px;
+    height: 12px;
+    margin: 2px;
+    border: 1px solid #eee;
+}
+
+.tvcmstable tbody td {
+    padding: 10px !important;
+    font-size: 14px !important;
+}
+.tvcmstable tbody tr:nth-child(even) td {
+    background: #f5f5f5 !important;
+}
+#TVCMSCUSTOMSETTING_DARKMODE_THEME_OPTION .lightModeWrapper {
+    float: left;
+}
+#TVCMSCUSTOMSETTING_DARKMODE_THEME_OPTION .darkModeWrapper {
+    margin-left: 50px;
+}
+#TVCMSCUSTOMSETTING_DARKMODE_THEME_OPTION .lightModeWrapper p,
+#TVCMSCUSTOMSETTING_DARKMODE_THEME_OPTION .darkModeWrapper p {
+    text-align: center;
+    margin-top: 10px;
+    width: 76px;
+}
+@media(min-width: 1100px) {
+    .admindashboard .themevolty-support-link {
+        display: block !important;
+    }
+}
+.themevolty-support-link {
+    display: none;
+    position: fixed;
+    right: 10px;
+    bottom: 0px;
+    z-index: 99999;
+    border: 1px solid #eee;
+}
+.tvcms-db-upgrade-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.tvmcs-radio-manage {
+    /*display: flex;*/
+    /*align-items: center;*/
+    min-height: 57px;
+    height: 100%;
+    margin-bottom: 15px;
+}
+
+.tvmcs-radio-manage label,
+.tvmcs-radio-manage p,
+.tvmcs-radio-manage input[type=radio] {
+    margin: 0;
+}
+
+.tvmcs-radio-manage input[type=radio] {
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+#content.bootstrap .help-block {
+    clear: both;
+}
+
+.tvcms-layout-wrapper {
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.tvmcs-radio-manage p:nth-child(1) {
+    margin-bottom: 10px;
+}
+
+.bootstrap .tvmcs-radio-manage img {
+    border: 1px solid #cccccc;
+    border-radius: 3px;
+}
+.control-label {
+    text-transform: capitalize;
+}
+.bootstrap .tvcmsadmincustom-setting #fieldset_4_4 input[type="checkbox"] {
+    margin: 0px 5px 0 0;
+    vertical-align: middle;
+}
+
+.bootstrap .tvcmsadmincustom-setting #fieldset_4_4 label {
+    margin-bottom: 0;
+}
+
+.bootstrap .tvcmsadmincustom-setting #fieldset_4_4 .form-group {
+    text-align: center;
+}
+
+.bootstrap .tvcmsadmincustom-setting .panel#fieldset_4_4 .panel-footer {
+    text-align: center;
+}
+
+.bootstrap .tvcmsadmincustom-setting .panel#fieldset_4_4 .panel-footer button {
+    float: none !important;
+}
+.tvcms-layout-wrapper label{
+    cursor: pointer;
+}

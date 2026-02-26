@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>strefakoszyka</name>
+    <displayName><![CDATA[STREFA KOSZYKA (Slider + Refresh)]]></displayName>
+    <version><![CDATA[1.6.0]]></version>
+    <description><![CDATA[Wyświetla produkty z kategorii ID 45 w formie slidera z opcją odświeżania.]]></description>
+    <author><![CDATA[Custom]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>0</is_configurable>
+    <need_instance>0</need_instance>
+</module>

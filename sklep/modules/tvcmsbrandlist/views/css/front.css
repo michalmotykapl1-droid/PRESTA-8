@@ -1,0 +1,267 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+* @author PrestaShop SA <contact@prestashop.com>
+* @copyright  2007-2025 PrestaShop SA
+* @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+* International Registered Trademark & Property of PrestaShop SA
+*/
+
+/************************* brand ******************/
+.tvbrandlist-slider-inner {
+	position: relative;
+}
+.tvcmsbrandlist-slider {
+	position: relative;
+	margin-bottom: 30px; 
+}
+.tvbrandlist-slider {
+	position: relative;
+}
+.tvbrandlist-slider-info-box {
+	display: none;
+}
+/* UKRYWAMY STYLISTYKE DLA LOGO, UŻYWAMY TYLKO TEKSTU */
+.tvbrand-img-block {
+    display: none; 
+}
+.tvbrandlist-slider-wrapper-info {
+    margin: 0 7.5px;
+    transition: all 300ms ease;
+}
+
+/* START: NAPRAWA WIDOCZNOŚCI NAGŁÓWKA */
+.tvcmsbrandlist-slider-main-title-wrapper {
+    display: block !important; 
+    margin-left: 15px; 
+    margin-bottom: 20px;
+}
+/* END: NAPRAWA WIDOCZNOŚCI NAGŁÓWKA */
+
+
+/* START: STYLIZACJA KAFELKA TYLKO Z TEKSTEM */
+.tvbrandlist-slider-wrapper-info.tv-text-only-item {
+    padding: 15px 10px; 
+    display: flex;
+    justify-content: center; 
+    align-items: center;     
+    min-height: 80px;        
+    text-align: center;      
+    
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    background-color: #ffffff;
+    
+    white-space: normal;
+}
+.tvbrand-link-only {
+    display: block;
+    width: 100%;
+    color: #333;
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+.tvbrand-link-only:hover {
+    color: #d90244; 
+    text-decoration: none;
+}
+.tvbrand-name {
+    display: block;
+    width: 100%;
+    text-transform: uppercase; 
+    font-weight: 700; 
+}
+/* END: STYLIZACJA KAFELKA TYLKO Z TEKSTEM */
+
+
+.tvbrandlist-slider-block {
+    margin: 0 -7.5px;
+}
+.tvcmsbrandlist-slider .tvcmsbrandlist-slider-main-title-wrapper {
+    display: block;
+}
+
+/* START: NOWOCZESNY EFEKT HOVER (UNIESIENIE + CIEŃ) */
+.tvbrandlist-slider-wrapper-info:hover {
+    background-color: #ffffff; 
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15); 
+    transform: translateY(-5px); 
+    z-index: 5;
+}
+/* END: NOWOCZESNY EFEKT HOVER */
+
+
+@media (max-width: 991px) {
+	.tvcmsbrandlist-slider {
+		margin: 0 0 30px 0;
+	}
+}
+
+/* USUNIĘCIE STYLI GRID/FLEXBOX (KOLIDUJĄCYCH Z KARUZELĄ) */
+.tvbrandlist-slider-content-box.tv-brands-grid-layout {
+    display: block !important; 
+    flex-wrap: nowrap;
+    overflow: hidden; 
+    margin: 0;
+    padding: 0;
+}
+.tvbrandlist-slider-wrapper-info.tv-grid-item {
+    width: auto !important;
+    padding: 0;
+    margin: 0 7.5px !important;
+    float: left;
+}
+
+
+/***********************************************/
+/* STYLE NAGŁÓWKA W JEDNEJ LINII (Finalna Korekta) */
+/***********************************************/
+
+/* Kontener Flexbox dla elementów w jednej linii */
+.tv-diet-heading-flex {
+    display: flex;
+    flex-wrap: nowrap; /* W jednej linii */
+    align-items: center; 
+    text-align: left;    
+}
+
+/* Styl dla akcentu "TOP" (czerwone tło) */
+.tvcms-diet-heading-accent {
+    background-color: #d90244; 
+    color: #ffffff;           
+    font-size: 18px;          
+    font-weight: 700;
+    padding: 8px 20px;        
+    margin-right: 15px; 
+    margin-bottom: 0; 
+    display: inline-block;    
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 3px;
+    white-space: nowrap;      
+}
+
+/* Główny tytuł (PRODUCENCI) */
+.tvcms-brand-main-title-simple {
+    color: #333333 !important; 
+    font-weight: 700;          
+    font-size: 30px;           
+    text-transform: uppercase; 
+    margin: 0; 
+    flex-grow: 1;              
+    white-space: nowrap;
+}
+
+/* Ukrywamy stary H2 (tvcategory-slider-main-title), który mógłby powodować konflikty */
+.tvcategory-slider-main-title {
+    display: none; 
+}
+
+
+/* Upewniamy się, że cały kontener tytułu jest wyrównany do lewej */
+.tvmain-title {
+    text-align: left; 
+}
+
+/* Mobile Small (poniżej 575px): cofamy Flexbox na małym ekranie */
+@media (max-width: 575px) {
+    .tv-diet-heading-flex {
+        display: block; 
+        text-align: center;
+    }
+    .tvcms-diet-heading-accent {
+        margin: 0 auto 10px auto;
+    }
+    .tvcms-brand-main-title-simple {
+        text-align: center;
+    }
+}
+
+
+/* START: POPRAWKA POZYCJONOWANIA I WYGLĄDU STRZAŁEK NAWIGACYJNYCH */
+
+.tvcms-brandlist-pagination-wrapper {
+    position: absolute; 
+    top: 50%;           
+    left: 0;            
+    right: 0;           
+    transform: translateY(-50%); 
+    display: flex;      
+    justify-content: space-between; 
+    padding: 0 10px;    
+    pointer-events: none; 
+    z-index: 10;        
+}
+
+.tvcms-brandlist-next-pre-btn {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+}
+
+.tvbrandlist-slider-prev,
+.tvbrandlist-slider-next {
+    background-color: rgba(0, 0, 0, 0.5); 
+    color: #fff;              
+    border-radius: 50%;      
+    width: 40px;             
+    height: 40px;            
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    
+    /* POPRAWKI: Wyłączenie zaznaczania i focusu */
+    user-select: none;         
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    outline: none !important; 
+    box-shadow: none !important; 
+    
+    pointer-events: auto; 
+}
+
+.tvbrandlist-slider-prev:hover,
+.tvbrandlist-slider-next:hover {
+    background-color: rgba(0, 0, 0, 0.8); 
+}
+
+.tvbrandlist-slider-prev i,
+.tvbrandlist-slider-next i {
+    font-size: 24px; 
+}
+
+/* Dostosowanie pozycji, aby strzałki były nieco bardziej wewnątrz */
+.tvbrandlist-slider-prev {
+    margin-left: -5px; 
+}
+.tvbrandlist-slider-next {
+    margin-right: -5px; 
+}
+
+/* Ukrywanie strzałek na bardzo małych ekranach */
+@media (max-width: 575px) {
+    .tvcms-brandlist-pagination-wrapper {
+        display: none; 
+    }
+}
+/* END: POPRAWKA STRZAŁEK NAWIGACYJNYCH */

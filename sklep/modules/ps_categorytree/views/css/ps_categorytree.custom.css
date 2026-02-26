@@ -1,0 +1,95 @@
+/* modules/ps_categorytree/views/css/ps_categorytree.custom.css */
+/* --- Variables --- */
+:root{
+  --cat-active: #e53935;        /* active category color */
+  --cat-path:   #6b7280;        /* ancestors on path */
+  --cat-bg:     transparent;
+  --cat-count-color: #9aa0a6;   /* subtle grey for counts & icons */
+}
+
+/* ACTIVE category (only text red) */
+.block-categories .category-sub-menu a.current,
+.block-categories .category-top-menu a.current,
+.block-categories .category-sub-menu li.current > a,
+.tvside-panel-dropdown a.current,
+.tvside-panel-dropdown li.current > a{
+  color: var(--cat-active) !important;
+  font-weight: 700;
+  background: var(--cat-bg);
+}
+
+/* ANCESTORS on the path */
+.block-categories .category-sub-menu li.is-in-path > a:not(.current),
+.tvside-panel-dropdown li.is-in-path > a:not(.current){
+  color: var(--cat-path) !important;
+  font-weight: 600;
+}
+
+/* Left marker for current */
+.block-categories .category-sub-menu li.current > a,
+.tvside-panel-dropdown li.current > a{
+  position: relative;
+  padding-left: 14px;
+}
+.block-categories .category-sub-menu li.current > a::before,
+.tvside-panel-dropdown li.current > a::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--cat-active);
+  border-radius: 2px;
+}
+
+/* --- Counts (less visible) --- */
+.block-categories .cat-count,
+.tvside-panel-dropdown .cat-count{
+  color: var(--cat-count-color) !important;
+  opacity: .65;
+  font-weight: 400;
+  font-size: .9em;
+  margin-left: .45ch;
+}
+.block-categories li.current > a .cat-count,
+.tvside-panel-dropdown li.current > a .cat-count{
+  color: var(--cat-count-color) !important;
+  opacity: .65;
+}
+
+/* --- Icons (plus/minus) same color as counts --- */
+.block-categories [data-toggle="collapse"] .add,
+.block-categories [data-toggle="collapse"] .remove,
+.tvside-panel-dropdown [data-toggle="collapse"] .add,
+.tvside-panel-dropdown [data-toggle="collapse"] .remove{
+  color: var(--cat-count-color) !important;
+  opacity: .75;
+}
+.block-categories [data-toggle="collapse"]:hover .add,
+.block-categories [data-toggle="collapse"]:hover .remove,
+.tvside-panel-dropdown [data-toggle="collapse"]:hover .add,
+.tvside-panel-dropdown [data-toggle="collapse"]:hover .remove{
+  opacity: .95;
+}
+
+/* Hide the minus ONLY on the same <li> that is the ACTIVE item */
+.block-categories li.current > [data-toggle="collapse"][aria-expanded="true"] .remove,
+.tvside-panel-dropdown li.current > [data-toggle="collapse"][aria-expanded="true"] .remove{
+  display: none !important;
+}
+
+/* Ensure expanded NON-active items still show the minus */
+.block-categories li:not(.current) > [data-toggle="collapse"][aria-expanded="true"] .remove,
+.tvside-panel-dropdown li:not(.current) > [data-toggle="collapse"][aria-expanded="true"] .remove{
+  display: inline-block !important;
+}
+
+
+/* Wymuszenie mniejszej czcionki w menu kategorii */
+#left-column .block-categories .category-sub-menu li > a,
+#left-column .block-categories .category-top-menu li > a,
+#left-column .tvside-panel-dropdown li > a {
+  font-size: 0.85em !important; /* zmień np. na 0.8em / 13px jeśli wolisz */
+}

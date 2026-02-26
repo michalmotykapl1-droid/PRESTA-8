@@ -1,0 +1,923 @@
+/* Media Css 769 to 1024 */
+@media(max-width: 1023px) {
+    .tv-footer-social-icon.slideInLeft,
+    .tvcmsright-sticky.slideInRight {
+        display: none;
+    }
+}
+@media (min-width: 992px) and (max-width: 1024px) {
+    .tvtabcategory-product-li,
+    .tvtabcategory-show,
+    .tvtabcategory-hide {
+        padding: 11px 16px 11px 10px;
+    }
+    .tvtabcategory-product-li a,
+    .tvtabcategory-show a,
+    .tvtabcategory-hide a {
+        font-size: 14px;
+    }
+}
+@media (max-width: 1024px) {
+    .product-1 .tvvertical-slider .product-images {
+        max-height: 585px;
+    }
+    .product-4 .tvvertical-slider .tvcmsVerticalSlider img {
+        margin: 0 auto;
+    }
+    .tvapp-logo-content-box {
+        padding: 30px 30px 0 30px;
+    }
+
+    #category .tv-grid-list-wrapper-info-box {
+        width: 25%;
+    }
+    #product .data-sheet {
+        max-width: 100%;
+    }
+    /*.tvprduct-image-info-wrapper .product-cover{
+    }
+    .tvprduct-image-info-wrapper .tvvertical-slider{
+        width: 100%;
+    }*/
+    .tvproduct-page-wrapper .tv-product-page-image {
+        margin-bottom: 30px;
+    }
+    .tvproduct-page-wrapper .tv-product-page-image,
+    .tvproduct-page-wrapper .tv-product-page-content {
+        width: 100%;
+    }
+    .tvfooter-payment-icon-img-block .tvfooter-payment-icon-wrapper {
+        justify-content: center;
+        -webkit-box-pack: center;
+        -ms-flex-pack: center;
+        float: none;
+    }
+    .zoomContainer {
+        display: none;
+    }
+}
+@media(max-width: 991px) {
+    .mobile-header-1,
+    .mobile-header-2,
+    .mobile-header-3 {
+        border-bottom: 1px solid #00000012;
+    }
+    .tvcmsheader-sticky.sticky .tv-header-logo {
+        padding: 8px 0;
+    }
+    .footer-container.footer-4 .tvfooter-storelogo-inner {
+        margin: 0;
+    }
+    .footer-container.footer-3 .tvnewsletter-lable-wrapper {
+        margin-bottom: 15px;
+        margin-right: 0;
+    }
+    #index #wrapper {
+        padding-top: 15px;
+    }
+    #tvcmsmobile-search .tvheader-search-display-icon {
+        display: none;
+    }
+    .container_tv_megamenu {
+        display: block;
+    }
+    .tvmain-slider-next-pre-btn {
+        display: none;
+    }
+    #tvmain-slider .owl-dots {
+        display: none;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        justify-content: center;
+        z-index: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+    #tvmain-slider.owl-theme .owl-dots .owl-dot,
+    .owl-theme .owl-dots .owl-dot span {
+        display: block;
+        flex: 1;
+        width: 100%;
+        height: 2px;
+    }
+    #tvmain-slider.owl-theme .owl-dots .owl-dot.active span,
+    #tvmain-slider.owl-theme .owl-dots .owl-dot:hover span {
+        height: 2px;
+        width: 100%;
+    }
+    .tvcmsmobile-contact {
+        position: relative;
+        padding: 10px 0 0 0;
+    }
+    .tvcmsmobile-contact:before {
+        content: '';
+        background-color: #e5e5e5;
+        position: absolute;
+        width: 100%;
+        height: 1px;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: block;
+        margin: 0 auto;
+    }
+    .tvmobile-sliderbar-btn {
+        padding: 5px 0;
+    }
+    #left-column .tvleft-right-product-slider {
+        width: 50%;
+        float: left;
+    }
+    .tvapp-logo-content-box {
+        padding: 30px 15px 0 15px;
+    }
+    .tvapp-logo-content-inner .tvdekstop-footer-all-title-wrapper .tvfooter-title span {
+        font-size: 22px;
+    }
+    .tvdekstop-footer-all-desc-wrapper span {
+        font-size: 14px;
+    }
+    .tvapp-logo-content-inner,
+    .lang-rtl .tvapp-logo-content-inner {
+        width: 100%;
+    }
+    .tvcmsapp-logo {
+        margin-bottom: 30px;
+    }
+    .tvcmsofferbanners-one {
+        margin-bottom: 30px;
+    }
+    .tvcmssliderofferbanners-one .tvbanner1,
+    .tvcmssliderofferbanners-one .tvbanner2 {
+        padding: 0 15px;
+    }
+    .tvcmssliderofferbanners-one .tvbanner1 {
+        margin-bottom: 0;
+        text-align: right;
+    }
+    .tvcmssliderofferbanners-one .tvbanner2 {
+        margin-bottom: 0;
+        text-align: left;
+    }
+    .tvcms-slider-offerbanner-wrapper {
+        margin-bottom: 30px;
+    }
+    .tvmain-slider-contant .tvmain-slider-button {
+        padding: 0 10px;
+        font-size: 12px;
+        line-height: 20px;
+    }
+    .tvcmsmain-slider-wrapper {
+        margin-bottom: 30px;
+        width: 100%;
+    }
+    .tvcmssliderofferbanners-one {
+        width: 100%;
+        display: inline-block;
+        text-align: center;
+    }
+    #header {
+        position: relative;
+    }
+    #index #header {
+        position: relative;
+        background-color: #ffffff;
+        /*margin-bottom: 15px;*/
+    }
+    .tvtags-content-box,
+    .lang-rtl .tvtags-content-box {
+        text-align: center;
+    }
+    .tvcmsmobile-header-search-logo-wrapper {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -webkit-box-align: center;
+        -ms-flex-align: center;
+        align-items: center;
+    }
+    .tvcmsdesktop-top-header-box {
+        display: block;
+    }
+    #tvcmsmobile-horizontal-menu .tvcmsmain-menu-wrapper>.tv-header-menu {
+        position: absolute;
+        background-color: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        top: 100%;
+        width: 50%;
+        z-index: 70;
+        display: block;
+        opacity: 0;
+        -webkit-transition: all 0.7s ease 0.1s;
+        -moz-transition: all 0.7s ease 0.1s;
+        -ms-transition: all 0.7s ease 0.1s;
+        -o-transition: all 0.7s ease 0.1s;
+        transition: all 0.7s ease 0.1s;
+        padding: 30px;
+        left: -300px;
+        visibility: hidden;
+        max-height: 500px;
+        overflow-y: scroll;
+    }
+    .lang-rtl #tvcmsmobile-horizontal-menu .tvcmsmain-menu-wrapper>.tv-header-menu {
+        right: -300px;
+        left: auto;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu.open {
+        opacity: 1;
+        -webkit-transition: all 0.7s ease 0.1s;
+        -o-transition: all 0.7s ease 0.1s;
+        transition: all 0.7s ease 0.1s;
+        visibility: visible;
+        left: 0;
+    }
+    .lang-rtl #tvcmsmobile-horizontal-menu .tv-header-menu.open {
+        right: 0;
+        left: auto;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu li {
+        width: 100%;
+        text-align: center;
+        position: relative;
+        display: block;
+        padding: 0;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu ul[data-depth="1"]>li {
+        padding: 10px 0;
+        float: unset;
+    }
+    .tvheader-top-menu-img {
+        padding: 10px 0;
+    }
+    #tvcmsmobile-horizontal-menu>.tvcmsmain-menu-wrapper>.tv-header-menu>li {
+        border-bottom: 1px solid #f1f1f1;
+    }
+    #tvcmsmobile-horizontal-menu>.tvcmsmain-menu-wrapper>.tv-header-menu>li>.tvmenu-link-wrapper {
+        padding: 15px 20px;
+    }
+    #tvcmsmobile-horizontal-menu>.tvcmsmain-menu-wrapper>.tv-header-menu>li>.tvmenu-link-wrapper a {
+        color: #222222;
+        font-weight: 500;
+    }
+    .tvmenu-link-wrapper .tvdropdown-submenu.tvmenu-link {
+        display: block;
+        width: 100%;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu li .tvmain-menu-mobile-dropdown .category.tvmain-menu-wrapper {
+        padding: 3px 0;
+    }
+    .tvmenu-link-wrapper .tvdropdown-submenu.tvmenu-link span {
+        color: #000;
+        font-weight: 500;
+    }
+    .tvmenu-link-wrapper .tvdropdown-submenu.tvmenu-link span:hover {
+        color: #e40046;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu li:last-child {
+        border-bottom: none;
+    }
+    #tvcmsmobile-horizontal-menu .tv-header-menu li a i {
+        float: right;
+        padding: 0 40px;
+        position: absolute;
+        right: 0;
+        top: 50%;
+        -webkit-transform: translate(0, -50%);
+        -o-transform: translate(0, -50%);
+        -ms-transform: translate(0, -50%);
+        -moz-transform: translate(0, -50%);
+        transform: translate(0, -50%);
+    }
+    .tvcmsmobile-header-menu-offer-text {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -webkit-box-align: center;
+        -ms-flex-align: center;
+        align-items: center;
+        /*background-color: #fdd740;*/
+        padding: 0 15px;
+    }
+    .tvmenu-toggle-icon {
+        position: absolute;
+        right: 0;
+    }
+    .tvmain-menu-dropdown {
+        display: none;
+        width: 100%;
+        padding: 0 0 15px 0;
+    }
+    .tvmenu-button-wrapper {
+        display: inline-block;
+        vertical-align: middle;
+        padding: 10px 0;
+    }
+    #tvcmsmobile-horizontal-menu-left {
+        padding: 0;
+    }
+    #tvcms-mobile-view-header .tvmenu-button i {
+        color: #ffffff;
+        font-size: 24px;
+        width: 35px;
+        height: 35px;
+        line-height: 33px;
+        text-align: center;
+        border: 1px solid rgba(162, 71, 99, 0.36);
+        border-radius: 5px;
+        vertical-align: top;
+        cursor: pointer;
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    #header .tvcmsmain-menu-wrapper .menu {
+        display: block;
+    }
+    .tvcmsmobile-header-menu {
+        position: initial;
+        padding: 0;
+    }
+
+    .tvcmsmobile-top-wrapper {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -webkit-box-align: center;
+        -ms-flex-align: center;
+        align-items: center;
+    }
+    .tvmobileheader-language-currency-wrapper {
+        text-align: right;
+    }
+    .tv-account-wrapper,
+    .tvheader-cart-wrapper {
+        padding: 5px 0;
+    }
+    .tvheader-sarch-display .tvheader-search-display-icon .tvsearch-open {
+        display: flex;
+    }
+    .tvcmsheader-search {
+        text-align: center;
+        cursor: pointer;
+    }
+    .lang-rtl .tvcmsheader-search {
+        /*text-align: left;*/
+    }
+    #header .mobile-header-2 .tv-myaccount-btn-desktop svg,
+    #header .mobile-header-3 .tv-myaccount-btn-desktop svg {
+        margin: 0;
+    }
+    #header .tvsearch-top-wrapper {
+        width: 70%;
+        padding: 15px 0;
+        display: inline-block;
+    }
+    .tvcmsheader-search.search-widget form input[type=text] {
+        /*height: 40px;*/
+    }
+    .tvcmsheader-search .tvcms-select-category {
+        margin: 0 10px;
+    }
+    .tvsearch-header-display-wrappper form {
+        overflow: visible;
+    }
+    .tvsearch-result {
+        left: 0;
+    }
+    .tvcmsdesktop-language-selector,
+    .tvcmsdesktop-top-wrapper,
+    .lang-rtl .tvcmsdesktop-language-selector {
+        text-align: center;
+    }
+    .tv-language-dropdown,
+    .tv-currency-dropdown {
+        padding: 10px;
+    }
+    .tvcmsdesktop-top-header-wrapper {
+        display: none;
+    }
+    .tvcmsmobile-header-logo-right-wrapper #tvcmsmobile-header-logo {
+        width: 100%;
+    }
+    .tvcmsmobile-cart-acount-text {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -webkit-box-align: center;
+        -ms-flex-align: center;
+        align-items: center;
+        text-align: right;
+        justify-content: flex-end;
+        -webkit-box-pack: end;
+        -ms-flex-pack: end;
+        padding: 0;
+    }
+    .tv-cart-cart-inner {
+        position: absolute;
+        right: -4px;
+        top: -4px;
+    }
+    #tvcmsmobile-account-button {
+        margin: 0 20px;
+    }
+
+    #contact-link span {
+        color: #333333;
+        position: relative;
+        line-height: 40px;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    #contact-link span:before {
+        font-family: 'Material Icons';
+        content: '\e0b0';
+        font-size: 22px;
+        color: #333333;
+        margin: 0 5px 0 0;
+        line-height: 30px;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    #contact-link i {
+        display: none;
+    }
+    .tvstore-email-wrapper,
+    .tvstore-time-infowrapper,
+    .tvcmsstore-time {
+        margin-right: 0;
+        -webkit-box-pack: center;
+        -ms-flex-pack: center;
+        justify-content: center;
+    }
+    .tvcmsdesktop-language-selector,
+    .tvheader-offer-wrapper {
+        width: 100%;
+    }
+    .tvcmsstore-time {
+        display: block;
+    }
+    #contact-link {
+        justify-content: center;
+        -webkit-box-pack: center;
+        -ms-flex-pack: center;
+    }
+    .tvmobile-sliderbar-btn a {
+        height: auto;
+        width: auto;
+        display: inline-block;
+        vertical-align: middle;
+        text-align: center;
+        padding: 8px 8px 8px 0px;
+        background-color: rgba(255, 255, 255, 0.76);
+        /*border: 1px solid rgba(0, 0, 0, 0.07);*/
+    }
+    #header .tv-menu-horizontal ul li.level-1>a {
+        font-size: 16px;
+        font-family: inherit;
+        line-height: 40px;
+    }
+    .tvmobile-sliderbar-btn i {
+        /*padding: 8px 0px;*/
+    }
+    #header .tv-menu-horizontal ul li.level-1>a {
+        /*padding:5px 15px;*/
+        padding: 0;
+    }
+    .tv-menu-horizontal li.level-1 {
+        border-bottom: none;
+        padding-bottom: 5px;
+    }
+    .tv-menu-col,
+    .tv-menu-row {
+        padding-bottom: 5px;
+    }
+    .menu-subtitle {
+        top: 0;
+        right: auto;
+    }
+    .tvmega-menu-title {
+        font-size: 16px;
+        color: #666666;
+        text-align: center;
+        font-weight: 500;
+        position: relative;
+        text-transform: capitalize;
+        padding: 0 0 15px 0;
+        margin-bottom: 15px;
+    }
+    .tvmega-menu-title:after {
+        position: absolute;
+        content: "";
+        width: 112%;
+        left: -15px;
+        right: 0;
+        bottom: 0;
+        height: 1px;
+        background-color: #e5e5e5;
+    }
+    .tvmobile-dropdown-close a i {
+        position: absolute;
+        right: 10px;
+        top: 12px;
+        font-size: 24px;
+        color: #333333;
+        z-index: 10;
+    }
+    .tv-total-product-number {
+        font-size: 12px;
+    }
+    .tvcmsspecial-product,
+    .tvcmstab-title-product {
+        margin-bottom: 20px;
+    }
+    .tvcmsfeatured-product,
+    .tvcmsbest-seller-product,
+    .tvcmsnew-product,
+    .tvcmssame-category-product,
+    .tvcmscross-selling-product,
+    .tvcmslike-product {
+        margin-bottom: 20px;
+    }
+    #left-column {
+        display: none;
+    }
+    .tvtab-title-wrapper .tvtabs-products li {
+        padding: 9px 10px;
+    }
+    .tvcms-main-title .tvmain-title h2 {
+        font-size: 24px !important;
+        font-family: inherit;
+    }
+    .tvtab-title-wrapper .tvtabs-products li span,
+    .tvcategory-title-wrapper .tvleft-right-title span {
+        font-family: inherit;
+    }
+    .tvproduct-name h6,
+    .product-price-and-shipping .price {
+        font-size: 14px !important;
+    }
+    .tvcart-icon-text-wrapper .tvcart-lable,
+    .tv-account-wrapper .tv-myaccount-btn span {
+        font-size: 14px !important;
+        display: none;
+    }
+    .tvheader-nav-offer-text p,
+    #tvcmsdesktop-language-selector .tv-language-btn .tv-language-span,
+    #tvcmsdesktop-currency-selector .tv-currency-btn .tv-currency-span {
+        font-size: 14px !important;
+    }
+    .tvnews-event-content-wrapper .tvnews-event-titel a h3,
+    .kr_blog_post_area .tvblog_post .post_content .post_title a {
+        font-size: 14px !important;
+    }
+    .tvfooter-product-box-layout .tvcms-main-title .tvmain-title h2 {
+        font-size: 20px !important;
+    }
+    .tvservices-content-box .tvservices-title {
+        font-size: 14px !important;
+    }
+    .tvproduct-flags {
+        opacity: 1;
+    }
+    .tvproduct-wrapper.grid:hover .tvproduct-timer,
+    .tvproduct-wrapper.grid-2:hover .tvproduct-timer {
+        -webkit-transform: translateY(0px);
+        -moz-transform: translateY(0px);
+        -ms-transform: translateY(0px);
+        -o-transform: translateY(0px);
+        transform: translateY(0px);
+        opacity: 1;
+    }
+    .tvproduct-timer .tvproduct-timer-wrapper {
+        margin: 0;
+    }
+    .tvproduct-wrapper.grid:hover .tvproduct-timer,
+    .tvproduct-wrapper.grid-2:hover .tvproduct-timer {
+        -webkit-transform: scale(1);
+        -moz-transform: scale(1);
+        -ms-transform: scale(1);
+        -o-transform: scale(1);
+        transform: scale(1);
+    }
+    .tvproduct-wrapper.grid .tvproduct-timer,
+    .tvproduct-wrapper.grid-2 .tvproduct-timer {
+        bottom: 42px;
+        top: auto;
+    }
+    .tvproduct-wrapper.grid .tvproduct-hover-btn,
+    .tvproduct-wrapper.grid-2 .tvproduct-hover-btn {
+        opacity: 1;
+        position: unset;
+        bottom: 0;
+        margin-top: 5px;
+    }
+    .tvproduct-wrapper.grid .tvproduct-quick-btn,
+    .tvproduct-wrapper.grid-2 .tvproduct-quick-btn,
+    .tvproduct-wrapper.grid .tvproduct-cart-btn,
+    .tvproduct-wrapper.grid-2 .tvproduct-cart-btn,
+    .tvproduct-wrapper.grid .tvproduct-cart-btn,
+    .tvproduct-wrapper.grid-2 .tvproduct-cart-btn,
+    .tvproduct-wrapper.grid .tvproduct-wishlist,
+    .tvproduct-wrapper.grid-2 .tvproduct-wishlist,
+    .tvproduct-wrapper.grid .tvcompare-wrapper,
+    .tvproduct-wrapper.grid-2 .tvcompare-wrapper {
+        transform: none;
+        margin: 0 2px;
+    }
+    .tvfooter-product-title-product,
+    .tvfooter-product-box-layout {
+        margin-bottom: 15px;
+    }
+    .tv-product-page-image .page-content {
+        width: 100%;
+        margin: 0 auto;
+    }
+    .tvcms-brandlist-pagination-wrapper {
+        display: block;
+    }
+    .tvmain-slider-next-pre-btn .tvcmsprev-btn {
+        left: 5px;
+    }
+    .tvmain-slider-next-pre-btn .tvcmsnext-btn {
+        right: 5px;
+    }
+    .tvnewsleeter-input-button-wraper .input-wrapper input {
+        min-width: 100%;
+    }
+    .tvfooter-logo-block {
+        padding: 20px 0;
+    }
+    .tvfooter-storelogo-inner {
+        border: 0;
+    }
+    .tvnewsletter-lable-wrapper {
+        margin-top: 15px;
+    }
+    .tvfooter-storelogo-imformation {
+        padding: 15px 0;
+        flex-direction: column;
+    }
+    #footer_sub_menu_store_info .tvfooter-addresses:after,
+    #footer_sub_menu_store_info .tvfooter-store-link-content:after,
+    #footer_sub_menu_store_info .tvfooter-store-link-fax:after,
+    #footer_sub_menu_store_info .tvfooter-store-link:after {
+        left: -35px;
+    }
+    #footer_sub_menu_store_info {
+        padding-left: 15px;
+    }
+    #footer_sub_menu_store_time,
+    #footer_sub_menu_link,
+    #footer_sub_menu_myaccount,
+    #footer_sub_menu_tvfooter_category {
+        margin: 0;
+        overflow: hidden;
+        padding: 0 15px;
+    }
+    .tvfooter-toggle-icon-wrapper.tvfooter-toggle-icon {
+        display: block;
+        padding: 0;
+        height: 36px;
+        width: 36px;
+        text-align: center;
+        line-height: 36px;
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        margin: auto;
+        cursor: pointer;
+    }
+    .tvfooter-toggle-icon-wrapper.tvfooter-toggle-icon i {
+        color: #333333;
+    }
+    .tvfooter-toggle-icon-wrapper.tvfooter-toggle-icon .remove {
+        display: none;
+    }
+    .tvcmsfooter-social-icon .tvfooter-title-wrapper {
+        padding-left: 0;
+    }
+    .tvfooter-title-wrapper {
+        margin-bottom: 0px;
+    }
+    .tvfooter-title-wrapper .tvfooter-title {
+        margin-bottom: 10px;
+        padding: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.07);
+        font-size: 16px !important;
+    }
+    .block_newsletter .tvnewsletter-title,
+    .tvnewsletter-description {
+        text-align: center;
+    }
+    .tvnewsleeter-input-button-wraper {
+        -webkit-box-pack: center;
+        -ms-flex-pack: center;
+        justify-content: center;
+        margin: 0 auto;
+        margin-bottom: 15px;
+    }
+    .tvfooter-payment-icon-img-block .tvfooter-payment-icon-wrapper {
+        justify-content: center;
+        -webkit-box-pack: center;
+        -ms-flex-pack: center;
+        float: none;
+    }
+    .tvcopylink p {
+        text-align: center;
+    }
+    .lang-rtl #footer_sub_menu_store_info {
+        margin: 0;
+        overflow: hidden;
+        padding: 0 35px 0 15px;
+    }
+    .lang-rtl #footer_sub_menu_store_time,
+    .lang-rtl #footer_sub_menu_link,
+    .lang-rtl #footer_sub_menu_myaccount,
+    .lang-rtl #footer_sub_menu_social_icon {
+        padding: 0 15px;
+    }
+    .lang-rtl .tvproduct-wrapper .tvproduct-hover-btn {
+        right: 10px;
+        left: auto;
+    }
+    .lang-rtl #footer_sub_menu_store_time,
+    .lang-rtl #footer_sub_menu_link,
+    .lang-rtl #footer_sub_menu_myaccount,
+    .lang-rtl #footer_sub_menu_social_icon {
+        padding: 0 15px;
+    }
+}
+@media (max-width: 820px) {
+    .quickview .tvcart-btn-model {
+        float: none;
+    }
+}
+@media(min-width: 768px) {
+    .pagination .page-list.tv-pagination-wrapper,
+    .pagination .page-list.tvinner-page-pagination {
+        -webkit-box-pack: flex-end;
+        -ms-flex-pack: flex-end;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 991px) {
+    .tvcmsheader-sticky.sticky {
+        background-color: #ffffff;
+    }
+
+    .product-1 .tvvertical-slider .product-images {
+        max-height: 627px;
+    }
+    .tvcmsheader-search.search-widget form input[type=text] {
+        height: 42px;
+    }
+    .tvheader-top-search-wrapper {
+        padding: 10px 16px;
+    }
+    .tvcmsheader-search.search-widget form button[type=submit] svg {
+        width: 20px;
+    }
+    #header .tv-myaccount-btn-desktop svg,
+    .lang-rtl #header .tv-myaccount-btn-desktop svg {
+        width: 23px;
+        height: 23px;
+        margin: 0;
+        margin-right: 0;
+        margin-left: 0;
+    }
+    .tvheader-cart-wrapper .tv-cart-icon svg {
+        width: 26px;
+        height: 26px;
+    }
+    .tv-cart-cart-inner {
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+    }
+    .tvheader-nav-offer-text i {
+        font-size: 14px;
+    }
+    .tvproduct-play-icon {
+        position: unset;
+    }
+    .tvproduct-play-icon span {
+        font-size: 14px;
+    }
+    .tvproduct-play-icon i {
+        font-size: 30px;
+    }
+    .tvproduct-description-tab #tab-content {
+        padding: 15px;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tv-header-logo {
+        padding: 15px 0;
+    }
+    #tvcms-mobile-view-header.mobile-header-3 .tvmobile-sliderbar-btn {
+        padding: 10px 0 10px 0;
+    }
+    #tvcms-mobile-view-header.mobile-header-3 .tvcmsmobile-header-menu,
+    #tvcms-mobile-view-header.mobile-header-3 .tvcmsmobile-header-search {
+        width: 50%;
+    }
+    #tvcms-mobile-view-header.mobile-header-3 .tvcmsmobile-header-search-logo-wrapper {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    #tvcms-mobile-view-header.mobile-header-3 .tv-header-logo {
+        justify-content: center;
+    }
+    .tvmobile-slidebar {
+        /*opacity: 0;*/
+        visibility: hidden;
+        position: fixed;
+        z-index: 1001;
+        padding: 15px;
+        background-color: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 3px;
+        left: -300px;
+        min-width: 300px;
+        width: 300px;
+        height: 100vh;
+        top: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        transform-origin: top;
+        -webkit-transition: all 0.3s ease 0.1s;
+        -moz-transition: all 0.3s ease 0.1s;
+        -ms-transition: all 0.3s ease 0.1s;
+        -o-transition: all 0.3s ease 0.1s;
+        transition: all 0.3s ease 0.1s;
+    }
+    .lang-rtl .tvmobile-slidebar {
+        right: -300px;
+        left: auto;
+    }
+    .tvmobile-slidebar.open {
+        visibility: visible;
+        text-align: left;
+        left: 0;
+        /*opacity: 1;*/
+        transform-origin: top;
+        -webkit-transition: all 0.3s ease 0.1s;
+        -moz-transition: all 0.3s ease 0.1s;
+        -ms-transition: all 0.3s ease 0.1s;
+        -o-transition: all 0.3s ease 0.1s;
+        transition: all 0.3s ease 0.1s;
+    }
+    .lang-rtl .tvmobile-slidebar.open {
+        right: 0;
+        left: auto;
+    }
+    .tv-menu-horizontal .menu-content .tvmega-menu-title {
+        display: block;
+    }
+
+    #tvcms-mobile-view-header.mobile-header-2 #tvcmsmobile-account-button {
+        margin: 0;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvcmsmobile-header-logo-right-wrapper {
+        padding: 0;
+        min-height: 64px;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tv-account-wrapper .tv-myaccount-btn span,
+    .tvcms-search-click .tv-account-wrapper .tv-myaccount-btn span {
+        display: none;
+    }
+    #header #tvcms-mobile-view-header.mobile-header-2 .tvsearch-header-display-wrappper {
+        max-width: 400px;
+        width: 400px;
+        margin: auto;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvheader-sarch-display,
+    #tvcms-mobile-view-header.mobile-header-2 #tvcmsmobile-account-button,
+    #tvcms-mobile-view-header.mobile-header-2 #tvmobile-cart {
+        margin: 0 0 0 20px;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvcmsmobile-header-search {
+        display: flex;
+        position: unset;
+        align-items: center;
+        justify-content: flex-end;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvcmsmobile-header-menu {
+        padding: 0 15px;
+    }
+    #header .mobile-header-2 .tvsearch-top-wrapper {
+        width: 100%;
+        padding: 0;
+        display: block;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvsearch-open svg,
+    #tvcms-mobile-view-header.mobile-header-2 .tvsearch-close svg {
+        vertical-align: middle;
+        width: 20px;
+        height: 20px;
+    }
+    #tvcms-mobile-view-header.mobile-header-2 .tvsearch-close svg {
+        width: 20px;
+        height: 15px;
+    }
+}

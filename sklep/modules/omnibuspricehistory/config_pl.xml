@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>omnibuspricehistory</name>
+    <displayName><![CDATA[Historia Ceny Omnibus]]></displayName>
+    <version><![CDATA[1.0.0]]></version>
+    <description><![CDATA[Moduł do zbierania i wyświetlania najniższej ceny produktu z 30 dni przed promocją, zgodnie z dyrektywą Omnibus.]]></description>
+    <author><![CDATA[Twoja Nazwa Firmy]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+	<confirmUninstall><![CDATA[Czy na pewno chcesz odinstalować moduł Historii Ceny Omnibus? Wszystkie zebrane dane zostaną usunięte!]]></confirmUninstall>
+    <is_configurable>0</is_configurable>
+    <need_instance>1</need_instance>
+</module>

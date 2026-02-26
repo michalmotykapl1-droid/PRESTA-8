@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="/home/themevolty/public_html/Prestashop/1.7/v1/v1_electronic_electro_102/themes/tv_electronic_electron_1_7_v1/templates/checkout/_partials/steps/addresses.tpl" source-language="de-DE" target-language="de-DE" datatype="plaintext">
+    <body>
+      <trans-unit id="ea34b5c6cf6511c7c9e23cf7bf5d6792">
+        <source>Your address is incomplete, please update it.</source>
+        <target>Ihre Adresse ist nicht vollständig, bitte ergänzen Sie die Adresse.</target>
+        <note>Context:
+File: /home/themevolty/public_html/Prestashop/1.7/v1/v1_electronic_electro_102/themes/tv_electronic_electron_1_7_v1/templates/checkout/_partials/steps/addresses.tpl:117</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

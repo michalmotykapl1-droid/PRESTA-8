@@ -1,0 +1,242 @@
+/**
+* ThemeVolty - Customer Services (Minimalist: No Circles, No Bottom Border)
+*/
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css");
+
+/* ==========================================================================
+   1. LEWA KOLUMNA (SIDEBAR) - MINIMALISTYCZNA I LEKKA
+   ========================================================================== */
+
+.bb-left-container {
+    background: #ffffff;
+    /* Bardzo delikatna ramka, żeby oddzielić od tła, ale nie "ciężka" */
+    border: 1px solid #f0f0f0; 
+    border-radius: 6px;
+    margin-bottom: 30px;
+    padding: 0;
+    overflow: hidden;
+    /* Subtelny cień zamiast grubej ramki */
+    box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+}
+
+.bb-left-header {
+    background: #ffffff;
+    padding: 15px 15px 10px 15px;
+    border-bottom: 1px solid #f5f5f5; /* Bardzo jasna linia oddzielająca */
+    text-align: center;
+}
+
+.bb-left-header h4 {
+    margin: 0;
+    padding: 0;
+    font-size: 14px; /* Mniejszy, bardziej elegancki nagłówek */
+    font-weight: 800;
+    color: #2fb5d2; /* Zostawiamy akcent marki */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.bb-services-list {
+    padding: 5px 0;
+}
+
+.bb-service-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    /* Usuwamy widoczne linie podziału, dajemy tylko odstęp */
+    border-bottom: 1px solid transparent; 
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+/* Hover na cały element */
+.bb-service-item:hover {
+    background-color: #fafafa; /* Minimalnie szare tło przy najechaniu */
+    transform: translateX(3px); /* Delikatny ruch w prawo */
+}
+
+/* --- IKONA: EFEKT CIENKIEGO KONTURU (JAK NA HOME) --- */
+.bb-icon-box {
+    width: 35px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 12px;
+    
+    font-size: 24px; /* Rozmiar w sam raz na sidebar */
+    
+    /* MAGIA: Pusty środek, szary obrys */
+    color: #ffffff; 
+    -webkit-text-stroke: 1px #999;
+    
+    transition: all 0.3s ease;
+}
+
+/* HOVER: Ikona wypełnia się czernią */
+.bb-service-item:hover .bb-icon-box {
+    color: #222; /* Wypełnienie */
+    -webkit-text-stroke: 0; /* Brak obrysu */
+    transform: scale(1.1);
+}
+
+/* Teksty */
+.bb-text-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.bb-title-big {
+    font-size: 14px;
+    font-weight: 800;
+    color: #333; /* Ciemny grafit, nie smoła */
+    line-height: 1.1;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    display: block;
+}
+
+.bb-desc-small {
+    font-size: 9px; /* Mniejszy opis dla kontrastu */
+    font-weight: 600;
+    color: #999; /* Jasnoszary */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+    display: block;
+}
+
+/* Licznik w lewej kolumnie */
+.bb-counter {
+    color: #222 !important; /* Spójność z ikonami po hoverze */
+}
+
+/* ==========================================================================
+   2. STRONA GŁÓWNA - MINIMALIZM (BEZ KÓŁEK, BEZ ODSTĘPU)
+   ========================================================================== */
+
+.tvcmscustomer-services-home {
+    background: #ffffff;
+    
+    /* GÓRA: Zostawiamy linię oddzielającą od reszty sklepu */
+    border-top: 1px solid #eaeaea; 
+    
+    /* DÓŁ: Usuwamy wszelkie linie i odstępy */
+    border-bottom: 0 none !important; 
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important; /* Usuwamy wewnętrzny odstęp na dole */
+    
+    /* Ustawiamy padding tylko od góry, dół ma być "na styk" */
+    padding-top: 40px; 
+    margin-top: 40px;
+}
+
+.tvservices-home-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0;
+    
+    /* Dodatkowy margines dolny dla samych elementów, żeby nie dotykały stopki "dosłownie", 
+       ale żeby moduł kończył się równo. Możesz to zmienić na 20px lub 0px */
+    padding-bottom: 30px; 
+}
+
+.tvservice-home-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px 5px; /* Mniejszy padding boczny, żeby zmieściły się na węższych ekranach */
+    border-right: none; /* Brak pionowych kresek */
+    transition: transform 0.3s ease;
+    text-align: center;
+}
+
+/* Hover: Lekkie uniesienie całego elementu */
+.tvservice-home-item:hover {
+    transform: translateY(-5px);
+}
+
+/* --- IKONA (POPRAWIONA) --- */
+.tvservice-home-icon {
+    width: auto;
+    height: auto;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 12px; /* Odstęp między ikoną a tekstem */
+    
+    /* Styl ikony */
+    font-size: 36px; /* Idealny rozmiar dla minimalizmu */
+    color: #999;     /* Domyślnie popielaty */
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    
+    /* Centrowanie */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Hover na ikonę: Zmiana na głęboką czerń */
+.tvservice-home-item:hover .tvservice-home-icon {
+    color: #111; 
+    transform: scale(1.1);
+    background: transparent;
+    box-shadow: none;
+}
+
+.tvservice-home-content {
+    text-align: center;
+    width: 100%;
+}
+
+.tvservice-home-title {
+    font-size: 13px; /* Minimalnie mniejsza czcionka wygląda bardziej "premium" bez kółek */
+    font-weight: 800;
+    color: #222;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.tvservice-home-desc {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.3;
+}
+
+/* Licznik */
+.tv-counter-number {
+    font-size: 24px !important;
+    color: #222 !important; 
+    font-weight: 900 !important;
+    margin-bottom: 0 !important;
+}
+
+
+/* ==========================================================================
+   3. RESPONSYWNOŚĆ (MOBILE)
+   ========================================================================== */
+@media (max-width: 991px) {
+    .tvcmscustomer-services { margin-bottom: 20px; }
+    
+    .tvservices-home-wrapper {
+        flex-direction: column;
+        align-items: center;
+        gap: 25px;
+    }
+    
+    .tvservice-home-item {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #f9f9f9; /* Delikatny separator na mobile */
+        padding: 15px 0;
+    }
+    
+    .tvservice-home-item:last-child { border-bottom: none; }
+}

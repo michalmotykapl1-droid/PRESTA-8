@@ -1,0 +1,85 @@
+.text-center {
+    text-align: center;
+}
+
+.tv-product-list {
+    margin-top: 8px;
+    text-align: center;
+}
+.tvproduct-wrapper.list .tv-product-list {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+/** Popovers */
+
+.tvtooltip.popover {
+    border: none;
+    padding: 0;
+    box-shadow: 2px 2px 8px 0 rgba(0,0,0,.2);
+    border-radius: 4px;
+}
+
+.tvtooltip .popover-title {
+    background-color: transparent;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: normal;
+    border: none;
+}
+
+.tvtooltip .popover-content {
+    font-size: .750rem;
+    padding: 0;
+}
+
+.tvtooltip.popover.bs-tether-element-attached-bottom:before,
+.tvtooltip.popover.popover-top:before {
+    display: none;
+}
+
+/** Add popover caret for 1.6 (bootstrap 3) */
+
+.tvtooltip.popover.top:after {
+    content: "";
+    border-width: 10px;
+    position: absolute;
+    display: block;
+    width: 0;
+    height: 0;
+    border-color: transparent;
+    border-style: solid;
+    bottom: -10px;
+    margin-left: -10px;
+    border-top-color: #fff;
+}
+
+.tvtooltip.popover.top:after {
+    left: 50%;
+    border-bottom-width: 0;
+}
+
+/** 1.7 Classic Theme Mods */
+/*
+#products .product-description,
+.featured-products .product-description,
+.product-accessories .product-description,
+.product-miniature .product-description {
+    height: 130px;
+}*/
+
+#products .thumbnail-container:focus .highlighted-informations,
+#products .thumbnail-container:hover .highlighted-informations,
+.featured-products .thumbnail-container:focus .highlighted-informations,
+.featured-products .thumbnail-container:hover .highlighted-informations,
+.product-accessories .thumbnail-container:focus .highlighted-informations,
+.product-accessories .thumbnail-container:hover .highlighted-informations,
+.product-miniature .thumbnail-container:focus .highlighted-informations,
+.product-miniature .thumbnail-container:hover .highlighted-informations {
+    bottom: 9.250rem;
+}
+@media (max-width: 575px) {
+    .tvproduct-wrapper.list .tv-product-list {
+        text-align: center;
+    }
+}

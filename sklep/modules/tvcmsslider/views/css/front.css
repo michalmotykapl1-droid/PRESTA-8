@@ -1,0 +1,162 @@
+/**
+* ThemeVolty - Hybrid Slider CSS (FIXED: SCOPED & TALL MOBILE)
+*/
+
+/* ============================================================
+   1. GŁÓWNY KONTENER
+   ============================================================ */
+.tvcms-slider-offerbanner-wrapper {
+    width: 100%;
+    overflow: hidden;
+    background: #fff;
+    position: relative;
+    margin-top: 0 !important; 
+    padding-top: 0 !important;
+    z-index: 1;
+    
+    /* Stabilizacja */
+    -webkit-backface-visibility: hidden;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+}
+
+/* BETONOWANIE WYSOKOŚCI - TYLKO DLA GŁÓWNEGO SLIDERA 
+   (Używamy #tvmain-slider przed każdą klasą, żeby nie psuć produktów!)
+*/
+
+/* Kontener zewnętrzny */
+.tvcms-slider-offerbanner-wrapper,
+.tvcmsmain-slider-wrapper,
+.tvcms-main-slider,
+.tv-main-slider,
+#tvmain-slider {
+    height: 400px !important;
+    min-height: 400px !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
+}
+
+/* Elementy wewnętrzne (tylko wewnątrz #tvmain-slider) */
+#tvmain-slider .owl-stage-outer,
+#tvmain-slider .owl-stage,
+#tvmain-slider .owl-item,
+#tvmain-slider .item {
+    height: 400px !important;
+    min-height: 400px !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
+}
+
+/* Fix na drganie */
+#tvmain-slider .owl-stage-outer {
+    padding: 0 !important; 
+    margin: 0 !important; 
+    clip-path: inset(0px 0px 0px 0px); 
+    -webkit-perspective: 1000px;
+}
+
+#tvmain-slider.owl-carousel {
+    width: 100% !important; 
+    display: block !important; 
+    margin: 0 !important; 
+}
+
+/* ============================================================
+   2. STYLIZACJA SLAJDÓW
+   ============================================================ */
+.tv-custom-tpl-wrapper { display: block !important; width: 100% !important; height: 100% !important; padding: 0 !important; margin: 0 !important; }
+.tv-custom-tpl-wrapper > div { width: 100% !important; height: 100% !important; }
+
+.tv-slide-custom-html { width: 100% !important; height: 100% !important; background-size: cover !important; background-position: center !important; display: flex !important; align-items: center; justify-content: center; margin: 0 !important; }
+
+/* Standardowe slidery */
+.tv-slide-standard {
+    display: flex !important; width: 100% !important; height: 100% !important; align-items: center !important;
+    justify-content: space-between !important; background: #ffffff !important; border: 1px solid #f0f0f0 !important; 
+    margin: 0 !important; padding: 0 !important; background-size: cover !important; background-position: center !important;
+}
+
+.tv-std-content { flex: 0 0 45% !important; max-width: 45% !important; z-index: 2; padding: 0 40px; text-align: left; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+.tv-std-image { flex: 0 0 55% !important; max-width: 55% !important; height: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important; overflow: hidden !important; }
+.tv-std-image a { display: flex !important; align-items: center; justify-content: center; height: 100%; width: 100%; }
+.tv-main-img { display: block !important; max-width: 90% !important; max-height: 90% !important; height: auto !important; width: auto !important; object-fit: contain !important; }
+
+.tv-std-subtitle { font-size: 13px; font-weight: 700; color: #d32f2f; text-transform: uppercase; margin-bottom: 10px; display: block; }
+.tv-std-title { font-size: 36px; font-weight: 800; color: #222; line-height: 1.1; margin-bottom: 15px; }
+.tv-std-desc { font-size: 14px; color: #555; margin-bottom: 20px; max-height: 80px; overflow: hidden; }
+.tv-btn-std { display: inline-block; padding: 10px 25px; background: #ff6600; color: #fff; font-weight: 700; font-size: 13px; border-radius: 2px; text-transform: uppercase; }
+
+/* ============================================================
+   3. NAWIGACJA & KROPKI
+   ============================================================ */
+#tvmain-slider .owl-nav {
+    position: absolute !important; top: 50% !important; transform: translateY(-50%) !important; width: 100% !important;
+    pointer-events: none !important; z-index: 999 !important; display: flex !important; justify-content: space-between !important;
+    padding: 0 !important; height: 0 !important; opacity: 0; transition: opacity 0.3s ease-in-out;
+}
+.tvcms-main-slider:hover #tvmain-slider .owl-nav { opacity: 1; }
+
+#tvmain-slider .owl-nav button.owl-prev, #tvmain-slider .owl-nav button.owl-next {
+    width: 40px !important; height: 40px !important; background: rgba(255, 255, 255, 0.9) !important; color: #333 !important;
+    border: 1px solid #ddd !important; border-radius: 0 !important; font-size: 0 !important; pointer-events: auto !important;
+    display: flex !important; align-items: center; justify-content: center; margin: 0 !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+#tvmain-slider .owl-nav i { font-size: 24px !important; }
+
+#tvmain-slider .owl-dots {
+    display: block !important; width: 100%; text-align: center; position: absolute; bottom: 10px; left: 0; z-index: 1000; pointer-events: none;
+}
+#tvmain-slider .owl-dots .owl-dot { display: inline-block; pointer-events: auto; background: transparent !important; border: none !important; padding: 5px !important; }
+#tvmain-slider .owl-dots .owl-dot span { display: block; width: 30px; height: 4px; margin: 0 3px; background: rgba(0, 0, 0, 0.2); border-radius: 2px; transition: all 0.3s ease; }
+#tvmain-slider .owl-dots .owl-dot.active span { background: #ff6600; width: 40px; }
+
+.nivo-controlNav, .nivo-directionNav, .tvslider-video { display: none !important; }
+
+/* ============================================================
+   4. RESPONSYWNOŚĆ (SCOPED)
+   ============================================================ */
+
+/* Laptop */
+@media (max-width: 1399px) {
+    .tvcms-slider-offerbanner-wrapper, .tvcmsmain-slider-wrapper, .tvcms-main-slider, .tv-main-slider, #tvmain-slider { 
+        height: 350px !important; min-height: 350px !important; max-height: 350px !important; 
+    }
+    /* Tylko wewnątrz main slider */
+    #tvmain-slider .owl-stage-outer, #tvmain-slider .owl-stage, #tvmain-slider .owl-item, #tvmain-slider .item { 
+        height: 350px !important; min-height: 350px !important; max-height: 350px !important; 
+    }
+}
+
+/* Tablet */
+@media (max-width: 1199px) {
+    .tvcms-slider-offerbanner-wrapper, .tvcmsmain-slider-wrapper, .tvcms-main-slider, .tv-main-slider, #tvmain-slider { 
+        height: 300px !important; min-height: 300px !important; max-height: 300px !important; 
+    }
+    #tvmain-slider .owl-stage-outer, #tvmain-slider .owl-stage, #tvmain-slider .owl-item, #tvmain-slider .item { 
+        height: 300px !important; min-height: 300px !important; max-height: 300px !important; 
+    }
+    #tvmain-slider .owl-nav { display: none !important; }
+}
+
+/* Mobile - ZWIĘKSZONA WYSOKOŚĆ (550px) */
+@media (max-width: 767px) {
+    .tvcms-slider-offerbanner-wrapper, .tvcmsmain-slider-wrapper, .tvcms-main-slider, .tv-main-slider, #tvmain-slider {
+        height: 550px !important; 
+        min-height: 550px !important;
+        max-height: 550px !important;
+    }
+    #tvmain-slider .owl-stage-outer, #tvmain-slider .owl-stage, #tvmain-slider .owl-item, #tvmain-slider .item {
+        height: 550px !important;
+        min-height: 550px !important;
+        max-height: 550px !important;
+    }
+    #tvmain-slider .owl-dots { bottom: 5px; }
+    
+    /* Standardowe slajdy na mobile */
+    .tv-slide-standard { flex-direction: column-reverse !important; padding: 20px !important; text-align: center !important; }
+    .tv-std-content { flex: 0 0 auto !important; max-width: 100% !important; padding: 10px 0 !important; height: auto !important; }
+    .tv-std-image { flex: 1 !important; max-width: 100% !important; height: auto !important; margin-bottom: 10px; }
+    .tv-std-title { font-size: 22px !important; margin-bottom: 5px !important; }
+    .tv-std-desc { display: none !important; }
+    .tv-btn-std { padding: 8px 20px !important; font-size: 12px !important; }
+}

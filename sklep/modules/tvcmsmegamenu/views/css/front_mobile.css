@@ -1,0 +1,173 @@
+/**
+* PRESTASHOP 8.2 - MOBILE MENU
+* Zakres: Poniżej 991px
+*/
+
+@media (max-width: 991px) {
+
+    /* --- 1. BELKA GŁÓWNA --- */
+    .tv-menu-horizontal {
+        width: 100%;
+        background: #fff;
+    }
+
+    /* Tytuł "MENU" na mobile */
+    .tv-menu-horizontal .title-menu-mobile {
+        display: block !important;
+        background: #1a1a1a;
+        color: #fff;
+        padding: 15px 20px;
+        font-size: 16px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Ukrycie starego tytułu z display_menu_data.tpl */
+    .tv-menu-horizontal .menu-content .tvmega-menu-title {
+        display: none !important;
+    }
+
+    /* --- 2. LISTA KATEGORII (POZIOM 1) --- */
+    .tv-menu-horizontal ul.menu-content {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: block !important; /* Wymuszenie bloku zamiast flexa */
+    }
+
+    .tv-menu-horizontal li.level-1 {
+        display: block !important; /* Kafelki jeden pod drugim */
+        width: 100%;
+        border-bottom: 1px solid #f0f0f0;
+        position: relative;
+        float: none;
+        margin: 0;
+        height: auto;
+    }
+
+    /* Linki główne */
+    #header .tv-menu-horizontal ul li.level-1 > a {
+        display: block;
+        padding: 15px 20px;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        color: #333 !important;
+        text-decoration: none;
+        line-height: 24px;
+        text-transform: uppercase;
+    }
+    
+    /* Ukrycie strzałek desktopowych */
+    .tv-menu-horizontal li.level-1.parent > a::before {
+        display: none !important;
+    }
+
+    /* Ikony przy linkach (opcjonalnie, jeśli chcesz je ukryć usuń display:none) */
+    .tv-menu-horizontal li.level-1 .img-icon {
+        display: none !important; 
+    }
+
+    /* --- 3. PRZYCISK ROZWIJANIA (+) --- */
+    .tv-menu-horizontal .icon-drop-mobile {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 54px; /* Szeroki obszar kliknięcia */
+        height: 54px; /* Wysokość wiersza */
+        border-left: 1px solid #f5f5f5;
+        cursor: pointer;
+        z-index: 10;
+    }
+
+    .tv-menu-horizontal .icon-drop-mobile::after {
+        font-family: 'Material Icons';
+        content: '\e145'; /* Plus icon */
+        font-size: 22px;
+        color: #444;
+        font-weight: normal;
+    }
+
+    /* Stan otwarty (-) */
+    .tv-menu-horizontal li.level-1.opened .icon-drop-mobile {
+        background: #f9f9f9;
+    }
+    .tv-menu-horizontal li.level-1.opened .icon-drop-mobile::after {
+        content: '\e15b'; /* Minus icon */
+        color: #d90244;
+    }
+
+    /* --- 4. ROZWIJANE MENU (SUBMENU) --- */
+    .tv-menu-horizontal .menu-dropdown {
+        display: none; /* Domyślnie ukryte, JS to zmienia na block */
+        position: relative !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        background: #fbfbfb !important;
+        box-shadow: inset 0 5px 10px -5px rgba(0,0,0,0.05);
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        transform: none !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        margin-left: 0 !important; /* Reset desktopu */
+    }
+
+    /* Wewnątrz submenu */
+    .tv-menu-horizontal .menu-dropdown .tv-menu-row {
+        margin: 0 !important;
+        padding: 10px 0 !important;
+        display: block !important; /* Reset flexa desktopowego */
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    .tv-menu-horizontal .menu-dropdown .tv-menu-col {
+        width: 100% !important;
+        padding: 0 20px;
+        margin-bottom: 15px;
+    }
+
+    /* Nagłówki w submenu */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-header a {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        color: #222 !important;
+        text-transform: uppercase;
+        margin-top: 15px;
+        margin-bottom: 5px;
+        display: block;
+        border-bottom: 1px solid #eee;
+    }
+
+    /* Linki w submenu */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line a {
+        font-size: 14px !important;
+        color: #666 !important;
+        padding: 8px 0;
+        display: block;
+        padding-left: 10px;
+    }
+
+    /* --- 5. POPRAWKI DLA CUSTOM TPL NA MOBILE --- */
+    /* Te style upewniają się, że kafelki (np. Zdrowie) nie rozjeżdżają się na mobile */
+
+    /* Reset gridów w Custom TPL */
+    .tv-menu-horizontal .menu-dropdown .mz-grid,
+    .tv-menu-horizontal .menu-dropdown .menu-diet-grid {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .tv-menu-horizontal .menu-dropdown .mz-card,
+    .tv-menu-horizontal .menu-dropdown .menu-diet-item {
+        width: 100% !important;
+        margin-bottom: 10px !important;
+    }
+
+}

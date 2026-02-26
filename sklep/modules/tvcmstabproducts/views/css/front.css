@@ -1,0 +1,229 @@
+/* --- MODUŁ TAB PRODUCTS: FINAL FIX (MOBILE LAYOUT & COLORS) --- */
+
+/* 1. GŁÓWNY KONTENER */
+.bb-tab-section {
+    margin-top: 40px !important;
+    padding-top: 0 !important;
+    position: relative;
+    background: #fff;
+    width: 100%;
+    display: block;
+}
+
+/* 2. TYTUŁ (DESKTOP) */
+.bb-tab-section .tvtab-main-title-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+    width: 100%;
+    position: relative;
+}
+
+.bb-tab-section .tv-allegro-title {
+    text-align: center;
+    margin-bottom: 5px;
+    width: 100%;
+    border: none !important;
+}
+
+.bb-tab-section .tv-allegro-title h2 {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #111 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px;
+    margin: 0;
+    padding-bottom: 10px;
+    position: relative;
+    display: inline-block;
+}
+
+/* Pomarańczowa linia pod tytułem */
+.bb-tab-section .tv-allegro-title h2::after {
+    content: ''; 
+    display: block; 
+    width: 60px; 
+    height: 4px; 
+    background: #ff5a00; 
+    margin: 5px auto 0; 
+    border-radius: 2px;
+    position: absolute; 
+    bottom: 0; 
+    left: 50%; 
+    transform: translateX(-50%);
+}
+
+/* 3. ZAKŁADKI (DESKTOP) */
+.bb-tab-section .tvtab-title-wrapper { width: 100%; margin-top: 10px; }
+
+.bb-tab-section .tvtabs-products {
+    display: flex;
+    justify-content: flex-end; /* Desktop: do prawej */
+    align-items: center;
+    gap: 30px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    width: 100%;
+    border-bottom: 1px solid #e8e8e8 !important;
+    position: relative;
+    padding-right: 120px !important; 
+}
+
+.bb-tab-section .tvtabs-products li.tvtab-name, 
+.bb-tab-section .tvtabs-products li.bb-clean-tab {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 15px 5px !important;
+    margin: 0 !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #7a7a7a !important;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    position: relative;
+    letter-spacing: 0.5px;
+}
+
+.bb-tab-section .tvtabs-products li:hover { color: #000 !important; }
+.bb-tab-section .tvtabs-products li.active { color: #000 !important; font-weight: 800 !important; }
+
+/* Kreska pod aktywną zakładką (DESKTOP) */
+.bb-tab-section .tvtabs-products li.active::after {
+    content: ''; display: block; width: 100%; height: 2px; background: #000;
+    position: absolute; bottom: -1px; left: 0;
+}
+
+/* 4. STRZAŁKI NAWIGACJI */
+.tvcmstab-product-detail { display: flex; flex-direction: column; position: relative; }
+.tvtab-pagination-wrapper .tvcms-next-pre-btn { display: flex; align-items: center; gap: 15px; width: auto; }
+
+.tvtab-pagination-wrapper .tvcmsprev-btn, 
+.tvtab-pagination-wrapper .tvcmsnext-btn {
+    width: 40px !important; height: 40px !important; background: #ffffff !important; border: 1px solid #ddd !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; border-radius: 0 !important;
+    display: flex !important; align-items: center !important; justify-content: center !important; text-align: center !important;
+    padding: 0 !important; margin: 0 !important;
+    cursor: pointer; transition: all 0.2s ease; opacity: 1 !important; visibility: visible !important;
+    position: relative !important; left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+}
+.tvtab-pagination-wrapper .tvcmsprev-btn:hover, 
+.tvtab-pagination-wrapper .tvcmsnext-btn:hover { background: #f0f0f0 !important; color: #000 !important; border-color: #ccc !important; }
+.tvtab-pagination-wrapper .tvcmsprev-btn i, 
+.tvtab-pagination-wrapper .tvcmsnext-btn i { font-size: 24px !important; color: #333 !important; line-height: 1 !important; font-weight: normal !important; margin: 0 !important; padding: 0 !important; display: block !important; width: auto !important; height: auto !important; }
+
+/* FIX SZEROKOŚCI KAFELKÓW */
+.tvcmstab-product-detail .products .item { width: 100% !important; max-width: 100%; }
+.tvcmstab-product-detail .product-miniature { margin: 0 auto; width: 100%; }
+
+/* --- MEDIA QUERIES (RWD) --- */
+
+/* DESKTOP (Powyżej 992px) */
+@media (min-width: 992px) {
+    .tvtab-pagination-wrapper { position: absolute; top: -65px; right: 0; z-index: 10; margin: 0 !important; padding: 0 !important; width: auto !important; }
+    .tvtab-pagination-wrapper .tvcms-next-pre-btn { margin: 0 !important; padding: 0 !important; justify-content: flex-end; }
+    .tvcmstab-product-detail .products { margin-top: 0; }
+}
+
+/* MOBILE (Poniżej 991px) - TUTAJ SĄ KLUCZOWE ZMIANY */
+@media (max-width: 991px) {
+    
+    /* --- FIX: OBNIŻENIE TYTUŁU NA MOBILE --- */
+    .bb-tab-section .tvtab-main-title-wrapper {
+        padding-top: 30px !important;
+        padding-bottom: 0 !important;
+    }
+
+    .tvcmstab-product-detail { display: flex; flex-direction: column; }
+    .tvcmstab-product-detail .products { order: 1; }
+    
+    /* Strzałki lądują na dole */
+    .tvtab-pagination-wrapper { order: 2; margin-top: 15px; position: static; width: 100%; }
+    .tvtab-pagination-wrapper .tvcms-next-pre-btn { justify-content: center; padding-bottom: 10px; }
+    
+    /* Mniejszy tytuł */
+    .bb-tab-section .tv-allegro-title h2 { font-size: 18px !important; }
+    .bb-tab-section .tv-allegro-title h2::after { width: 40px; height: 3px; }
+    
+    /* --- 1. NAPRAWA ZAKŁADEK NA MOBILE (W JEDNEJ LINII) --- */
+    .bb-tab-section .tvtabs-products { 
+        display: flex !important;
+        flex-direction: row !important; 
+        flex-wrap: wrap !important;     
+        justify-content: center !important; 
+        padding-right: 0 !important; 
+        gap: 10px !important; 
+        border-bottom: none !important; 
+        margin-bottom: 15px !important; /* Odstęp od produktów */
+    }
+    
+    .bb-tab-section .tvtabs-products li.tvtab-name,
+    .bb-tab-section .tvtabs-products li.bb-clean-tab {
+        font-size: 13px !important;
+        padding: 5px 5px !important;
+        width: auto !important; 
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        outline: none !important;
+    }
+
+    .bb-tab-section .tvtabs-products li.active {
+        border: none !important;
+        box-shadow: none !important;
+        border-bottom: none !important;
+    }
+
+    /* --- 2. CZARNA KRÓTKA KRESKA POD AKTYWNĄ (MOBILE) --- */
+    .bb-tab-section .tvtabs-products li.active::after {
+        content: '';
+        display: block;
+        width: 30px !important; 
+        height: 2px !important;
+        background: #000 !important; 
+        position: absolute !important;
+        bottom: 0 !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important; 
+        z-index: 10;
+    }
+    
+    /* --- 3. FIX ODSTĘPÓW I WYCHODZENIA ZA EKRAN --- */
+    
+    /* KONTENER GŁÓWNY PRODUKTÓW - ZABEZPIECZENIE BOKÓW */
+    /* Padding 15px sprawi, że produkty nie będą dotykać krawędzi telefonu */
+    .tvcmstab-product-detail .products.owl-carousel {
+        padding: 0 10px !important; 
+        margin: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* POZYCJE KARUZELI (OWL ITEM) - MNIEJSZA PRZERWA W ŚRODKU */
+    /* Padding 5px z lewej i prawej da łącznie 10px przerwy między kafelkami */
+    .tvcmstab-product-detail .products .owl-item {
+        padding: 0 1px !important; 
+    }
+    
+    /* KARTA PRODUKTU - WYRÓWNANIE PIONOWE */
+    /* Margin-bottom 10px da taki sam odstęp w pionie jak w poziomie */
+    .tvcmstab-product-detail .product-miniature {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 auto 10px auto !important; /* Odstęp pionowy */
+        padding: 0 !important;
+        display: block !important;
+        box-shadow: none !important; /* Opcjonalne: usunięcie cienia, jeśli przeszkadza */
+    }
+    
+    /* Usunięcie dodatkowych marginesów z wrapperów */
+    .tvtabproduct-main-block {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+}

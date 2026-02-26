@@ -1,0 +1,309 @@
+/* ========================================================= */
+/* STREFA PRODUKTOWA - CSS (Grey Loader)                     */
+/* ========================================================= */
+
+.strefa-wrapper { background: #fff; padding: 60px 0; margin-bottom: 60px; border-top: 1px solid #f0f0f0; margin-top: 20px; display: block; position: relative; min-height: 550px; }
+
+.strefa-header { text-align: center; margin-bottom: 50px; }
+.strefa-accent { color: #ff6600; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; display: block; }
+.strefa-title { font-size: 38px !important; font-weight: 800 !important; color: #222; text-transform: uppercase; margin: 0 0 15px 0; line-height: 1.2; }
+.strefa-line { width: 80px; height: 4px; background: #ff6600; margin: 0 auto 20px auto; border-radius: 2px; }
+.strefa-desc { font-size: 15px; color: #666; line-height: 1.6; margin: 0 auto; max-width: 800px; font-weight: 400; }
+
+.strefa-layout-flex { display: flex; gap: 30px; align-items: stretch; }
+.strefa-left-col { flex: 0 0 280px; width: 280px; display: flex; flex-direction: column; }
+.strefa-right-col { flex: 1; width: calc(100% - 310px); }
+
+/* DEAL LEFT */
+.strefa-deal-container { display: none; height: 100%; animation: fadeIn 0.5s ease; }
+.strefa-deal-container.active { display: block; }
+.strefa-deal-box { border: 1px solid #e0e0e0; border-radius: 8px; background: #fff; height: auto; min-height: 100%; display: flex; flex-direction: column; position: relative; overflow: visible; margin-top: 15px; transition: border-color 0.3s; }
+.strefa-deal-box:hover { border-color: #ffcc80; }
+.strefa-deal-top-bar { padding: 0; border: none; height: 0; display: flex; justify-content: center; position: relative; }
+.strefa-deal-badge { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #fff; color: #ff6600; border: 1px solid #ff6600; font-weight: 700; text-transform: uppercase; padding: 5px 15px; font-size: 12px; border-radius: 30px; white-space: nowrap; z-index: 5; }
+.strefa-deal-desc-internal { padding: 40px 20px 10px 20px; background: #fff; text-align: center; flex-shrink: 0; border-radius: 8px 8px 0 0; }
+.strefa-deal-desc-internal p { font-size: 15px; color: #333; line-height: 1.6; margin: 0; }
+.strefa-deal-content { flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 10px; }
+.strefa-deal-item .tvproduct-wrapper { border: none !important; box-shadow: none !important; margin: 0 !important; }
+
+/* TABS RIGHT */
+.strefa-tabs-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; margin-bottom: 25px; padding-bottom: 15px; flex-wrap: wrap; gap: 20px; width: 100%; }
+.strefa-tabs-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.strefa-tab-btn { cursor: pointer; padding: 8px 20px; font-size: 13px; font-weight: 700; color: #999; text-transform: uppercase; transition: all 0.3s; border-radius: 30px; display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: transparent; white-space: nowrap; }
+.strefa-tab-btn.active, .strefa-tab-btn:hover { color: #ff6600; background: #fff; border-color: #ff6600; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.strefa-tab-btn.active i, .strefa-tab-btn:hover i { color: #ff6600; }
+.strefa-tabs-links { display: flex; align-items: center; justify-content: flex-end; min-width: 180px; }
+.strefa-more-link { display: none !important; }
+.strefa-more-link.active { display: inline-flex !important; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #333; text-decoration: none !important; transition: all 0.3s; letter-spacing: 0.5px; }
+.strefa-more-link:hover { color: #ff6600; transform: translateX(5px); }
+
+/* GRID & CLEANUP */
+.strefa-grid { display: grid; grid-template-columns: repeat(var(--strefa-cols, 4), 1fr); gap: 20px; }
+.strefa-item .tvproduct-wrapper { margin-bottom: 0 !important; height: 100%; }
+.strefa-pane { display: none; animation: fadeIn 0.4s ease; }
+.strefa-pane.active { display: block; }
+
+/* FIX: UKRYWANIE EDAN */
+.strefa-item .product-flags, .strefa-item .product-flag, .strefa-item .tvproduct-flags { display: none !important; }
+.strefa-item .product-flag.discount { display: block !important; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- NOWY LOADER (POPIELATY) --- */
+.strefa-loading-overlay {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px dashed #f0f0f0;
+    border-radius: 8px;
+    color: #999;
+    gap: 15px;
+}
+
+.strefa-loading-text {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #999;
+}
+
+.strefa-spinner { 
+    width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; 
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* RWD - MOBILE FIX */
+@media (max-width: 991px) {
+    .strefa-layout-flex { flex-direction: column; } .strefa-left-col, .strefa-right-col { width: 100%; flex: none; } .strefa-left-col { height: auto; margin-bottom: 40px; margin-top: 10px; }
+    .strefa-tabs-header { display: block; border-bottom: none; }
+    .strefa-tabs-buttons { display: flex; flex-direction: column; width: 100%; gap: 10px; padding-bottom: 15px; margin-bottom: 10px; }
+    .strefa-tab-btn { width: 100%; justify-content: center; padding: 12px 10px; background: #f9f9f9; border: 1px solid #eee; }
+    .strefa-tab-btn.active { background: #fff; border-color: #ff6600; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .strefa-tabs-links { justify-content: center; border-top: 1px solid #f0f0f0; padding-top: 15px; width: 100%; text-align: center; }
+}
+
+
+
+/* ========================================================= */
+/* STREFA PRODUKTOWA - CUSTOM HTML (COMPACT & CLEAN)         */
+/* ========================================================= */
+
+/* 1. ODBLOKOWANIE RODZICA */
+.mz-hook-wrapper {
+    max-width: none !important;
+    width: 100% !important;
+    display: block !important;
+    height: 100%;
+}
+
+/* 2. POZYCJONOWANIE */
+.mz-default-placeholder {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 27% !important; 
+    right: 0 !important;
+    width: auto !important;
+    padding: 0 !important;
+    background: #fff;
+    z-index: 100;
+    overflow: hidden;
+}
+
+/* 3. GŁÓWNY WRAPPER */
+.strefa-custom-wrapper {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 15px 25px; /* Optymalne marginesy */
+    display: flex;
+    flex-direction: column;
+}
+
+/* 4. ZAKŁADKI */
+.strefa-custom-tabs {
+    display: flex;
+    gap: 30px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+    flex-shrink: 0;
+}
+
+.custom-tab-btn {
+    font-size: 11px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    padding-bottom: 5px;
+    transition: color 0.2s;
+}
+.custom-tab-btn.active, .custom-tab-btn:hover { color: #222; }
+.custom-tab-btn.active::after {
+    content: ''; position: absolute; bottom: -9px; left: 0; width: 100%; height: 2px; background: #ff6600;
+}
+
+/* 5. SIATKA 5 KOLUMN x 2 RZĘDY (KOMPAKTOWA) */
+.strefa-custom-content { flex-grow: 1; position: relative; height: 100%; overflow: hidden; }
+.custom-pane { display: none; height: 100%; width: 100%; }
+.custom-pane.active { display: block; animation: fadeIn 0.4s; }
+
+.custom-grid {
+    display: grid;
+    /* 5 kolumn */
+    grid-template-columns: repeat(5, 1fr) !important;
+    
+    /* ZMIANA: Zamiast rozciągać (1fr), dopasuj do treści (max-content) */
+    grid-template-rows: repeat(2, max-content) !important;
+    
+    gap: 15px;
+    width: 100%;
+    height: 100%;
+    align-content: start; /* Dopychamy kafelki do góry */
+}
+
+/* 6. STYLIZACJA KAFELKA (NIŻSZY I LŻEJSZY) */
+.custom-card {
+    background: #fff;
+    border: 1px solid #f9f9f9;
+    border-radius: 4px;
+    padding: 10px 5px; /* Mniejszy padding */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: all 0.2s;
+    
+    /* ZMIANA: Wysokość automatyczna, nie na 100% */
+    height: auto !important; 
+    width: 100%;
+    box-sizing: border-box;
+}
+.custom-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    border-color: #fff;
+}
+
+/* Obrazek - Zmniejszony */
+.custom-img-box {
+    width: 100%;
+    height: 80px !important; /* Było 90px, teraz 80px */
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.custom-img-box img {
+    max-height: 75px !important;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+/* Informacje */
+.custom-info-box {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+/* Nazwa - Cienka i Mniejsza */
+.custom-name {
+    font-size: 10px !important; /* Zmniejszone z 11px */
+    font-weight: 300 !important; /* Bardzo cienka (Light) */
+    color: #555 !important;      /* Delikatny szary */
+    text-decoration: none;
+    text-transform: uppercase;
+    line-height: 1.35;
+    margin-bottom: 2px;
+    
+    /* 2 linie tekstu max */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    height: 28px; /* Dopasowana wysokość */
+}
+.custom-name:hover { color: #ff6600 !important; }
+
+/* Cena - Mniejsza */
+.custom-price {
+    font-size: 13px !important; /* Zmniejszone z 14px */
+    font-weight: 700 !important;
+    color: #ff6600;
+    margin-top: 5px;
+}
+/* ========================================================= */
+/* FIX: NAPRAWA WYSUWANYCH KATEGORII (HOVER)                 */
+/* ========================================================= */
+
+/* 1. Ustawienie paneli, które wysuwają się po najechaniu */
+.mz-content-panel {
+    /* Muszą być wyżej niż nasz moduł startowy (który ma z-index: 100) */
+    z-index: 500 !important; 
+    
+    /* Muszą zajmować dokładnie to samo miejsce co moduł startowy */
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 27% !important; /* Start za lewym paskiem */
+    right: 0 !important;  /* Do końca prawej */
+    
+    /* Reset szerokości i wysokości */
+    width: auto !important;
+    height: 100% !important;
+    
+    /* Tło musi być białe, żeby przykryć produkty pod spodem */
+    background: #fff !important;
+    
+    /* Wyświetlanie */
+    display: none; 
+    padding: 30px !important; /* Odstęp wewnątrz dla estetyki */
+    box-sizing: border-box;
+    overflow-y: auto; /* Gdyby treści było dużo */
+}
+
+/* 2. Obsługa najechania (Hover) */
+/* Kiedy najeżdżamy na element menu, pokaż panel */
+.mz-nav-item:hover .mz-content-panel {
+    display: block !important;
+}
+
+/* 3. Zabezpieczenie lewej kolumny */
+/* Upewniamy się, że lewa kolumna jest bazą, ale nie ogranicza panelu */
+.mz-left-nav {
+    position: static !important; /* Ważne, żeby absolute łapał się kontenera głównego */
+}
+
+.mz-nav-item {
+    position: static !important; /* Ważne! */
+}
+
+.mz-main-container {
+    position: relative !important; /* To jest punkt odniesienia dla absolute */
+}
+/* ========================================================= */
+/* FIX: UKRYWANIE TŁA PRZY PRZEŁĄCZANIU KATEGORII            */
+/* ========================================================= */
+
+/* 1. Logika: Gdy najeżdżasz na lewe menu (.mz-left-nav), 
+      kontener startowy (.mz-default-placeholder) ma zniknąć NATYCHMIAST */
+.mz-left-nav:hover ~ .mz-default-placeholder {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    z-index: -1 !important; /* Zrzucamy go na samo dno */
+    transition: none !important; /* Brak animacji, zniknięcie ma być nagłe */
+}
+
+/* 2. Zabezpieczenie: Panele kategorii muszą mieć pełne tło */
+.mz-content-panel {
+    background-color: #fff !important; /* Solidne białe tło */
+    z-index: 600 !important; /* Wyżej niż cokolwiek innego */
+}

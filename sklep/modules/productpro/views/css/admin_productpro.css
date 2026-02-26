@@ -1,0 +1,380 @@
+/* --- Ogólne style dla panelu modułu --- */
+.panel-body {
+    padding: 15px;
+}
+
+/* --- Kontener przewijania tabeli --- */
+.table-scroll-container {
+    max-height: 650px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Zapobiegamy poziomemu suwakowi */
+    border: 1px solid #ddd;
+    margin-top: 20px;
+    border-radius: 4px;
+}
+
+/* --- Styl dla tabeli --- */
+.table-scroll-container table {
+    width: 100%;
+    table-layout: fixed; /* Kluczowe dla kontroli szerokości */
+    border-collapse: collapse; /* Zmieniamy na collapse dla lepszego wyglądu */
+    margin: 0;
+}
+
+/* --- Styl dla nagłówka tabeli --- */
+.table-scroll-container thead {
+    position: sticky;
+    top: 0;
+    background-color: #f8f8f8;
+    z-index: 20;
+}
+
+/* --- Styl dla komórek nagłówka (th) i danych (td) --- */
+.table-scroll-container th,
+.table-scroll-container td {
+    padding: 10px 8px;
+    text-align: left;
+    border: 1px solid #ddd; /* Upraszczamy definicję obramowania */
+    vertical-align: middle;
+    overflow: hidden; /* Ukrywamy nadmiarową treść */
+}
+
+/* --- NOWE, ELASTYCZNE SZEROKOŚCI KOLUMN (POPRAWIONE) --- */
+/* Zoptymalizowany podział procentowy, aby uniknąć obcinania znaków */
+
+/* Kolumna 1: ID produktu */
+.table-scroll-container th:nth-child(1), .table-scroll-container td:nth-child(1) {
+    width: 6%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 2: Nazwa */
+.table-scroll-container th:nth-child(2), .table-scroll-container td:nth-child(2) {
+    width: 48%; /* Zwiększamy szerokość dla długich nazw */
+    white-space: normal; /* KLUCZOWA ZMIANA: Zezwalamy na zawijanie tekstu */
+    word-wrap: break-word; /* Lepsze łamanie słów */
+    text-overflow: clip; /* Nie pokazujemy '...' tylko ucinamy, gdy tekst się zawija */
+}
+
+/* Kolumna 3: EAN / Aktualna waga */
+.table-scroll-container th:nth-child(3), .table-scroll-container td:nth-child(3) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 4: SKU / Sugerowana waga */
+.table-scroll-container th:nth-child(4), .table-scroll-container td:nth-child(4) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 5: Propozycja wagi / Różnica */
+.table-scroll-container th:nth-child(5), .table-scroll-container td:nth-child(5) {
+    width: 8%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 6: Akcje */
+.table-scroll-container th:nth-child(6), .table-scroll-container td:nth-child(6) {
+    width: 20%; /* Dajemy więcej miejsca na formularz */
+    white-space: nowrap;
+}
+
+
+/* --- Styl dla formularza w kolumnie "Akcje" --- */
+.form-inline-action-edit {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+}
+.input-action-weight {
+    flex-grow: 1;
+    max-width: 100px; /* Zwiększamy trochę max-width dla wygody */
+    min-width: 0;
+}
+.form-inline-action-edit button {
+    flex-shrink: 0;
+}
+
+/* Pozostałe style */
+.display-weight-input {
+    width: 100px;
+    display: inline-block;
+    margin-right: 5px;
+}
+.text-danger {
+    white-space: normal;
+    font-size: 0.9em;
+}
+
+/* --- Ogólne style dla panelu modułu --- */
+.panel-body {
+    padding: 15px;
+}
+
+/* --- Kontener przewijania tabeli --- */
+.table-scroll-container {
+    max-height: 650px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Zapobiegamy poziomemu suwakowi */
+    border: 1px solid #ddd;
+    margin-top: 20px;
+    border-radius: 4px;
+}
+
+/* --- Styl dla tabeli --- */
+.table-scroll-container table {
+    width: 100%;
+    table-layout: fixed; /* Kluczowe dla kontroli szerokości */
+    border-collapse: collapse; /* Zmieniamy na collapse dla lepszego wyglądu */
+    margin: 0;
+}
+
+/* --- Styl dla nagłówka tabeli --- */
+.table-scroll-container thead {
+    position: sticky;
+    top: 0;
+    background-color: #f8f8f8;
+    z-index: 20;
+}
+
+/* --- Styl dla komórek nagłówka (th) i danych (td) --- */
+.table-scroll-container th,
+.table-scroll-container td {
+    padding: 10px 8px;
+    text-align: left;
+    border: 1px solid #ddd; /* Upraszczamy definicję obramowania */
+    vertical-align: middle;
+    overflow: hidden; /* Ukrywamy nadmiarową treść */
+}
+
+/* --- NOWE, ELASTYCZNE SZEROKOŚCI KOLUMN (POPRAWIONE) --- */
+/* Zoptymalizowany podział procentowy, aby uniknąć obcinania znaków */
+
+/* Kolumna 1: ID produktu */
+.table-scroll-container th:nth-child(1), .table-scroll-container td:nth-child(1) {
+    width: 6%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 2: Nazwa */
+.table-scroll-container th:nth-child(2), .table-scroll-container td:nth-child(2) {
+    width: 48%; /* Zwiększamy szerokość dla długich nazw */
+    white-space: normal; /* KLUCZOWA ZMIANA: Zezwalamy na zawijanie tekstu */
+    word-wrap: break-word; /* Lepsze łamanie słów */
+    text-overflow: clip; /* Nie pokazujemy '...' tylko ucinamy, gdy tekst się zawija */
+}
+
+/* Kolumna 3: EAN / Aktualna waga */
+.table-scroll-container th:nth-child(3), .table-scroll-container td:nth-child(3) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 4: SKU / Sugerowana waga */
+.table-scroll-container th:nth-child(4), .table-scroll-container td:nth-child(4) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 5: Propozycja wagi / Różnica */
+.table-scroll-container th:nth-child(5), .table-scroll-container td:nth-child(5) {
+    width: 8%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 6: Akcje */
+.table-scroll-container th:nth-child(6), .table-scroll-container td:nth-child(6) {
+    width: 20%; /* Dajemy więcej miejsca na formularz */
+    white-space: nowrap;
+}
+
+
+/* --- Styl dla formularza w kolumnie "Akcje" --- */
+.form-inline-action-edit {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+}
+.input-action-weight {
+    flex-grow: 1;
+    max-width: 100px; /* Zwiększamy trochę max-width dla wygody */
+    min-width: 0;
+}
+.form-inline-action-edit button {
+    flex-shrink: 0;
+}
+
+/* Pozostałe style */
+.display-weight-input {
+    width: 100px;
+    display: inline-block;
+    margin-right: 5px;
+}
+.text-danger {
+    white-space: normal;
+    font-size: 0.9em;
+}
+
+/* --- Style dla nowej tabeli przypisywania kategorii (productpro-table) --- */
+.productpro-table th:nth-child(1), .productpro-table td:nth-child(1) {
+    width: 5%; /* Kolumna checkboxa */
+    text-align: center;
+}
+.productpro-table th:nth-child(2), .productpro-table td:nth-child(2) {
+    width: 10%; /* Kolumna ID */
+    text-align: center;
+}
+.productpro-table th:nth-child(3), .productpro-table td:nth-child(3) {
+    width: 65%; /* Kolumna Nazwa produktu */
+    white-space: normal;
+    word-wrap: break-word;
+}
+.productpro-table th:nth-child(4), .productpro-table td:nth-child(4) {
+    width: 20%; /* Kolumna Waga */
+    text-align: center;
+    white-space: nowrap;
+}
+/* --- Ogólne style dla panelu modułu --- */
+.panel-body {
+    padding: 15px;
+}
+
+/* --- Kontener przewijania tabeli --- */
+.table-scroll-container {
+    max-height: 650px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Zapobiegamy poziomemu suwakowi */
+    border: 1px solid #ddd;
+    margin-top: 20px;
+    border-radius: 4px;
+}
+
+/* --- Styl dla tabeli --- */
+.table-scroll-container table {
+    width: 100%;
+    table-layout: fixed; /* Kluczowe dla kontroli szerokości */
+    border-collapse: collapse; /* Zmieniamy na collapse dla lepszego wyglądu */
+    margin: 0;
+}
+
+/* --- Styl dla nagłówka tabeli --- */
+.table-scroll-container thead {
+    position: sticky;
+    top: 0;
+    background-color: #f8f8f8;
+    z-index: 20;
+}
+
+/* --- Styl dla komórek nagłówka (th) i danych (td) --- */
+.table-scroll-container th,
+.table-scroll-container td {
+    padding: 10px 8px;
+    text-align: left;
+    border: 1px solid #ddd; /* Upraszczamy definicję obramowania */
+    vertical-align: middle;
+    overflow: hidden; /* Ukrywamy nadmiarową treść */
+}
+
+/* --- NOWE, ELASTYCZNE SZEROKOŚCI KOLUMN (POPRAWIONE) --- */
+/* Zoptymalizowany podział procentowy, aby uniknąć obcinania znaków */
+
+/* Kolumna 1: ID produktu */
+.table-scroll-container th:nth-child(1), .table-scroll-container td:nth-child(1) {
+    width: 6%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 2: Nazwa */
+.table-scroll-container th:nth-child(2), .table-scroll-container td:nth-child(2) {
+    width: 48%; /* Zwiększamy szerokość dla długich nazw */
+    white-space: normal; /* KLUCZOWA ZMIANA: Zezwalamy na zawijanie tekstu */
+    word-wrap: break-word; /* Lepsze łamanie słów */
+    text-overflow: clip; /* Nie pokazujemy '...' tylko ucinamy, gdy tekst się zawija */
+}
+
+/* Kolumna 3: EAN / Aktualna waga */
+.table-scroll-container th:nth-child(3), .table-scroll-container td:nth-child(3) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 4: SKU / Sugerowana waga */
+.table-scroll-container th:nth-child(4), .table-scroll-container td:nth-child(4) {
+    width: 9%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 5: Propozycja wagi / Różnica */
+.table-scroll-container th:nth-child(5), .table-scroll-container td:nth-child(5) {
+    width: 8%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Kolumna 6: Akcje */
+.table-scroll-container th:nth-child(6), .table-scroll-container td:nth-child(6) {
+    width: 20%; /* Dajemy więcej miejsca na formularz */
+    white-space: nowrap;
+}
+
+
+/* --- Styl dla formularza w kolumnie "Akcje" --- */
+.form-inline-action-edit {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+}
+.input-action-weight {
+    flex-grow: 1;
+    max-width: 100px; /* Zwiększamy trochę max-width dla wygody */
+    min-width: 0;
+}
+.form-inline-action-edit button {
+    flex-shrink: 0;
+}
+
+/* Pozostałe style */
+.display-weight-input {
+    width: 100px;
+    display: inline-block;
+    margin-right: 5px;
+}
+.text-danger {
+    white-space: normal;
+    font-size: 0.9em;
+}
+
+/* --- Style dla nowej tabeli przypisywania kategorii (productpro-table) --- */
+.productpro-table th:nth-child(1), .productpro-table td:nth-child(1) {
+    width: 5%; /* Kolumna checkboxa */
+    text-align: center;
+}
+.productpro-table th:nth-child(2), .productpro-table td:nth-child(2) {
+    width: 10%; /* Kolumna ID */
+    text-align: center;
+}
+.productpro-table th:nth-child(3), .productpro-table td:nth-child(3) {
+    width: 65%; /* Kolumna Nazwa produktu */
+    white-space: normal;
+    word-wrap: break-word;
+}
+.productpro-table th:nth-child(4), .productpro-table td:nth-child(4) {
+    width: 20%; /* Kolumna Waga */
+    text-align: center;
+    white-space: nowrap;
+}

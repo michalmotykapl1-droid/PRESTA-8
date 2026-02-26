@@ -1,0 +1,202 @@
+/**
+* PRESTASHOP 8.2 - DESKTOP MENU
+* Ładowany i aktywny TYLKO powyżej 992px
+*/
+
+@media (min-width: 992px) {
+
+    /* 1. Kontener i Reset */
+    .tv-menu-horizontal {
+        width: 100%;
+        background: #ffffff;
+        font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        border-bottom: none !important; 
+        padding: 0;
+        position: relative;
+        z-index: 999;
+    }
+
+    .container_tv_megamenu {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+
+    /* 2. UKŁAD POZIOMY (FLEXBOX) */
+    .tv-menu-horizontal ul.menu-content {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;     
+        justify-content: center; 
+        align-items: center; 
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* 3. ELEMENTY MENU */
+    .tv-menu-horizontal li.level-1 {
+        display: flex;       
+        align-items: center;
+        height: 60px;
+        margin: 0 4px;
+        position: static;
+        border-bottom: none !important;
+        width: auto !important;
+    }
+
+    /* 4. LINKI */
+    #header .tv-menu-horizontal ul li.level-1 > a {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #1a1a1a;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        text-decoration: none;
+        position: relative;
+        gap: 6px;
+    }
+
+    /* Hover */
+    #header .tv-menu-horizontal ul li.level-1:hover > a {
+        color: #000000;
+    }
+
+    /* Animowane podkreślenie */
+    #header .tv-menu-horizontal ul li.level-1 > a::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 14px;
+        right: 14px;
+        height: 2px;
+        background-color: #000000;
+        transform: scaleX(0);
+        transition: transform 0.25s cubic-bezier(0.165, 0.84, 0.44, 1);
+        transform-origin: center;
+    }
+    #header .tv-menu-horizontal ul li.level-1:hover > a::after {
+        transform: scaleX(1);
+    }
+
+    /* Strzałka */
+    .tv-menu-horizontal li.level-1.parent > a::before {
+        content: '';
+        display: block;
+        width: 6px;
+        height: 6px;
+        border-right: 1.5px solid #888;
+        border-bottom: 1.5px solid #888;
+        transform: rotate(45deg);
+        margin-top: -3px;
+        transition: all 0.2s ease;
+        order: 2;
+    }
+    .tv-menu-horizontal li.level-1.parent:hover > a::before {
+        transform: rotate(225deg);
+        border-color: #000;
+        margin-top: 2px;
+    }
+
+    /* 5. UKRYWANIE ELEMENTÓW MOBILNYCH */
+    .tv-menu-horizontal .title-menu-mobile,
+    .tv-menu-horizontal .icon-drop-mobile,
+    .tv-menu-horizontal .menu-content .tvmega-menu-title,
+    .tv-menu-horizontal li.level-1 .img-icon {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* 6. DROPDOWN (FULL WIDTH) */
+    .tv-menu-horizontal .menu-dropdown {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 100%;
+        width: 100vw; 
+        margin-left: calc(-50vw + 50%); 
+        padding-bottom: 0 !important; 
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        opacity: 0;
+        visibility: hidden;
+        z-index: 1000;
+        transform: translateY(6px);
+        transition: all 0.2s ease;
+        pointer-events: none;
+    }
+
+    .tv-menu-horizontal ul li.level-1:hover > .menu-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    /* Wnętrze dropdownu - TU JEST ZMIANA (RAMKA) */
+    .tv-menu-horizontal .menu-dropdown .tv-menu-row {
+        background: #fff;
+        max-width: 1300px;
+        margin: 0 auto !important;
+        
+        /* ZMIANA: Pełna ramka dookoła zamiast tylko border-top */
+        border: 1px solid #d9d9d9; 
+        
+        /* Cień pozostawiony dla głębi (opcjonalnie) */
+        box-shadow: 0 15px 30px -10px rgba(0,0,0,0.1); 
+        
+        padding: 40px;
+        display: flex;
+        flex-wrap: wrap;
+        min-height: 200px;
+    }
+    
+    .tv-menu-horizontal .menu-dropdown .tv-menu-col {
+        margin-bottom: 0;
+    }
+
+    /* Nagłówki kolumn */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-header a {
+        font-size: 12px;
+        font-weight: 800;
+        color: #111;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 15px;
+        display: block;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+        margin-top: 0;
+    }
+
+    /* Linki w kolumnach */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line a {
+        font-size: 14px;
+        color: #555;
+        font-weight: 400;
+        padding: 5px 0;
+        display: block;
+        transition: all 0.2s ease;
+        padding-left: 0;
+    }
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line a:hover {
+        color: #000;
+        text-decoration: underline;
+    }
+
+    /* Ukrycie kropek z motywu */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line.tvmega-menu-link a:before {
+        display: none;
+    }
+
+    /* Fix dla Custom TPL */
+    .tv-custom-menu-tpl {
+        width: 100%;
+    }
+}

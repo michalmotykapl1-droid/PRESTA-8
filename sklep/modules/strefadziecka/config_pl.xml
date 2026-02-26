@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>strefadziecka</name>
+    <displayName><![CDATA[STREFA DZIECKA (Lazy Load)]]></displayName>
+    <version><![CDATA[2.0.0]]></version>
+    <description><![CDATA[Moduł: Info-Box + Kategorie + Produkty (AJAX).]]></description>
+    <author><![CDATA[Custom]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>0</is_configurable>
+    <need_instance>0</need_instance>
+</module>

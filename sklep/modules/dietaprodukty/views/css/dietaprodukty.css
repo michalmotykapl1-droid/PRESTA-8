@@ -1,0 +1,37 @@
+.dietaprodukty-wrapper { background: #fff; padding: 40px 0 60px 0; margin-bottom: 40px; margin-top: -50px; }
+.diet-bestsellers-header { text-align: center; margin-bottom: 40px; }
+.diet-bestsellers-title { font-size: 24px !important; font-weight: 700 !important; color: #222; text-transform: uppercase; margin: 0 0 15px 0; line-height: 1.2; }
+.diet-separator-line { width: 60px; height: 4px; background: #d90244; margin: 0 auto 20px auto; border-radius: 2px; }
+.diet-bestsellers-desc { font-size: 14px; color: #777; margin: 0 auto; max-width: 700px; font-weight: 400; }
+.dieta-layout { display: flex; gap: 30px; height: 490px; align-items: stretch; border-bottom: 1px solid #eee; }
+.dieta-sidebar { width: 25%; flex-shrink: 0; border-right: 1px solid #eee; height: 100%; overflow: hidden; padding-top: 0; }
+.dieta-nav { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; height: 100%; }
+.dieta-nav-item { flex-grow: 1; padding: 0 15px; font-size: 15px; color: #444; cursor: pointer; transition: all 0.2s; font-weight: 500; border-bottom: 1px solid #f9f9f9; display: flex; align-items: center; }
+.dieta-nav-item:last-child { border-bottom: none; }
+.dieta-nav-icon { width: 35px; text-align: center; margin-right: 10px; color: #999; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.dieta-nav-item:hover, .dieta-nav-item.active { color: #000; background-color: #fff; font-weight: 700; }
+.dieta-nav-item:hover .dieta-nav-icon, .dieta-nav-item.active .dieta-nav-icon { color: #d90244; }
+.dieta-nav-item.active { border-left: 4px solid #d90244; padding-left: 11px; background-color: #fffafb; }
+.dieta-content { flex-grow: 1; width: 75%; height: 100%; position: relative; }
+.dieta-tab-pane { display: none; height: 100%; }
+.dieta-tab-pane.active { display: block; }
+.diet-scroll-container { height: 100%; overflow-y: auto; padding-right: 10px; padding-top: 15px; }
+.diet-scroll-container::-webkit-scrollbar { width: 6px; }
+.diet-scroll-container::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+.diet-products-grid { display: grid; grid-template-columns: repeat(var(--grid-cols, 5), 1fr); gap: 15px; }
+.diet-products-grid .product-miniature-wrapper { width: 100%; margin-bottom: 0; }
+.dieta-loading-overlay { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; color: #999; gap: 15px; }
+.dieta-loading-text { font-size: 13px; font-weight: 600; text-transform: uppercase; color: #999; }
+.dieta-spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@media (max-width: 1400px) { .diet-products-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 991px) {
+  .dieta-layout { flex-direction: column; height: auto; border-bottom: none; }
+  .dieta-sidebar { width: 100%; height: auto; border-right: none; padding-bottom: 10px; overflow-x: auto; display: block; }
+  .dieta-nav { flex-direction: row; height: auto; }
+  .dieta-nav-item { flex-grow: 0; white-space: nowrap; background: #f5f5f5; margin-right: 10px; border-radius: 20px; padding: 10px 20px; height: 40px; border: none; }
+  .dieta-content { width: 100%; height: auto; }
+  .diet-scroll-container { height: auto; overflow-y: visible; }
+  .diet-products-grid { grid-template-columns: repeat(2, 1fr); }
+  .dieta-nav-item.active { background: #222; color: #fff; border-left: none; padding-left: 20px; }
+}

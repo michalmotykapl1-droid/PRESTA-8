@@ -1,0 +1,37 @@
+.url iframe{
+    width: 450px;
+    height: 100px;
+}
+.momo{
+    background: #0000009e;
+    width: 100%;
+    height: 800px;
+    z-index: 9999;
+    position: fixed;
+    opacity: 0;
+    visibility: hidden;
+    top: 0px;
+    left: 0px;
+}
+.momo.showmo{
+    opacity: 1;
+    visibility: visible;
+}
+.edittab {
+    display: none;
+    position: absolute;
+    z-index: 9999;
+    width: 95%;
+    background: #edf7fb;
+    top: -100px;
+    border-radius: 10px;
+
+}
+.edittab .panel-footer{
+    clear: both;
+    width: 100%;
+    margin:0px !important;
+}
+.panel-footer{
+    display: none;
+}

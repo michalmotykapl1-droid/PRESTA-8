@@ -1,0 +1,370 @@
+/**
+* 2007-2025 PrestaShop - MODERN MENU
+* Wersja: Neutralna (Black/Grey) - Odchudzona czcionka
+*/
+
+/* =================================================================
+   1. CZYSZCZENIE I RESET (Ukrywanie zbędnych elementów)
+   ================================================================= */
+
+/* Ukrywamy napis "MENU SKLEPU" oraz stare tytuły */
+.tv-menu-horizontal .menu-content .tvmega-menu-title,
+.tv-menu-horizontal .title-menu-mobile {
+    display: none !important;
+}
+
+/* Reset box-sizing */
+.tv-menu-horizontal,
+.tv-menu-horizontal *,
+.tv-menu-horizontal *::before,
+.tv-menu-horizontal *::after {
+    box-sizing: border-box;
+}
+
+/* Tło i czcionka całego paska */
+.tv-menu-horizontal {
+    width: 100%;
+    background: #ffffff;
+    /* Profesjonalny, nowoczesny krój pisma */
+    font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    border-bottom: 1px solid #f2f2f2; /* Bardzo jasna linia oddzielająca */
+}
+
+/* =================================================================
+   2. GŁÓWNA BELKA (DESKTOP)
+   ================================================================= */
+
+@media (min-width: 992px) {
+    .tv-menu-horizontal {
+        padding: 0 !important;
+        position: relative;
+        z-index: 999;
+    }
+
+    /* Centrowanie zawartości */
+    .container_tv_megamenu {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .tv-menu-horizontal ul.menu-content {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Kontener elementu menu */
+    .tv-menu-horizontal li.level-1 {
+        display: flex;
+        align-items: center;
+        height: 60px; /* Wysokość belki menu */
+        margin: 0 4px; /* Małe odstępy między kafelkami */
+    }
+
+    /* --- STYLIZACJA LINKÓW (Top Retail Standard) --- */
+    #header .tv-menu-horizontal ul li.level-1 > a {
+        display: flex !important; /* Flexbox naprawia pozycję strzałek */
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 0 14px; /* Odstęp wewnątrz przycisku */
+        
+        /* Typografia - ODCHUDZONA */
+        font-size: 13px !important;
+        font-weight: 500 !important; /* ZMIANA: Z 700 na 500 (lżejsza, ale czytelna) */
+        color: #1a1a1a !important; /* Prawie czarny, ale miększy (Premium Black) */
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        text-decoration: none;
+        
+        position: relative;
+        transition: color 0.2s ease-in-out;
+        gap: 6px; /* Odstęp między tekstem a strzałką (KLUCZOWE) */
+    }
+
+    /* --- HOVER NA GŁÓWNEJ BELCE (NEUTRALNY) --- */
+    /* Zmiana koloru tekstu na idealną czerń */
+    #header .tv-menu-horizontal ul li.level-1:hover > a {
+        color: #000000 !important; 
+        background: transparent;
+    }
+
+    /* Podkreślenie (Underline) - animowane */
+    #header .tv-menu-horizontal ul li.level-1 > a::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 14px;
+        right: 14px;
+        height: 2px;
+        background-color: #000000; /* Czarne podkreślenie (neutralne) */
+        transform: scaleX(0);
+        transition: transform 0.25s cubic-bezier(0.165, 0.84, 0.44, 1);
+        transform-origin: center;
+    }
+
+    #header .tv-menu-horizontal ul li.level-1:hover > a::after {
+        transform: scaleX(1);
+    }
+
+    /* --- STRZAŁKI (DROPDOWN ARROWS) --- */
+    /* Ukrywamy stare pseudoelementy z motywu */
+    .tv-menu-horizontal li.level-1.parent > a::before { display: none !important; }
+    
+    /* Tworzymy nową, elegancką strzałkę */
+    .tv-menu-horizontal li.level-1.parent > a::before {
+        content: '';
+        display: block !important;
+        width: 6px;
+        height: 6px;
+        
+        /* Cienka, precyzyjna linia */
+        border-right: 1.5px solid #888; 
+        border-bottom: 1.5px solid #888;
+        
+        transform: rotate(45deg);
+        margin-top: -3px; /* Korekta optyczna w pionie */
+        transition: all 0.2s ease;
+        
+        /* Kolejność we flexboxie: 2 to na końcu */
+        order: 2; 
+    }
+
+    /* Obrót strzałki po najechaniu */
+    .tv-menu-horizontal li.level-1.parent:hover > a::before {
+        transform: rotate(225deg);
+        border-color: #000; /* Strzałka robi się czarna */
+        margin-top: 2px;
+    }
+    
+    /* Ukrycie starych ikon obrazkowych, jeśli są */
+    .tv-menu-horizontal li.level-1 .img-icon {
+        display: none !important;
+    }
+}
+
+/* =================================================================
+   3. ROZWIJANE MENU (DROPDOWN) - STABILNE I SZEROKIE
+   ================================================================= */
+
+@media (min-width: 992px) {
+    /* Ustawienie rodzica na static pozwala dziecku (dropdown) być szerokim na 100vw */
+    .tv-menu-horizontal li.level-1 {
+        position: static !important;
+    }
+
+    /* Niewidzialny kontener techniczny */
+    .tv-menu-horizontal .menu-dropdown {
+        position: absolute !important;
+        left: 0 !important;
+        top: 100% !important;
+        width: 100vw !important; /* Pełna szerokość ekranu */
+        margin-left: calc(-50vw + 50%); /* Centrowanie full-width */
+        
+        /* Margines techniczny na dole (żeby cień nie był ucięty) */
+        padding: 0 0 40px 0 !important; 
+        
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        
+        opacity: 0;
+        visibility: hidden;
+        z-index: 1000;
+        transform: translateY(6px); /* Lekki wjazd z dołu */
+        transition: all 0.2s ease;
+        
+        pointer-events: none; /* Żeby nie blokowało klikania pod spodem gdy ukryte */
+    }
+
+    /* Pokazywanie menu */
+    .tv-menu-horizontal ul li.level-1:hover > .menu-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    /* --- WŁAŚCIWA "KARTA" Z TREŚCIĄ --- */
+    .tv-menu-horizontal .menu-dropdown .tv-menu-row {
+        background: #fff !important;
+        max-width: 1300px !important; /* Szerokość treści strony */
+        margin: 0 auto !important;
+        
+        /* Nowoczesny cień (rozmyty, delikatny) */
+        box-shadow: 0 20px 40px -5px rgba(0,0,0,0.1) !important;
+        
+        /* Linie oddzielające */
+        border-top: 1px solid #f4f4f4 !important;
+        
+        padding: 40px !important; /* Duży oddech wewnątrz */
+        display: flex;
+        flex-wrap: wrap;
+        min-height: 200px;
+    }
+
+    /* Reset dla standardowych kategorii PrestaShop (gdy nie ma custom TPL) */
+    .tv-menu-horizontal .menu-dropdown.cat-drop-menu {
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        margin-left: 0 !important;
+        padding-bottom: 40px !important;
+    }
+}
+
+/* =================================================================
+   4. TYPOGRAFIA WEWNĄTRZ MENU (LINKI)
+   ================================================================= */
+
+@media (min-width: 992px) {
+    /* Nagłówki kolumn (np. ODPORNOŚĆ) */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-header a {
+        font-size: 12px !important;
+        font-weight: 800 !important; /* Bardzo gruby, mały tekst (Trendy) */
+        color: #111 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 15px;
+        display: block;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    /* Linki zwykłe */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line a {
+        font-size: 14px !important;
+        color: #555 !important;
+        font-weight: 400 !important;
+        padding: 5px 0;
+        display: block;
+        transition: all 0.2s ease;
+    }
+
+    /* Hover na linkach wewnątrz - tutaj też neutralnie (czarny) lub lekki szary */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line a:hover {
+        color: #000 !important;
+        text-decoration: underline;
+    }
+
+    /* Ukrycie "kropek" */
+    #header .tv-menu-horizontal ul li.level-1 ul li.item-line.tvmega-menu-link a:before {
+        display: none !important;
+    }
+}
+
+/* =================================================================
+   5. MOBILE (Responsive)
+   ================================================================= */
+
+@media (max-width: 991px) {
+    .tv-menu-horizontal .title-menu-mobile,
+    .icon-drop-mobile {
+        display: block !important;
+    }
+
+    .tv-menu-horizontal .title-menu-mobile {
+        background: #1a1a1a; /* Czarny nagłówek mobilny */
+        color: #fff;
+        padding: 15px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Reset belki desktopowej */
+    .tv-menu-horizontal li.level-1 {
+        border-bottom: 1px solid #eee;
+        height: auto;
+        display: block;
+        width: 100%;
+        margin: 0;
+    }
+
+    #header .tv-menu-horizontal ul li.level-1 > a {
+        padding: 15px 20px;
+        justify-content: flex-start; /* Tekst do lewej */
+        font-size: 15px !important;
+        color: #333 !important;
+        width: 100%;
+        height: auto;
+    }
+    
+    /* Ukrywamy strzałkę desktopową na mobile */
+    #header .tv-menu-horizontal ul li.level-1 > a::before,
+    #header .tv-menu-horizontal ul li.level-1 > a::after {
+        display: none !important;
+    }
+
+    /* Przycisk rozwijania (Plus/Minus) */
+    .tv-menu-horizontal .icon-drop-mobile {
+        width: 50px;
+        height: 50px;
+        position: absolute;
+        right: 0;
+        top: 0;
+        border-left: 1px solid #f5f5f5;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+    }
+    .tv-menu-horizontal .icon-drop-mobile::after {
+        font-family: 'Material Icons'; /* Font ikon */
+        content: '\e145'; /* Kod plusa */
+        font-size: 20px;
+        color: #333;
+    }
+    .tv-menu-horizontal .icon-drop-mobile.opened::after {
+        content: '\e15b'; /* Kod minusa */
+    }
+
+    /* Dropdown Mobile */
+    .tv-menu-horizontal .menu-dropdown {
+        display: none;
+        position: relative !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: #fcfcfc !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        left: 0 !important;
+        transform: none !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        box-shadow: inset 0 5px 10px -5px rgba(0,0,0,0.05) !important;
+    }
+
+    .tv-menu-horizontal li.level-1.open .menu-dropdown {
+        display: block !important;
+    }
+}
+
+/* =================================================================
+   6. IKONY DIETY (Zachowane)
+   ================================================================= */
+.diet-menu-wrapper .diet-icon-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+}
+.diet-menu-wrapper .diet-icon-link {
+    text-align: center;
+    flex: 0 0 100px;
+}
+.diet-menu-wrapper .diet-icon-link img {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    margin-bottom: 5px;
+}
+.diet-menu-wrapper .diet-icon-link span {
+    font-size: 11px;
+    display: block;
+    color: #333;
+}

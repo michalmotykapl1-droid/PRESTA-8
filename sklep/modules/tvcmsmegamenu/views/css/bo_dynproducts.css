@@ -1,0 +1,8 @@
+.tvdp-preview ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.tvdp-preview.tvdp-grid li{width:calc(25% - 8px)}
+.tvdp-preview.tvdp-list li{width:100%}
+.tv-menu-thumb img{max-width:100%;height:auto;display:block}
+.tv-menu-title{display:block;font-size:12px;margin-top:4px}
+.tv-menu-price{display:inline-block;font-weight:600;margin-top:2px}
+.tv-menu-badge{display:inline-block;background:#e74c3c;color:#fff;font-size:10px;padding:2px 4px;margin-left:4px;border-radius:3px}
+.tvdp-noimg{display:block;width:100%;height:60px;background:#f1f1f1}

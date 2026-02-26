@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>wyprzedazpro</name>
+    <displayName><![CDATA[Wyprzedaż PRO (WMS)]]></displayName>
+    <version><![CDATA[1.2.0]]></version>
+    <description><![CDATA[System WMS: 0_MAG, podw&oacute;jne stany magazynowe, import CSV.]]></description>
+    <author><![CDATA[Tw&oacute;j Zesp&oacute;ł Dev]]></author>
+    <tab><![CDATA[administration]]></tab>
+	<confirmUninstall><![CDATA[Czy usunąć moduł i jego dane?]]></confirmUninstall>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>

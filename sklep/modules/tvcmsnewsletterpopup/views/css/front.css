@@ -1,0 +1,357 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*/
+
+input,
+input:focus {
+    outline: none;
+}
+#tvcmsNewsLetterPopup {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+.tvcmsnewsletterpopup {
+    width: 100%;
+    height: 100% !important;
+    background-repeat: repeat;
+    position: relative;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    vertical-align: top;
+    box-shadow: 0 0px 40px 15px rgba(0, 0, 0, 0.2);
+}
+.tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper {
+    width: 50%;
+}
+.tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper,
+.tvcmsnewsletterpopup #newsletter_block_popup {
+    -webkit-box-align: center !important;
+    -ms-flex-align: center !important;
+    align-items: center !important;
+    display: -webkit-box;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+}
+.tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper img {
+    width: 100%;
+    max-height: 100%;
+    height: 100%;
+}
+.tvcmsNewsLetterPopup-i {
+    margin: auto;
+    /*height: 470px;*/
+    left: 0;
+    right: 0;
+    padding: 0 15px;
+    max-width: 800px;
+    max-height: 470px;
+    width: 100%;
+}
+
+.tvcmsNewsLetterPopup-i .close {
+    border-radius: 100%;
+    font-weight: normal;
+    height: 40px;
+    opacity: 1;
+    position: absolute;
+    text-align: center;
+    width: 40px;
+    right: 15px;
+    top: 0;
+    z-index: 9;
+}
+.tvcmsNewsLetterPopup-i .tvnewsletterpopup-button-icon {
+    background-color: #000000;
+    height: 40px;
+    width: 40px;
+    margin: auto;
+    line-height: 40px;
+    border-radius: 0;
+}
+.tvcmsNewsLetterPopup-i .tvnewsletterpopup-button-icon i {
+    color: #ffffff;
+    font-size: 18px;
+    line-height: 40px;
+    height: 40px;
+}
+.tvcmsNewsLetterPopup-i button:focus {
+    outline: none;
+}
+#newsletter_block_popup {
+    width: 50%;
+    padding: 15px;
+    text-align: center;
+}
+#newsletter_block_popup .block_content {}
+#newsletter_block_popup .tvnewsletter-popup-wrapper {
+    margin-bottom: 20px;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+}
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-img-wrapper,
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-input-wrapper {
+    display: inline-block;
+}
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-img-wrapper {
+    margin-right: 10px;
+}
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-img-wrapper img {
+    border: 2px solid #eee;
+    height: 40px;
+}
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-input-wrapper input {
+    width: 100%;
+    height: 40px;
+    padding: 10px 10px;
+    border: 1px solid #eee;
+}
+#newsletter_block_popup .block_content .newsletter_title {}
+.tvcmsNewsLetterPopup {
+    padding-right: 0 !important;
+}
+#newsletter_block_popup .block_content .newsletter_title h3 {
+    font: 500 30px/normal 'Roboto', sans-serif;
+    color: #333333;
+    margin: 0 0 15px;
+    text-transform: none;
+}
+#newsletter_block_popup .block_content .tvcmsnewsletterpopupContent {
+    color: #666666;
+    font: 500 16px/22px 'Roboto', sans-serif;
+    margin-bottom: 20px;
+}
+#newsletter_block_popup .block_content .tvcmsnewsletterpopupContent p {
+    margin: 0;
+}
+#newsletter_block_popup .block_content .tvcmsnewsletterpopupAlert {
+    color: #ffcc01;
+    font-size: 14px;
+}
+#newsletter_block_popup .block_content .inputNew {
+    background-color: #fff;
+    border: 1px solid #ebebeb;
+    height: 40px;
+    padding: 0 15px;
+    width: 100%;
+    margin-bottom: 20px;
+}
+#newsletter_block_popup .block_content .inputNew::placeholder,
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-input-wrapper input::placeholder {
+    font-size: 14px;
+    color: #a8a8a8;
+    font-style: italic;
+}
+#newsletter_block_popup .block_content .send-reqest {
+    margin-bottom: 20px;
+}
+
+#newsletter_block_popup .newsletter_block_popup-bottom {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+}
+#newsletter_block_popup .newsletter_block_popup-bottom .subscribe-bottom {
+    display: inline;
+    line-height: 24px;
+    margin-right: 5px;
+}
+#newsletter_block_popup .newsletter_block_popup-bottom .tvcmsnewsletterpopup_newsletter_dont_show_again {
+    color: #888888;
+    font-size: 14px;
+    line-height: 22px;
+    margin: 0;
+}
+.tvnewsletterpopup-input {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+}
+.tvnewsletter-social-icon {
+    position: relative;
+}
+.tvnewsletter-social-icon li span {
+    height: 40px;
+    width: 40px;
+    display: block;
+    margin-bottom: 0;
+    float: left;
+}
+.tvnewsletter-social-icon ul {
+    overflow: hidden;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+}
+/*.tvnewsletter-social-icon ul li {
+    overflow: hidden;
+}
+.tvnewsletter-social-icon .facebook .facebook-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -49px;
+}
+.tvnewsletter-social-icon .twitter .twitter-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -94px;
+}
+.tvnewsletter-social-icon .rss .rss-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -4px;
+}
+.tvnewsletter-social-icon .youtube .youtube-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -137px;
+}
+.tvnewsletter-social-icon .googleplus .googleplus-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -227px;
+}
+.tvnewsletter-social-icon .pinterest .pinterest-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -182px;
+}
+.tvnewsletter-social-icon .vimeo .vimeo-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -318px;
+}
+.tvnewsletter-social-icon .instagram .instagram-icon {
+    background-image: url(../img/sprite.png);
+    background-position: -106px -272px;
+}*/
+@media(max-width: 770px) {
+    #newsletter_block_popup .block_content .newsletter_title h3 {
+        font: 500 26px/normal 'Roboto', sans-serif;
+    }
+    #newsletter_block_popup .block_content .tvcmsnewsletterpopupContent {
+        font: 500 14px/20px 'Roboto', sans-serif;
+    }
+}
+@media(max-width: 575px) {
+    .tvcmsNewsLetterPopup-i {
+        max-height: 100%;
+        /*height: 550px;*/
+        max-width: 400px;
+    }
+    .tvall-inner-btn-cancel span,
+    .tvall-inner-btn span {
+        font-size: 14px;
+    }
+    .tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper img {
+        width: 100%;
+        max-height: 100%;
+        height: auto;
+    }
+    .tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper {
+        width: 100%;
+    }
+    #newsletter_block_popup {
+        width: 100%;
+    }
+    .tvcmsnewsletterpopup {
+        text-align: center;
+        display: block;
+    }
+    .tvnewsletter-social-icon li span {
+        width: 30px;
+        height: 30px;
+    }
+}
+.lang-rtl #newsletter_block_popup .newsletter_block_popup-bottom .subscribe-bottom {
+    margin-right: 0;
+    margin-left: 5px;
+}
+/****************catelog **********************/
+@media(max-width: 575px) {
+    .tvcatlog-button-wrapper {
+        display: flex;
+        justify-content: center;
+    }
+    .tvproduct-cart-catalog-btn {
+        float: left;
+        margin: 0 15px;
+    }
+}
+.tvcmsnewsletterpopup {
+    box-shadow: none;
+    /*background-color: #f4fffe;*/
+    background-color: #ffffff;
+    border: 10px solid #ffffff;
+}
+#newsletter_block_popup .block_content .newsletter_title h3 {
+    font-size: 24px;
+    font-weight: 600;
+}
+#newsletter_block_popup .block_content .tvcmsnewsletterpopupContent {
+    font-size: 14px;
+    color: #464646;
+}
+#newsletter_block_popup .block_content .inputNew::placeholder,
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-input-wrapper input::placeholder {
+    font-size: 12px;
+}
+#newsletter_block_popup .block_content .inputNew {
+    height: 34px;
+    width: 80%;
+}
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-input-wrapper input,
+#newsletter_block_popup .tvnewsletter-popup-wrapper .tvnewsletter-popup-img-wrapper img {
+    height: 34px;
+}
+#newsletter_block_popup .newsletter_block_popup-bottom .tvcmsnewsletterpopup_newsletter_dont_show_again {
+    font-size: 14px;
+    cursor: pointer;
+    position: relative;
+}
+@media(max-width: 767px) {
+    #newsletter_block_popup .block_content .newsletter_title h3 {
+        font-size: 18px;
+    }
+    #newsletter_block_popup .block_content .tvcmsnewsletterpopupContent {
+        font-size: 12px;
+    }
+}
+@media (max-width: 575px) {
+    .tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper img {
+        width: 60%;
+        max-height: inherit;
+        height: auto;
+    }
+    .tvcmsnewsletterpopup .tvnewslatter-popup-img-wrapper {
+        padding: 15px;
+    }
+}

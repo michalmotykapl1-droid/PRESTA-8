@@ -1,0 +1,35 @@
+# Apache 2.2
+<IfModule !mod_authz_core.c>
+   <Files *.php>
+       order allow,deny
+       deny from all
+   </Files>
+   <Files cronjob.php>
+       allow from all
+   </Files>
+   <Files tvsuperspeed_compressor_image.php>
+        allow from all
+   </Files>
+   <Files tvsuperspeed_defines.php>
+        allow from all
+   </Files>
+</IfModule>
+
+# Apache 2.4
+<IfModule mod_authz_core.c>
+   <Files *.php>
+       order allow,deny
+       deny from all
+   </Files>
+   <Files cronjob.php>
+       allow from all
+   </Files>
+   <Files tvsuperspeed_compressor_image.php>
+        allow from all
+   </Files>
+   <Files tvsuperspeed_defines.php>
+        allow from all
+   </Files>
+</IfModule>
+
+

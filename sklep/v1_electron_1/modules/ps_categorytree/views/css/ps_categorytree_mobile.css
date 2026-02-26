@@ -1,0 +1,225 @@
+/* --- KONFIGURACJA KOLORÓW --- */
+:root {
+    --mob-bg: #ffffff;
+    --mob-bg-sub: #fdfdfd;       
+    --mob-bg-sub-deep: #fafafa;  
+    
+    --mob-text-primary: #444444; 
+    --mob-text-secondary: #666666; 
+    
+    --mob-highlight: #e53935;    
+    --mob-line: #f4f4f4;         
+    --mob-icon-color: #bbbbbb; 
+}
+
+/* --- KONTENER GŁÓWNY --- */
+.tvmobile-slidebar {
+    width: 340px !important;
+    max-width: 85vw;
+    background: var(--mob-bg);
+    box-shadow: 10px 0 40px rgba(0,0,0,0.06);
+}
+
+.block-categories-mobile-wrapper {
+    padding: 0;
+    width: 100%;
+}
+
+/* NAGŁÓWEK "Menu" */
+.mobile-cat-title {
+    font-size: 16px; 
+    font-weight: 700;
+    margin: 0;
+    padding: 20px 15px 15px; 
+    text-transform: none; 
+    letter-spacing: 0.5px;
+    color: var(--mob-text-primary);
+    border-bottom: 1px solid var(--mob-line);
+    background: #fff;
+}
+
+/* --- LISTA --- */
+.mobile-cat-tree-ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ELEMENT LISTY */
+.mobile-cat-item {
+    border-bottom: 1px solid var(--mob-line);
+    position: relative;
+    background: #fff;
+    transition: background 0.2s;
+}
+
+/* LINK I KONTENER NAGŁÓWKA */
+.mobile-cat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 50px;
+}
+
+/* DOMYŚLNY STYL TEKSTU LINKU */
+.mobile-cat-link {
+    font-size: 15px;
+    color: var(--mob-text-primary);
+    text-decoration: none;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    padding: 12px 0 12px 15px; /* Domyślny padding (Level 0) */
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+/* ============================================================
+   HIERARCHIA I WCIĘCIA (NAPRAWIONE)
+   ============================================================ */
+
+/* Poziom 0 (Główne, np. Dziecko) */
+.root-level > .mobile-cat-item > .mobile-cat-header > .mobile-cat-link {
+    font-size: 15px;
+    font-weight: 600;
+    padding-left: 10px;
+}
+
+/* Poziom 1 (np. Akcesoria dla mamy...) */
+.mobile-cat-children .mobile-cat-link {
+    font-size: 14px;
+    padding-left: 25px; /* 1. wcięcie */
+    color: var(--mob-text-secondary);
+    font-weight: 400;
+}
+.mobile-cat-children .mobile-cat-item {
+    background: var(--mob-bg-sub); 
+    border-bottom: 1px solid #f9f9f9; 
+}
+
+/* Poziom 2 (np. Smoczki uspokajające...) */
+.mobile-cat-children .mobile-cat-children .mobile-cat-link {
+    padding-left: 35px; /* 2. wcięcie */
+    font-size: 13.5px;
+}
+.mobile-cat-children .mobile-cat-children .mobile-cat-item {
+    background: var(--mob-bg-sub-deep);
+}
+
+/* --- NOWOŚĆ: Poziom 3 (np. GRYZAKI) --- */
+/* To jest ten poziom, którego brakowało */
+.mobile-cat-children .mobile-cat-children .mobile-cat-children .mobile-cat-link {
+    padding-left: 45px !important; /* 3. wcięcie - DUŻE PRZESUNIĘCIE */
+    font-size: 13px;
+    color: #777; /* Opcjonalnie: nieco jaśniejszy tekst dla najgłębszych */
+}
+.mobile-cat-children .mobile-cat-children .mobile-cat-children .mobile-cat-item {
+    background: #fcfcfc; /* Prawie białe */
+}
+
+
+/* --- STANY AKTYWNE --- */
+.mobile-cat-item.current-active > .mobile-cat-header > .mobile-cat-link {
+    color: var(--mob-highlight) !important;
+    font-weight: 700;
+}
+.mobile-cat-item.in-path > .mobile-cat-header > .mobile-cat-link {
+    color: var(--mob-text-primary);
+    font-weight: 700;
+}
+
+/* --- IKONY --- */
+.mobile-cat-toggler {
+    cursor: pointer;
+    width: 38px; 
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    color: var(--mob-icon-color);
+    transition: all 0.3s ease;
+}
+.mobile-cat-toggler i { font-size: 17px; }
+.mobile-cat-toggler[aria-expanded="true"] {
+    color: var(--mob-text-primary); 
+    transform: rotate(0deg);
+}
+.mobile-cat-toggler .remove { display: none; }
+.mobile-cat-toggler .add { display: block; }
+.mobile-cat-toggler[aria-expanded="true"] .remove { display: block; }
+.mobile-cat-toggler[aria-expanded="true"] .add { display: none; }
+
+/* --- KONTENER DZIECI --- */
+.mobile-cat-children { display: none; }
+.mobile-cat-children.expanded {
+    display: block !important;
+    animation: smoothFade 0.3s ease-out;
+}
+@keyframes smoothFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ============================================================
+   SEKCJA UKRYWANIA KATEGORII
+   ============================================================ */
+.cat-id-507, 
+.cat-id-10, 
+.cat-id-261704 {
+    display: none !important;
+}
+
+
+/* ============================================================
+   SEKCJA SPECJALNA: KOLOR + IKONA
+   ============================================================ */
+
+.mobile-cat-link.category-id-45,
+.mobile-cat-link.category-id-180 {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 15px 0 15px 15px !important;
+    text-align: left;
+    justify-content: flex-start;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+}
+
+.mobile-cat-link.category-id-45::before,
+.mobile-cat-link.category-id-180::before {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 20px;
+    margin-right: 10px;
+    display: inline-block;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'liga';
+}
+
+/* ID 45: Okazje */
+.mobile-cat-link.category-id-45 { color: #f57f17 !important; }
+.mobile-cat-link.category-id-45::before { content: "\e54e"; color: #f57f17; }
+
+/* ID 180: Krótka data */
+.mobile-cat-link.category-id-180 { color: #c62828 !important; }
+.mobile-cat-link.category-id-180::before { content: "\e192"; color: #c62828; }
+
+li.cat-id-45,
+li.cat-id-180 {
+    border-bottom: 1px solid var(--mob-line) !important;
+}

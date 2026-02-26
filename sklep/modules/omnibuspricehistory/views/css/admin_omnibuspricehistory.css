@@ -1,0 +1,40 @@
+/* Styl dla selektorów kolorów w panelu administracyjnym */
+/* Zwiększona specyficzność selektora do maksimum */
+.panel .form-horizontal .form-group .input-group input[type="color"] {
+    width: 60px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    border: 1px solid #ccc !important;
+    border-radius: 3px !important;
+    cursor: pointer !important;
+    vertical-align: middle !important;
+    /* Dodatkowe style, aby upewnić się, że tło jest widoczne */
+    background-color: transparent !important; /* Upewnij się, że nie ma białego tła */
+    -webkit-appearance: none; /* Dla kompatybilności z Chrome/Safari */
+    -moz-appearance: none;    /* Dla kompatybilności z Firefox */
+    appearance: none;
+}
+
+/* Styl dla focusa */
+.panel .form-horizontal .form-group .input-group input[type="color"]:focus {
+    outline: none !important;
+    border-color: #337ab7 !important;
+    box-shadow: 0 0 5px rgba(51, 122, 183, 0.5) !important;
+}
+
+/* Upewnij się, że input-group-addon jest poprawnie stylizowany obok inputu color */
+.panel .form-horizontal .form-group .input-group input[type="color"] + .input-group-addon {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+/* Możesz również dodać styl do samego input-group, jeśli to powoduje problemy z wyrównaniem */
+.panel .form-horizontal .form-group .input-group {
+    display: flex; /* Użyj flexboxa, aby elementy były w jednej linii */
+    align-items: center; /* Wyrównaj w pionie */
+}
+
+/* Dodatkowy styl dla inputów typu number, aby były spójne */
+.panel .form-horizontal .form-group .input-group input[type="number"] {
+    max-width: 80px; /* Ogranicz szerokość dla pól liczbowych */
+}

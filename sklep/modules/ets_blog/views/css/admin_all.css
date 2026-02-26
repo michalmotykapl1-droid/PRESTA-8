@@ -1,0 +1,58 @@
+@import url('https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css');
+#subtab-AdminEtsBlogPost i,
+#subtab-AdminEtsBlogCategory i,
+#subtab-AdminEtsBlogComment i,
+#subtab-AdminEtsBlogSetting i,
+#subtab-AdminEtsBlogBackup i
+{
+    font-size: 0;
+    position: relative;
+    width: 16px;
+    line-height: 1;
+    height: 16px;
+    display: inline-block;
+    vertical-align: middle;
+}
+.icon-AdminEtsBlog:before{
+    content: "\f044";
+}
+#subtab-AdminEtsBlogPost i:before{
+    content:"\f02c";
+    font-size: 16px;
+    font-family: FontAwesome;
+}
+#subtab-AdminEtsBlogCategory i:before{
+    content:"\f02d";
+    font-size: 16px;
+    font-family: FontAwesome;
+}
+#subtab-AdminEtsBlogComment i:before{
+    content:"\f086";
+    font-size: 16px;
+    font-family: FontAwesome;
+}
+#subtab-AdminEtsBlogSetting i:before{
+    content:"\f013";
+    font-size: 16px;
+    font-family: FontAwesome;
+}
+#subtab-AdminEtsBlogBackup .material-icons::before {
+    content: "\f0ee";
+    font-size: 16px;
+    font-family: Fontawesome;
+    vertical-align: middle;
+}
+#subtab-AdminEtsBlogComment .count_messages {
+  background-color: red;
+  border-radius: 20px;
+  color: #fff;
+  display: inline-block;
+  font-size: 9px;
+  height: 18px;
+  line-height: 18px;
+  margin-left: 3px;
+  min-width: 18px;
+  padding: 0 3px !important;
+  text-align: center;
+  vertical-align: middle;
+}

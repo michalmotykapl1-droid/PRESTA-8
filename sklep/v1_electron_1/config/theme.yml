@@ -1,0 +1,497 @@
+name: v1_electron_1
+display_name: Electron Mega Electronic Super Store
+version: 4.4.4
+theme_key: 6ffdcde04e5bfbeb0e37725f41b68ad0
+author:
+  name: "ThemeVolty Team"
+  email: "themevolty@gmail.com"
+  url: "https://addons.prestashop.com/en/217_themevolty"
+
+meta:
+  compatibility:
+      from: 1.7.0.0
+      to: ~
+
+  available_layouts:
+    layout-full-width:
+      name: Full Width
+      description: No side columns, ideal for distraction-free pages such as product pages.
+    layout-both-columns:
+      name: Three Columns
+      description: One large central column and 2 side columns.
+    layout-left-column:
+      name: Two Columns, small left column
+      description: Two columns with a small left column
+    layout-right-column:
+      name: Two Columns, small right column
+      description: Two columns with a small right column
+
+assets:
+  # If you're using this theme as child and you want to load
+  # the parent theme assets, uncomment this line.
+#  use_parent_assets: true
+
+  # The following lines are showing how to load assets in your page
+  # Uncomment and change value to start loading css or js files
+#  css:
+#    all:
+#      - id: custom-lib-style
+#        path: assets/css/custom-lib.css
+#    product:
+#      - id: product-style
+#        path: assets/css/product.css
+#        media: all
+#        priority: 200
+  js:
+    # --- POCZĄTEK MODYFIKACJI ---
+    # Ładujemy TYLKO plik custom.js i TYLKO w checkout.
+    all:
+      # Celowo puste
+      
+    checkout:
+      # Ładujemy TYLKO plik z logiką. Dane zostaną pobrane przez API.
+      - id: custom-js-postcode
+        path: assets/js/custom.js
+        priority: 250
+    # --- KONIEC MODYFIKACJI ---
+
+#    cart:
+#      - id: cat-extra-lib
+#        path: assets/js/cart-lib.js
+
+
+global_settings:
+  configuration:
+    PS_IMAGE_QUALITY: png
+  modules:
+    to_enable:
+      - ps_categorytree
+      - ps_contactinfo
+      - ps_crossselling
+      - ps_currencyselector
+      - ps_customeraccountlinks
+      - ps_customersignin
+      - ps_emailsubscription
+      - ps_facetedsearch
+      - ps_languageselector
+      - ps_linklist
+      - ps_sharebuttons
+      - ps_shoppingcart
+      - ps_socialfollow
+      - statsdata
+      - tvcmsbestsellerproducts
+      - tvcmsblog
+      - tvcmsblogdisplayposts
+      - tvcmsbrandlist
+      - tvcmscategorychainslider
+      - tvcmscategoryproduct
+      - tvcmscategoryslider
+      - tvcmscookiesnotice
+      - tvcmscustomcssjs
+      - tvcmscustomerservices
+      - tvcmscustomsetting
+      - tvcmsfeaturedproducts
+      - tvcmsfootercategory
+      - tvcmsfooterlogo
+      - tvcmsfooterproduct
+      - tvcmsinfinitescroll
+      - tvcmsleftsideofferbanner
+      - tvcmsmegamenu
+      - tvcmsmultibanner1
+      - tvcmsnewproducts
+      - tvcmsnewsletterpopup
+      - tvcmsofferbanner
+      - tvcmspaymenticon
+      - tvcmsproductcomments
+      - tvcmsproductcompare
+      - tvcmsproductpopup
+      - tvcmssearch
+      - tvcmssingleblock
+      - tvcmssizechart
+      - tvcmsslider
+      - tvcmssliderofferbanner
+      - tvcmsspecialproducts
+      - tvcmsstockinfo
+      - tvcmstabproducts
+      - tvcmstestimonial
+      - tvcmsthemeoptions
+      - tvcmstwoofferbanner
+      - tvcmsverticalmenu
+      - tvcmsvideotab
+      - tvcmswishlist
+    to_disable:
+      - blockwishlist  
+  hooks:
+    modules_to_hook:
+      displayAdminAfterHeader:
+        - tvcmsblog
+      displayAdminProductsExtra:
+        - tvcmsvideotab
+      displayAfterBodyOpeningTag:
+        - tvcmscookiesnotice
+        - blockreassurance
+        - tvcmsproductpopup
+      displayAfterProductVideoPopup:
+        - tvcmsvideotab
+      displayAttributeForm:
+        - ps_facetedsearch
+      displayAttributeGroupForm:
+        - ps_facetedsearch
+      displayAttributeGroupPostProcess:
+        - ps_facetedsearch
+      displayBackgroundBody:
+        - tvcmscustomsetting
+      displayBackOfficeHeader:
+        - tvcmscustomsetting
+        - tvcmsbrandlist
+        - tvcmspaymenticon
+        - tvcmsstockinfo
+        - tvcmstestimonial
+        - tvcmsofferbanner
+        - tvcmsmultibanner1
+        - tvcmscategoryslider
+        - tvcmssliderofferbanner
+        - tvcmstwoofferbanner
+        - tvcmscategoryproduct
+        - tvcmsfooterproduct
+        - tvcmscategorychainslider
+        - tvcmstabproducts
+        - tvcmsslider
+        - tvcmssingleblock
+        - tvcmscustomerservices
+        - tvcmsfooterlogo
+        - tvcmsleftsideofferbanner
+        - tvcmsnewsletterpopup
+        - tvcmssizechart
+        - tvcmsblog
+      displayBackOfficeTop:
+        - tvcmsblog
+        - tvcmsvideotab
+      displayBeforeBodyClosingTag:
+        - statsdata
+        - tvcmsblog
+      displayBodyBackgroundBody:
+        - tvcmscustomsetting
+      displayCompareBtnSticky:
+        - tvcmsproductcompare
+      displayContactCinfo:
+        - ps_contactinfo
+      displayCopyRightText:
+        - tvcmscustomsetting
+      displayCrossSellingShoppingCart:
+        - tvcmsfeaturedproducts
+      displayCustomCss:
+        - tvcmscustomcssjs
+      displayCustomerAccount:
+        - tvcmswishlist
+        - ps_emailalerts
+      displayCustomJs:
+        - tvcmscustomcssjs
+      displayCustomsocialblock:
+        - tvcmscustomsetting
+      displayCustomtab:
+        - tvcmssizechart
+      displayFacetedSearchBlock:
+        - ps_facetedsearch
+      displayFeatureForm:
+         - ps_facetedsearch
+      displayFeaturePostProcess:
+        - ps_facetedsearch
+      displayFeatureValueForm:
+        - ps_facetedsearch
+      displayFeatureValuePostProcess:
+        - ps_facetedsearch
+      displayFooterAfter:
+        - blockreassurance
+      displayFooterBefore:
+        - blockreassurance
+      displayFooterCategory:
+        - tvcmsfootercategory
+      displayFooterPart1:
+        - ps_linklist
+      displayFooterPart2:
+        - tvcmsfooterlogo
+      displayFooterProduct:
+        - ps_crossselling
+      displayHome:
+        - tvcmsslider
+        - tvcmscategoryslider
+        - tvcmssingleblock
+        - tvcmstabproducts
+        - tvcmsspecialproducts
+        - tvcmsmultibanner1
+        - tvcmscategoryproduct
+        - tvcmsfeaturedproducts
+        - tvcmsofferbanner
+        - tvcmsnewproducts
+        - tvcmscategorychainslider
+        - tvcmsbestsellerproducts
+        - tvcmstwoofferbanner
+        - tvcmscustomsetting
+      displayLeftColumn:
+        - tvcmsverticalmenu
+        - ps_categorytree
+        - tvcmsleftsideofferbanner
+        - tvcmsnewproducts
+        - tvcmscustomerservices
+        - tvcmsspecialproducts
+        - tvcmsfeaturedproducts
+        - tvcmstestimonial
+        - tvcmsbestsellerproducts
+        - tvcmsblogdisplayposts
+      displayMegamenu:
+        - tvcmsmegamenu
+      displayMegamenuMobile:
+        - tvcmsmegamenu
+      displayMobileSearchBlock:
+        - tvcmssearch
+      displayMobileTopOfferText:
+        - tvcmscustomsetting
+      displayMyAccountBlock:
+        - tvcmswishlist
+        - ps_emailalerts
+      displayMyaccountcblock:
+        - ps_customeraccountlinks
+      displayNav1:
+        - ps_contactinfo
+      displayNav1sub1:
+        - tvcmscustomsetting
+      displayNavCurrencyBlock:
+        - ps_currencyselector
+      displayNavCustomerSignInBlock:
+        - ps_customersignin
+      displayNavFullWidth:
+        - blockreassurance
+      displayNavLanguageBlock:
+        - ps_languageselector
+      displayNavMainMenuBlock:
+        - ps_mainmenu
+      displayNavProductCompareBlock:
+        - tvcmsproductcompare
+      displayNavProductCompareMobileBlock:
+        - tvcmsproductcompare
+      displayNavSearchBlock:
+        - tvcmssearch
+      displayNavShoppingCartBlock:
+        - ps_shoppingcart
+      displayNavWishlistBlock:
+        - tvcmswishlist
+      displayNavWishlistBlocksticky:
+        - tvcmswishlist
+      displayNavWishlistMobileBlock:
+        - tvcmswishlist
+      displayNewsLetterPopup:
+        - tvcmsnewsletterpopup
+      displayNewslettersubscription:
+        - ps_emailsubscription
+      displayOrderConfirmation2:
+        - tvcmsfeaturedproducts
+      displayPaymentIcon:
+        - tvcmspaymenticon
+      displayPaymentReturn:
+        - ps_wirepayment
+      displayProductAdditionalInfo:
+        - ps_sharebuttons
+        - ps_emailalerts
+      displayProductCompareProductList:
+        - tvcmsproductcompare
+      displayProductCompareProductPage:
+        - tvcmsproductcompare
+      displayProductComparesticky:
+        - tvcmsproductcompare
+      displayProductExtraContent:
+        - tvcmsvideotab
+      displayProductListFunctionalButtons:
+        - tvcmswishlist
+      displayProductListReviewsTab:
+        - tvcmsproductcomments
+      displayProductListReviewsTabContent:
+        - tvcmsproductcomments
+      displayProductListStockIndicator:
+        - tvcmsstockinfo
+      displayProductPageStockIndicator:
+        - tvcmsstockinfo
+      displayProductTab:
+        - tvcmsvideotab
+      displayProductTabContent:
+        - tvcmsvideotab
+      displayProductTabVideo:
+        - tvcmsvideotab
+      displayReassurance:
+        - blockreassurance
+      displayReviewProductList:
+        - tvcmsproductcomments
+      displayRightColumn:
+        - tvcmscustomerservices
+        - tvcmsbestsellerproducts
+        - tvcmsnewproducts
+        - tvcmstestimonial
+        - tvcmsleftsideofferbanner
+        - tvcmsspecialproducts
+        - tvcmsfeaturedproducts
+      displaySearch:
+        - tvcmssearch
+      displaySocialMediaBlock:
+        - ps_socialfollow
+      displayTop:
+        - ps_searchbar
+        - tvcmsvideotab
+      displayTopOfferText:
+        - tvcmscustomsetting
+      displayWishlistBtnProductList:
+        - tvcmswishlist
+      displayWishlistBtnSticky:
+        - tvcmswishlist
+      displayWishlistProductPage:
+        - tvcmswishlist
+      displayWrapperBottom:
+        - tvcmsfooterproduct
+        - tvcmsbrandlist
+        - tvcmscustomerservices
+      Header:
+        - tvcmscustomsetting
+        - tvcmscookiesnotice
+        - ps_shoppingcart
+        - tvcmsbrandlist
+        - tvcmsthemeoptions
+        - tvcmsnewsletterpopup
+        - tvcmspaymenticon
+        - tvcmsproductcomments
+        - tvcmssearch
+        - tvcmsslider
+        - tvcmsinfinitescroll
+        - tvcmsstockinfo
+        - tvcmsfooterlogo
+        - tvcmstestimonial
+        - tvcmscustomerservices
+        - tvcmswishlist
+        - tvcmsofferbanner
+        - tvcmsmultibanner1
+        - tvcmscategoryslider
+        - tvcmssliderofferbanner
+        - tvcmsverticalmenu
+        - tvcmsleftsideofferbanner
+        - tvcmstwoofferbanner
+        - tvcmscategoryproduct
+        - tvcmsmegamenu
+        - tvcmscategorychainslider
+        - tvcmstabproducts
+        - tvcmsspecialproducts
+        - tvcmsfeaturedproducts
+        - tvcmsnewproducts
+        - tvcmsbestsellerproducts
+        - tvcmsfooterproduct
+        - tvcmsblog
+        - tvcmsblogdisplayposts
+        - ps_emailalerts
+        - tvcmsproductcompare
+        - tvcmsproductpopup
+  image_types:
+    cart_default:
+      width: 125
+      height: 125
+      scope: [products]
+    small_default:
+      width: 98
+      height: 98
+      scope: [products, categories, manufacturers, suppliers]
+    medium_default:
+      width: 452
+      height: 452
+      scope: [products, manufacturers, suppliers]
+    home_default:
+      width: 239
+      height: 239
+      scope: [products]
+    large_default:
+      width: 800
+      height: 800
+      scope: [products, manufacturers, suppliers]
+    category_default:
+      width: 1242
+      height: 311
+      scope: [categories]
+    stores_default:
+      width: 317
+      height: 207
+      scope: [stores]
+    side_product_default:
+      width: 86
+      height: 86
+      scope: [products, categories]
+    app_icon_default:
+      width: 150
+      height: 43
+      scope: []
+    sub_cat_def:
+      width: 150
+      height: 150
+      scope: [categories]
+    pd_custom:
+      width: 452
+      height: 452
+      scope: [products]
+    pd4_def:
+      width: 724
+      height: 724
+      scope: [products]
+    add_cart_def:
+      width: 200
+      height: 200
+      scope: [products]
+  new_password_policy_feature: true
+
+theme_settings:
+  default_layout: layout-left-column
+  layouts:
+    index: layout-left-column
+    product: layout-full-width
+    category: layout-left-column
+    best-sales: layout-left-column
+    new-products: layout-left-column
+    prices-drop: layout-left-column
+    contact: layout-full-width
+    search: layout-left-column
+    Login: layout-full-width
+dependencies:
+  modules:
+    - tvcmsbestsellerproducts
+    - tvcmsblog
+    - tvcmsblogdisplayposts
+    - tvcmsbrandlist
+    - tvcmscategorychainslider
+    - tvcmscategoryproduct
+    - tvcmscategoryslider
+    - tvcmscookiesnotice
+    - tvcmscustomcssjs
+    - tvcmscustomerservices
+    - tvcmscustomsetting
+    - tvcmsfeaturedproducts
+    - tvcmsfootercategory
+    - tvcmsfooterlogo
+    - tvcmsfooterproduct
+    - tvcmsinfinitescroll
+    - tvcmsleftsideofferbanner
+    - tvcmsmegamenu
+    - tvcmsmultibanner1
+    - tvcmsnewproducts
+    - tvcmsnewsletterpopup
+    - tvcmsofferbanner
+    - tvcmspaymenticon
+    - tvcmsproductcomments
+    - tvcmsproductcompare
+    - tvcmsproductpopup
+    - tvcmssearch
+    - tvcmssingleblock
+    - tvcmssizechart
+    - tvcmsslider
+    - tvcmssliderofferbanner
+    - tvcmsspecialproducts
+    - tvcmsstockinfo
+    - tvcmstabproducts
+    - tvcmstestimonial
+    - tvcmsthemeoptions
+    - tvcmstwoofferbanner
+    - tvcmsverticalmenu
+    - tvcmsvideotab
+    - tvcmswishlist

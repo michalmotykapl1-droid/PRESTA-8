@@ -1,0 +1,10 @@
+@font-face {
+    font-weight: normal;
+    font-style: normal;
+    font-family: 'iran-yekan';
+    src: local('Iran Sans Regular'),
+        url('../fonts/iran-yekan/Yekan.woff2') format('woff2'),
+        url('../fonts/iran-yekan/Yekan.woff') format('woff'),
+        url('../fonts/iran-yekan/Yekan.ttf') format('truetype'),
+        url('../fonts/iran-yekan/Yekan.otf') format('opentype')
+}

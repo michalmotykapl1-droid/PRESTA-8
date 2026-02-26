@@ -1,0 +1,1170 @@
+/* ==========================================================================
+   MASTER CSS - STREFA ZDROWIA (WERSJA 2.0 - ZORGANIZOWANA)
+   ========================================================================== */
+
+/* SPIS TREŚCI:
+   1. USTAWIENIA GLOBALNE (Kontenery, Fonty)
+   2. WIDGET HOME (Sekcja na stronie głównej)
+   3. WIDGET LEWA KOLUMNA
+   4. LANDING PAGE - GLOBALNE (Hero, Wartości, Sekcje)
+   5. STYLIZACJA PODSTRON: FIZJOTERAPIA (Turkus)
+   6. STYLIZACJA PODSTRON: URODA (Róż)
+   7. STYLIZACJA PODSTRON: NATUROPATIA (Zieleń)
+   8. KARTY PRODUKTÓW (Grid, Ceny, Przyciski)
+   9. SEKCJA SZKOLENIA I ZESPÓŁ
+   10. RWD (Responsywność)
+   11. TOGGLE SWITCH (Suwak dojazdu)
+*/
+
+/* ==========================================================================
+   1. USTAWIENIA GLOBALNE
+   ========================================================================== */
+.strefa-services-wrapper,
+.strefa-landing-wrapper {
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
+}
+
+.strefa-services-wrapper .container,
+.strefa-landing-wrapper .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* ==========================================================================
+   2. WIDGET HOME (WIDOK NA STRONIE GŁÓWNEJ)
+   ========================================================================== */
+.strefa-services-wrapper {
+    padding: 60px 0;
+    background-color: #fff;
+}
+
+.strefa-header {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto 50px auto;
+}
+
+.strefa-sub-tag {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #008b8b;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.strefa-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: #222;
+    margin: 0;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.strefa-divider {
+    width: 50px;
+    height: 4px;
+    background: #008b8b;
+    margin: 20px auto;
+    border-radius: 2px;
+}
+
+.strefa-intro {
+    font-size: 16px;
+    color: #666;
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+.strefa-layout-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    align-items: stretch;
+}
+
+/* Lewa kolumna (Info) */
+.main-promo-col {
+    flex: 0 0 35%;
+    max-width: 35%;
+    background: #f4fbfb;
+    border: 1px solid #e0f2f2;
+    border-radius: 12px;
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.promo-tag {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #008b8b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    width: fit-content;
+}
+
+.main-promo-col h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 15px;
+    line-height: 1.2;
+}
+
+.promo-desc p {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+.process-info {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #b2dfdf;
+    margin: 20px 0 30px 0;
+}
+
+.process-info strong {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #008b8b;
+    margin-bottom: 10px;
+    font-weight: 800;
+}
+
+.process-info ol {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.process-info li {
+    font-size: 13px;
+    color: #444;
+    margin-bottom: 6px;
+}
+
+.location-box {
+    margin-bottom: 35px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.loc-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #999;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+}
+
+.loc-label i {
+    font-size: 16px;
+    margin-right: 6px;
+    color: #008b8b;
+}
+
+.loc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.active-loc {
+    font-size: 14px;
+    color: #222;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.active-loc i {
+    font-size: 18px;
+    color: #008b8b;
+    margin-right: 8px;
+    width: 20px;
+    text-align: center;
+}
+
+.loc-fade {
+    color: #888;
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 4px;
+}
+.loc-small { font-size: 12px; }
+
+.btn-medical-action {
+    display: inline-block;
+    padding: 12px 35px;
+    background-color: #008b8b;
+    color: #fff !important;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 4px;
+    text-align: center;
+    text-decoration: none !important;
+    transition: 0.3s;
+    border: 1px solid #008b8b;
+}
+
+.btn-medical-action:hover {
+    background-color: #fff;
+    color: #008b8b !important;
+    box-shadow: 0 5px 15px rgba(0, 139, 139, 0.2);
+}
+
+/* Prawa strona Home (Kafelki) */
+.services-grid-col {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.service-tile {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: 0.3s;
+    text-decoration: none !important;
+    min-height: 180px;
+}
+
+.tile-icon {
+    width: 50px;
+    height: 50px;
+    background: #f4f4f4;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    transition: 0.3s;
+}
+
+.tile-icon i { font-size: 24px; color: #333; }
+
+.tile-info h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 8px;
+    margin-top: 0;
+}
+
+.tile-info span { font-size: 13px; color: #777; }
+
+.service-tile:hover {
+    border-color: #008b8b;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 139, 139, 0.1);
+}
+
+.service-tile:hover .tile-icon { background: #008b8b; }
+.service-tile:hover .tile-icon i { color: #fff; }
+
+
+/* ==========================================================================
+   3. WIDGET LEWA KOLUMNA
+   ========================================================================== */
+.strefa-left-widget {
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    overflow: hidden;
+    border: 1px solid #eee;
+}
+
+.strefa-left-header {
+    background-color: #f9fbfb;
+    padding: 20px 15px 15px 15px;
+    text-align: center;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.left-icon-badge {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    background: #008b8b;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 10px rgba(0, 139, 139, 0.2);
+}
+.left-icon-badge i { color: #fff; font-size: 20px; }
+
+.strefa-left-header h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #222;
+    margin: 0;
+}
+
+.left-divider {
+    width: 30px;
+    height: 3px;
+    background: #008b8b;
+    margin: 10px auto 0 auto;
+    border-radius: 2px;
+}
+
+.strefa-left-content { padding: 20px 15px; }
+
+.left-intro {
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.left-intro strong { color: #008b8b; }
+
+.left-menu-list { list-style: none; padding: 0; margin: 0 0 20px 0; }
+.left-menu-list li { margin-bottom: 8px; }
+
+.left-menu-link {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    text-decoration: none !important;
+    transition: 0.3s;
+}
+
+.left-menu-link i { color: #008b8b; font-size: 20px; margin-right: 10px; }
+.left-menu-link span { font-size: 13px; font-weight: 600; color: #444; }
+
+.left-menu-link:hover { background: #008b8b; border-color: #008b8b; }
+.left-menu-link:hover i, .left-menu-link:hover span { color: #fff; }
+
+.left-cta-box { text-align: center; padding-top: 5px; }
+
+.btn-left-medical {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 10px 0;
+    background: #fff;
+    color: #008b8b !important;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    text-decoration: none !important;
+    border: 1px solid #008b8b;
+    transition: 0.3s;
+}
+.btn-left-medical i { font-size: 16px; margin-left: 6px; }
+.btn-left-medical:hover { background: #008b8b; color: #fff !important; }
+
+
+/* ==========================================================================
+   4. LANDING PAGE - GLOBALNE
+   ========================================================================== */
+.strefa-landing-wrapper {
+    background: #fff;
+    padding-bottom: 80px;
+    overflow-x: hidden;
+}
+.strefa-page-header { display: none; }
+
+/* Hero (Orbita) - Wspólne */
+.strefa-hero-section {
+    background: #f4fbfb;
+    padding: 60px 40px;
+    border-radius: 16px;
+    margin-bottom: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    min-height: 550px;
+}
+
+.hero-text-content { position: relative; z-index: 5; max-width: 50%; padding-right: 20px; }
+
+.hero-subtitle {
+    display: block; font-size: 12px; font-weight: 800; color: #008b8b;
+    letter-spacing: 2px; margin-bottom: 20px; text-transform: uppercase;
+    background: rgba(0,139,139,0.05); padding: 8px 12px; border-radius: 4px; width: fit-content;
+}
+
+.strefa-hero-section h1 {
+    font-size: 48px; font-weight: 800; color: #1a1a1a;
+    line-height: 1.1; margin-bottom: 25px;
+}
+.strefa-hero-section p {
+    font-size: 18px; color: #555; margin-bottom: 35px; line-height: 1.6;
+}
+.strefa-hero-section p strong { color: #008b8b; font-weight: 700; }
+
+.hero-cta-wrapper { display: flex; align-items: center; gap: 20px; }
+
+/* PRZYCISK HERO (Zmiana na styl "Delikatny Outline") */
+.btn-hero-action {
+    display: inline-flex; 
+    align-items: center;
+    justify-content: center;
+    padding: 14px 40px; 
+    background: #fff; /* Białe tło */
+    color: #008b8b !important; /* Turkusowy tekst */
+    font-weight: 700; 
+    border-radius: 50px; 
+    text-decoration: none !important; 
+    transition: 0.3s;
+    text-transform: uppercase; 
+    font-size: 13px; 
+    letter-spacing: 1px;
+    border: 1px solid #008b8b; /* Turkusowa ramka */
+    box-shadow: 0 10px 25px rgba(0, 139, 139, 0.1);
+}
+
+.btn-hero-action i {
+    margin-left: 8px;
+    font-size: 18px;
+}
+
+.btn-hero-action:hover { 
+    background: #008b8b; /* Po najechaniu wypełnia się */
+    color: #fff !important; 
+    transform: translateY(-3px); 
+    box-shadow: 0 10px 25px rgba(0, 139, 139, 0.3);
+}
+/* Animacje Orbity (Główna) */
+.hero-visual-decoration { flex: 1; position: relative; height: 500px; display: flex; align-items: center; justify-content: center; z-index: 2; }
+.liquid-blob {
+    position: absolute; width: 450px; height: 450px;
+    background: linear-gradient(135deg, #dffafa 0%, #b2ebf2 100%);
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    z-index: 1; animation: morphBlob 8s ease-in-out infinite; opacity: 0.8;
+}
+
+@keyframes morphBlob {
+    0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+    50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+    100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+}
+
+.orbit-system { position: relative; width: 350px; height: 350px; z-index: 2; display: flex; align-items: center; justify-content: center; }
+.orbit-center {
+    width: 80px; height: 80px; background: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 40px rgba(0, 139, 139, 0.2); z-index: 10; position: relative;
+}
+.orbit-center i { font-size: 36px; color: #008b8b; }
+.orbit-center::after {
+    content: ''; position: absolute; width: 100%; height: 100%;
+    border-radius: 50%; border: 1px solid #008b8b; animation: pulseRing 2s infinite;
+}
+@keyframes pulseRing { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+.orbit-ring {
+    position: absolute; width: 100%; height: 100%; border-radius: 50%;
+    border: 1px dashed rgba(0, 139, 139, 0.3); animation: rotateOrbit 20s linear infinite;
+}
+@keyframes rotateOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.orbit-item {
+    position: absolute; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; animation: counterRotate 20s linear infinite;
+}
+@keyframes counterRotate { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+.item-physio { top: 0; left: 50%; margin-left: -30px; margin-top: -30px; }
+.item-beauty { bottom: 20px; right: 20px; }
+.item-naturo { bottom: 20px; left: 20px; }
+
+.orbit-icon {
+    width: 60px; height: 60px; background: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 8px;
+    border: 2px solid #fff; transition: 0.3s;
+}
+.orbit-icon i { color: #008b8b; font-size: 28px; }
+.orbit-label { font-size: 12px; font-weight: 700; color: #222; background: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
+
+/* Sekcja Wartości */
+.strefa-values-row { margin-bottom: 90px; position: relative; }
+.values-header { text-align: center; margin-bottom: 60px; }
+.values-header h2, .services-header-center h2 {
+    font-size: 34px; font-weight: 800; color: #222;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0;
+}
+.header-divider {
+    width: 70px; height: 4px; background: #008b8b;
+    margin: 20px auto 0 auto; border-radius: 2px;
+}
+
+.modern-value-card {
+    background: #fff; padding: 50px 30px; border-radius: 20px; text-align: center;
+    height: 100%; border: 1px solid rgba(0,0,0,0.03); box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+    transition: 0.4s; position: relative; overflow: hidden; z-index: 1;
+}
+.modern-value-card:hover { transform: translateY(-10px); box-shadow: 0 20px 50px rgba(0, 139, 139, 0.15); border-color: rgba(0, 139, 139, 0.3); }
+.icon-glow-wrapper {
+    width: 80px; height: 80px; margin: 0 auto 30px auto; border-radius: 50%;
+    background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%);
+    display: flex; align-items: center; justify-content: center; position: relative;
+    transition: 0.4s; box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+.icon-glow-wrapper::before {
+    content: ''; position: absolute; top: -5px; left: -5px; right: -5px; bottom: -5px;
+    border-radius: 50%; border: 1px dashed rgba(0, 139, 139, 0.3); animation: spinSlow 20s linear infinite;
+}
+@keyframes spinSlow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.icon-glow-wrapper i { font-size: 40px; color: #008b8b; z-index: 2; transition: 0.4s; }
+
+.modern-value-card:hover .icon-glow-wrapper { background: #008b8b; transform: scale(1.1); }
+.modern-value-card:hover .icon-glow-wrapper::before { border-color: rgba(255,255,255,0.5); }
+.modern-value-card:hover .icon-glow-wrapper i { color: #fff; }
+.modern-value-card h3 { font-size: 20px; font-weight: 800; color: #222; margin-bottom: 15px; text-transform: uppercase; }
+.modern-value-card p { font-size: 15px; color: #666; line-height: 1.6; margin: 0; }
+
+/* Sekcja Usług (Deep Layout - Open) */
+.strefa-services-section { margin-bottom: 80px; }
+.services-header-center { text-align: center; margin-bottom: 60px; }
+.services-header-intro { font-size: 16px; color: #777; margin-top: 15px; }
+.strefa-deep-services { margin-bottom: 0; }
+
+.deep-service-row {
+    display: flex; align-items: center; margin-bottom: 0; min-height: 500px;
+    border-bottom: 1px solid #f5f5f5; background: #fff; position: relative;
+}
+.deep-service-row:nth-child(even) { background: #fcfcfc; }
+.deep-service-row.reverse { flex-direction: row-reverse; }
+
+.ds-content {
+    flex: 1; padding: 60px 80px; display: flex; flex-direction: column; justify-content: center; z-index: 2;
+}
+
+.ds-tag {
+    display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 25px; padding: 6px 12px; border-radius: 4px; width: fit-content;
+}
+.physio-tag { background: #e0f7fa; color: #006064; }
+.beauty-tag { background: #fce4ec; color: #880e4f; }
+.naturo-tag { background: #e8f5e9; color: #1b5e20; }
+
+.ds-content h2 { font-size: 40px; font-weight: 800; color: #222; margin-bottom: 25px; line-height: 1.1; }
+.ds-intro { font-size: 17px; color: #555; line-height: 1.7; margin-bottom: 40px; max-width: 600px; }
+.ds-treatments-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 45px; }
+
+.treatment-tag {
+    background: #fff; padding: 10px 20px; border-radius: 30px;
+    font-size: 13px; font-weight: 600; color: #555; border: 1px solid #eee;
+    transition: 0.3s; cursor: default; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+/* Hover Kolory zależne od sekcji */
+.services-list-container .deep-service-row:nth-child(1) .treatment-tag:hover {
+    background: #008b8b; color: #fff; border-color: #008b8b; transform: translateY(-2px);
+}
+.services-list-container .deep-service-row:nth-child(2) .treatment-tag:hover {
+    background: #d81b60; color: #fff; border-color: #d81b60; transform: translateY(-2px);
+}
+.services-list-container .deep-service-row:nth-child(3) .treatment-tag:hover {
+    background: #43a047; color: #fff; border-color: #43a047; transform: translateY(-2px);
+}
+
+/* PRZYCISKI OUTLINE W SEKCJI USŁUG */
+.btn-ds-action {
+    display: inline-block; padding: 14px 40px; border-radius: 50px;
+    font-weight: 700; font-size: 12px; text-transform: uppercase;
+    text-decoration: none !important; transition: all 0.3s ease;
+    width: fit-content; letter-spacing: 1px; background: #fff;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+.physio-btn { border: 2px solid #008b8b; color: #008b8b !important; }
+.physio-btn:hover { background: #008b8b; color: #fff !important; box-shadow: 0 10px 25px rgba(0, 139, 139, 0.3); transform: translateY(-3px); }
+
+.beauty-btn { border: 2px solid #d81b60; color: #d81b60 !important; }
+.beauty-btn:hover { background: #d81b60; color: #fff !important; box-shadow: 0 10px 25px rgba(216, 27, 96, 0.3); transform: translateY(-3px); }
+
+.naturo-btn { border: 2px solid #43a047; color: #43a047 !important; }
+.naturo-btn:hover { background: #43a047; color: #fff !important; box-shadow: 0 10px 25px rgba(67, 160, 71, 0.3); transform: translateY(-3px); }
+
+/* Grafiki w sekcji usług */
+.ds-visual-col {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    position: relative; min-height: 450px; background: transparent;
+}
+.visual-circle {
+    width: 250px; height: 250px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 2; transition: transform 0.5s;
+    background: #fff; border: 1px solid #f0f0f0;
+}
+.physio-circle { box-shadow: 0 20px 60px rgba(0, 139, 139, 0.1); }
+.physio-circle i { color: #008b8b; font-size: 90px; opacity: 0.8; }
+
+.beauty-circle { box-shadow: 0 20px 60px rgba(216, 27, 96, 0.1); }
+.beauty-circle i { color: #d81b60; font-size: 90px; opacity: 0.8; }
+
+.naturo-circle { box-shadow: 0 20px 60px rgba(67, 160, 71, 0.1); }
+.naturo-circle i { color: #43a047; font-size: 90px; opacity: 0.8; }
+
+/* Pulsowanie */
+.circle-pulse {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 100%; height: 100%; border-radius: 50%; z-index: 1;
+}
+.physio-circle .circle-pulse { border: 1px solid rgba(0, 139, 139, 0.3); animation: pulseBig 4s infinite; }
+.beauty-circle .circle-pulse { border: 1px solid rgba(216, 27, 96, 0.3); animation: pulseBig 4s infinite; animation-delay: 0.5s; }
+.naturo-circle .circle-pulse { border: 1px solid rgba(67, 160, 71, 0.3); animation: pulseBig 4s infinite; animation-delay: 1s; }
+@keyframes pulseBig { 0% { width: 100%; height: 100%; opacity: 0.6; border-width: 1px; } 100% { width: 160%; height: 160%; opacity: 0; border-width: 0px; } }
+.deep-service-row:hover .visual-circle { transform: scale(1.03); }
+
+
+/* ==========================================================================
+   5. STYLIZACJA PODSTRON: FIZJOTERAPIA (TURKUS)
+   ========================================================================== */
+.strefa-physio-page .sub-hero {
+    background: linear-gradient(135deg, #f4fbfb 0%, #e0f7fa 100%);
+    border: 1px solid #b2ebf2;
+}
+
+/* PRZYCISK WRÓĆ DO MENU (Wersja Fizjo - Outline) */
+.strefa-physio-page .btn-back {
+    display: inline-flex; align-items: center; 
+    background: #fff; 
+    color: #008b8b !important; 
+    font-size: 11px; font-weight: 700; 
+    padding: 12px 30px; border-radius: 50px; 
+    text-decoration: none !important; margin-top: 20px; transition: 0.3s;
+    border: 1px solid #008b8b;
+    box-shadow: 0 5px 15px rgba(0, 139, 139, 0.05);
+}
+.strefa-physio-page .btn-back:hover { 
+    background: #008b8b; 
+    color: #fff !important; 
+}
+.strefa-physio-page .btn-back i { margin-right: 8px; font-size: 16px; }
+
+/* KARTA WYRÓŻNIONA FIZJO (Physio Highlight) */
+.physio-highlight {
+    background: #e0f2f1 !important; /* Bardzo jasny turkus */
+    border: 1px solid #80cbc4 !important; /* Ciemniejszy turkus obramowania */
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 139, 139, 0.1) !important;
+}
+.physio-highlight:hover {
+    border-color: #00695c !important;
+    transform: translateY(-5px);
+}
+
+/* Kolory cen i etykiet dla Fizjo */
+.physio-price { color: #00695c !important; font-weight: 800; }
+.physio-label { font-size: 10px; font-weight: 800; color: #00796b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+/* Przycisk koszyka dla Fizjo */
+.physio-cart-btn {
+    border-color: #008b8b;
+    color: #008b8b !important;
+}
+.physio-cart-btn:hover {
+    background: #008b8b;
+    color: #fff !important;
+    box-shadow: 0 5px 15px rgba(0, 139, 139, 0.2);
+}
+.physio-cart-btn.filled {
+    background: #008b8b !important;
+    color: #fff !important;
+}
+.physio-cart-btn.filled:hover {
+    background: #004d40 !important;
+}
+
+
+/* ==========================================================================
+   6. STYLIZACJA PODSTRON: URODA (RÓŻ)
+   ========================================================================== */
+.strefa-beauty-page .strefa-hero-section {
+    background: linear-gradient(135deg, #ffffff 0%, #fdfbfb 100%);
+    border: 1px solid #f8f8f8;
+}
+.strefa-beauty-page .hero-subtitle { color: #d81b60; background: #fff0f5; }
+.strefa-beauty-page .strefa-hero-section p strong { color: #d81b60; }
+.strefa-beauty-page .liquid-blob { display: none; }
+.strefa-beauty-page .header-divider { background: #d81b60; }
+
+.strefa-beauty-page .btn-back { 
+    display: inline-flex; align-items: center; 
+    background: #fff; color: #d81b60 !important; 
+    font-size: 11px; font-weight: 700; 
+    padding: 12px 30px; border-radius: 50px; 
+    text-decoration: none !important; margin-top: 20px; transition: 0.3s;
+    border: 1px solid #d81b60; box-shadow: 0 5px 15px rgba(216, 27, 96, 0.05); 
+}
+.strefa-beauty-page .btn-back:hover { background: #d81b60; color: #fff !important; }
+.strefa-beauty-page .btn-back i { margin-right: 8px; font-size: 16px; }
+
+.strefa-beauty-page .service-product-card:hover { border-color: #d81b60; box-shadow: 0 15px 40px rgba(216, 27, 96, 0.1); }
+.beauty-highlight { background: #fff5f8 !important; border: 1px solid #f8bbd0 !important; }
+.beauty-highlight:hover { border-color: #d81b60 !important; }
+
+.beauty-label { font-size: 10px; font-weight: 800; color: #d81b60 !important; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.beauty-price { color: #d81b60 !important; font-weight: 800; }
+
+.strefa-beauty-page .btn-add-cart { border-color: #d81b60; color: #d81b60 !important; }
+.strefa-beauty-page .btn-add-cart:hover { background: #d81b60; color: #fff !important; box-shadow: 0 5px 15px rgba(216, 27, 96, 0.2); }
+.beauty-cart-btn.filled { background: #d81b60 !important; color: #fff !important; }
+.beauty-cart-btn.filled:hover { background: #ad1457 !important; }
+
+
+/* ==========================================================================
+   7. STYLIZACJA PODSTRON: NATUROPATIA (ZIELEŃ)
+   ========================================================================== */
+/* Placeholder dla przyszłych stylów Naturopatii */
+.naturo-btn { border-color: #43a047; color: #43a047 !important; }
+.naturo-btn:hover { background: #43a047; color: #fff !important; }
+
+
+/* ==========================================================================
+   8. KARTY PRODUKTÓW (GRID, OGÓLNE)
+   ========================================================================== */
+.sub-hero { min-height: 350px; margin-bottom: 60px; align-items: center; }
+.small-circle { width: 200px; height: 200px; }
+.small-circle i { font-size: 80px; }
+
+/* Header Kategorii */
+.category-header { margin-bottom: 40px; margin-top: 40px; text-align: center; width: 100%; display: block; }
+.category-header h2 { font-size: 26px; font-weight: 800; color: #222; margin-bottom: 15px; text-align: center; display: block; width: 100%; }
+.category-intro { font-size: 16px; color: #777; max-width: 700px; margin: 0 auto; line-height: 1.6; text-align: center; }
+
+/* Grid Kart Produktowych */
+.services-grid-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; margin-bottom: 60px; }
+
+.service-product-card { 
+    background: #fff; 
+    border: 1px solid #e5e5e5; 
+    border-radius: 12px; 
+    padding: 35px 30px; 
+    display: flex; flex-direction: column; justify-content: space-between; 
+    transition: all 0.3s ease; 
+    position: relative; height: 100%; 
+}
+.service-product-card:hover { box-shadow: 0 15px 40px rgba(0,0,0,0.06); border-color: #008b8b; }
+
+.sp-content h3 { font-size: 19px; font-weight: 800; color: #1a1a1a; margin-bottom: 15px; line-height: 1.4; }
+.sp-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f0f0f0; }
+.sp-time { font-size: 13px; color: #888; display: flex; align-items: center; font-weight: 600; }
+.sp-time i { font-size: 18px; margin-right: 6px; color: #ccc; }
+.sp-price { font-size: 20px; font-weight: 800; color: #222; }
+.sp-content p { font-size: 14px; color: #666; line-height: 1.7; margin-bottom: 25px; }
+
+/* Przycisk Koszyka (Outline domyślny) */
+.btn-add-cart { 
+    display: flex; align-items: center; justify-content: center; width: 100%; 
+    padding: 14px 0; background: #fff; color: #008b8b !important; 
+    font-weight: 700; font-size: 12px; border-radius: 50px; 
+    text-transform: uppercase; text-decoration: none !important; 
+    transition: 0.3s; border: 2px solid #008b8b; letter-spacing: 0.5px; 
+}
+.btn-add-cart i { margin-left: 8px; font-size: 18px; transition: 0.3s; }
+.btn-add-cart:hover { background: #008b8b; color: #fff !important; box-shadow: 0 5px 15px rgba(0, 139, 139, 0.2); }
+
+.packet-label { font-size: 10px; font-weight: 800; color: #008b8b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+
+/* ==========================================================================
+   9. SEKCJA SZKOLENIA I ZESPÓŁ
+   ========================================================================== */
+.strefa-training-section { background: #2c3e50; padding: 100px 0; color: #fff; }
+.training-header { text-align: center; margin-bottom: 70px; }
+.training-subtitle { display: block; font-size: 11px; font-weight: 700; color: #008b8b; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 15px; }
+.training-header h2 { font-size: 36px; font-weight: 800; color: #fff; margin-bottom: 20px; }
+.white-divider { background: #fff; opacity: 0.2; }
+.training-header p { color: rgba(255,255,255,0.7); max-width: 600px; margin: 0 auto; font-size: 16px; }
+
+.training-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-bottom: 50px; }
+.training-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 40px 30px; border-radius: 12px; transition: 0.4s; }
+.training-card:hover { background: #008b8b; transform: translateY(-10px); border-color: #008b8b; }
+.training-icon { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 25px; font-size: 28px; color: #fff; }
+.training-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 15px; color: #fff; }
+.training-card p { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 25px; }
+.link-training { font-size: 12px; font-weight: 700; color: #fff; text-transform: uppercase; display: flex; align-items: center; text-decoration: none !important; }
+.link-training i { margin-left: 5px; font-size: 16px; transition: 0.3s; }
+.training-card:hover .link-training i { margin-left: 10px; }
+.training-cta-center { text-align: center; }
+.btn-training-main { display: inline-block; padding: 16px 50px; background: #fff; color: #2c3e50 !important; font-weight: 800; border-radius: 50px; text-decoration: none !important; transition: 0.3s; font-size: 13px; }
+.btn-training-main:hover { background: #008b8b; color: #fff !important; }
+
+/* Zespół */
+.strefa-team-section { background: #fbfbfb; padding: 90px 0 100px 0; border-top: 1px solid #eee; }
+.team-header { text-align: center; margin-bottom: 70px; }
+.team-header h2 { font-size: 34px; font-weight: 800; color: #222; text-transform: uppercase; }
+.team-header p { font-size: 16px; color: #777; margin-top: 15px; }
+.team-row-center { justify-content: center; gap: 30px; }
+.team-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.04); transition: 0.3s; height: 100%; border: 1px solid #f0f0f0; }
+.team-card:hover { transform: translateY(-10px); box-shadow: 0 20px 50px rgba(0, 139, 139, 0.1); border-color: #008b8b; }
+.team-photo { height: 350px; background: #f4f4f4; overflow: hidden; position: relative; }
+.team-photo img { width: 100%; height: 100%; object-fit: cover; object-position: top; transition: 0.5s; }
+.team-card:hover .team-photo img { transform: scale(1.05); }
+.team-info { padding: 35px 30px; text-align: center; }
+.team-info h3 { font-size: 22px; font-weight: 700; color: #222; margin-bottom: 5px; }
+.team-role { display: block; font-size: 11px; font-weight: 800; color: #008b8b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; }
+.team-info p { font-size: 14px; color: #666; line-height: 1.6; margin: 0; }
+.trainer-badge { display: inline-block; margin-bottom: 15px; font-size: 11px; font-weight: 800; color: #b08d55; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #b08d55; padding-bottom: 2px; }
+.trainer-badge i { font-size: 14px; vertical-align: middle; margin-right: 4px; }
+
+
+/* ==========================================================================
+   10. RWD (RESPONSYWNOŚĆ)
+   ========================================================================== */
+@media (max-width: 992px) {
+    .strefa-layout-container { flex-direction: column; }
+    .main-promo-col { flex: auto; max-width: 100%; margin-bottom: 20px; }
+    .strefa-hero-section { flex-direction: column; padding: 50px 25px; text-align: center; }
+    .hero-text-content { max-width: 100%; padding-right: 0; margin-bottom: 30px; }
+    .hero-visual-decoration { width: 100%; height: 400px; }
+    .deep-service-row, .deep-service-row.reverse { flex-direction: column; padding-bottom: 50px; }
+    .ds-visual-col { min-height: 300px; width: 100%; order: -1; margin-bottom: 30px; }
+    .visual-circle { width: 180px; height: 180px; }
+    .visual-circle i { font-size: 60px; }
+    .ds-content { padding: 20px 25px; text-align: center; }
+    .ds-content h2 { font-size: 30px; }
+    .ds-treatments-grid { justify-content: center; }
+    .team-card { margin-bottom: 30px; }
+    .services-grid-row { grid-template-columns: 1fr; }
+    .training-grid { grid-template-columns: 1fr; }
+    .team-photo { height: 350px; }
+}
+@media (max-width: 576px) {
+    .services-grid-col { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   11. TOGGLE SWITCH & CONTROL STRIP (SUWAK DOJAZDU)
+   ========================================================================== */
+
+/* PASEK KONTROLNY (Cała sekcja pomiędzy Hero a Usługami) */
+.visit-selector-strip {
+    background: #f9fbfb;
+    border-bottom: 1px solid #e0f2f2;
+    padding: 30px 0;
+    margin-bottom: 50px;
+    width: 100%;
+}
+
+.selector-content-centered {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px; /* Odstęp między napisem a suwakiem */
+    flex-wrap: wrap;
+}
+
+/* TYTUŁ "WYBIERZ FORMĘ WIZYTY" */
+.selector-title {
+    display: flex;
+    align-items: center;
+    color: #008b8b;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.selector-title i {
+    font-size: 24px;
+    margin-right: 12px; /* ZWIĘKSZONO ODSTĘP, ŻEBY IKONA NIE NACHODZIŁA */
+}
+
+/* INFO POD SUWAKIEM */
+.selector-info {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin: 10px 0 0 0;
+}
+
+/* KONTENER SUWAKA */
+.visit-type-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    padding: 12px 25px;
+    border-radius: 50px;
+    width: fit-content;
+    box-shadow: 0 5px 20px rgba(0, 139, 139, 0.08);
+    border: 1px solid #b2dfdf;
+}
+
+/* ETYKIETY SUWAKA */
+.toggle-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #888;
+    transition: 0.3s;
+    user-select: none;
+}
+
+.toggle-label.active {
+    color: #008b8b; /* Kolor aktywny dla Fizjo */
+}
+
+/* LOGIKA SUWAKA (Switch) */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+    margin: 0 15px;
+}
+
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+input:checked + .slider {
+    background-color: #008b8b;
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px #008b8b;
+}
+
+input:checked + .slider:before {
+    transform: translateX(24px);
+}
+
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+
+/* RWD dla paska */
+@media (max-width: 768px) {
+    .selector-content-centered {
+        flex-direction: column;
+        gap: 15px;
+    }
+    .visit-type-toggle-wrapper {
+        width: 100%;
+        justify-content: center;
+    }
+    .toggle-label { font-size: 11px; }
+    .toggle-label.label-mobile { text-align: right; }
+}
+/* ==========================================================================
+   12. STYLIZACJA TOGGLE DLA SEKCJI URODA (PINK OVERRIDE)
+   ========================================================================== */
+   
+/* Kolor nagłówka suwaka */
+.strefa-beauty-page .selector-title {
+    color: #d81b60; /* Różowy */
+}
+
+/* Kolor aktywnego tekstu (Dojazd/Gabinet) */
+.strefa-beauty-page .toggle-label.active {
+    color: #d81b60;
+}
+
+/* Kolor tła suwaka po włączeniu */
+.strefa-beauty-page .switch input:checked + .slider {
+    background-color: #d81b60;
+}
+
+/* Kolor cienia (focus) */
+.strefa-beauty-page .switch input:focus + .slider {
+    box-shadow: 0 0 1px #d81b60;
+}
+/* ==========================================================================
+   13. STYLIZACJA PODSTRON: NATUROPATA (GREEN OVERRIDE)
+   ========================================================================== */
+
+/* Hero Tło */
+.strefa-naturo-page .sub-hero {
+    background: linear-gradient(135deg, #f1f8e9 0%, #ffffff 100%);
+    border: 1px solid #dcedc8;
+}
+.strefa-naturo-page .hero-subtitle { color: #2e7d32; background: #e8f5e9; }
+.strefa-naturo-page .strefa-hero-section p strong { color: #2e7d32; }
+.strefa-naturo-page .liquid-blob { 
+    background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+}
+.strefa-naturo-page .header-divider { background: #43a047; }
+
+/* Przycisk Powrotu (Outline Green) */
+.strefa-naturo-page .btn-back { 
+    display: inline-flex; align-items: center; 
+    background: #fff; color: #2e7d32 !important; 
+    font-size: 11px; font-weight: 700; 
+    padding: 12px 30px; border-radius: 50px; 
+    text-decoration: none !important; margin-top: 20px; transition: 0.3s;
+    border: 1px solid #2e7d32; box-shadow: 0 5px 15px rgba(46, 125, 50, 0.05); 
+}
+.strefa-naturo-page .btn-back:hover { background: #2e7d32; color: #fff !important; }
+.strefa-naturo-page .btn-back i { margin-right: 8px; font-size: 16px; }
+
+/* Karty Naturo */
+.naturo-card {
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 12px;
+    padding: 35px 30px; display: flex; flex-direction: column; justify-content: space-between;
+    transition: all 0.3s ease; position: relative; height: 100%;
+}
+.naturo-card:hover { border-color: #43a047; box-shadow: 0 15px 40px rgba(67, 160, 71, 0.1); }
+
+/* Wyróżnione Karty (Highlight) */
+.naturo-highlight {
+    background: #f1f8e9 !important; /* Bardzo jasna zieleń */
+    border: 1px solid #c5e1a5 !important;
+    position: relative; height: 100%; display: flex; flex-direction: column; justify-content: space-between;
+    padding: 35px 30px; border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(67, 160, 71, 0.08) !important;
+}
+.naturo-highlight:hover { border-color: #2e7d32 !important; transform: translateY(-5px); }
+
+/* Teksty i Ceny */
+.naturo-label { font-size: 10px; font-weight: 800; color: #2e7d32 !important; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.naturo-price { color: #2e7d32 !important; font-weight: 800; }
+
+/* Przyciski Koszyka */
+.naturo-cart-btn {
+    border: 2px solid #43a047; color: #43a047 !important;
+    display: flex; align-items: center; justify-content: center; width: 100%;
+    padding: 14px 0; font-weight: 700; font-size: 12px; border-radius: 50px;
+    text-transform: uppercase; text-decoration: none !important; transition: 0.3s;
+}
+.naturo-cart-btn:hover { background: #43a047; color: #fff !important; box-shadow: 0 5px 15px rgba(67, 160, 71, 0.2); }
+
+.naturo-cart-btn.filled { background: #43a047 !important; color: #fff !important; }
+.naturo-cart-btn.filled:hover { background: #2e7d32 !important; }
+
+/* --- STYLIZACJA TOGGLE DLA SEKCJI NATURO (GREEN OVERRIDE) --- */
+.strefa-naturo-page .selector-title { color: #2e7d32; }
+.strefa-naturo-page .toggle-label.active { color: #2e7d32; }
+.strefa-naturo-page .switch input:checked + .slider { background-color: #43a047; }
+.strefa-naturo-page .switch input:focus + .slider { box-shadow: 0 0 1px #43a047; }
+
+/* ==========================================================================
+   14. STYLIZACJA PLACEHOLDERÓW PRODUKTÓW (SZARE IKONKI)
+   ========================================================================== */
+
+.product-icon-placeholder {
+    width: 100%;
+    height: 180px;
+    background: #f9f9f9; /* Bardzo jasne szare tło */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+    transition: 0.3s;
+}
+
+.product-icon-placeholder i {
+    font-size: 60px;
+    color: #cfcfcf; /* Szary kolor ikonki */
+    transition: 0.3s;
+}
+
+/* Efekt Hover na karcie zmienia też ikonę */
+.service-product-card:hover .product-icon-placeholder {
+    background: #f0f0f0;
+    border-color: #e0e0e0;
+}
+
+/* Jeśli karta jest Naturopatyczna, hover zmienia ikonę na zieloną */
+.naturo-card:hover .product-icon-placeholder i,
+.naturo-highlight:hover .product-icon-placeholder i {
+    color: #43a047;
+}
+
+/* ==========================================================================
+   15. POPRAWA IKON W SEKCJI 'WARTOŚCI' (ORGANICZNY STYL - FONT AWESOME)
+   ========================================================================== */
+
+/* Reset starego stylu obracania i linii przerywanych */
+.modern-value-card:hover .icon-glow-wrapper::before {
+    display: none !important; 
+}
+.icon-glow-wrapper::before {
+    display: none !important;
+}
+
+/* Nowy styl kontenera ikony (Organic Blob) */
+.icon-glow-wrapper.organic-shape {
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70% !important; /* Kształt nieregularny */
+    background: #e0f2f1; /* Jasny turkusowy */
+    box-shadow: 0 10px 25px rgba(0, 139, 139, 0.15); /* Miękki cień */
+    width: 90px;
+    height: 90px;
+    transition: all 0.5s ease-in-out;
+    border: none; /* Brak obramowania */
+    
+    /* KLUCZOWE DLA WIDOCZNOŚCI IKONY */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin: 0 auto 25px auto;
+}
+
+/* Styl ikony w środku */
+.icon-glow-wrapper.organic-shape i {
+    color: #008b8b; /* Ciemny turkus */
+    font-size: 36px; /* Font Awesome jest często większy, 36-40px jest optymalne */
+    transition: 0.3s;
+    position: relative;
+    z-index: 5; /* Wymuszenie widoczności nad tłem */
+}
+
+/* Efekt Hover (zmiana kształtu) */
+.modern-value-card:hover .icon-glow-wrapper.organic-shape {
+    border-radius: 70% 30% 30% 70% / 70% 70% 30% 30% !important; /* Inny kształt bloba */
+    background: #008b8b; /* Wypełnienie kolorem */
+    transform: scale(1.1) rotate(10deg);
+}
+
+.modern-value-card:hover .icon-glow-wrapper.organic-shape i {
+    color: #fff; /* Ikona na biało */
+    transform: scale(1.1) rotate(-10deg); /* Kontra rotacja dla ikony */
+}

@@ -1,0 +1,4 @@
+Hi {customer_name},
+Your comment on {post_title} has been approved.
+View post
+

@@ -1,0 +1,6 @@
+@media (min-width: 1200px) {
+  .adminetsblogsetting #configuration_form .form-group {
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+}

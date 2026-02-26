@@ -1,0 +1,1025 @@
+/* AllegroPro Cashflows */
+
+.alpro-status{
+  display:inline-block;
+  white-space:nowrap;
+  padding:2px 8px;
+  border-radius:12px;
+  font-size:12px;
+  font-weight:600;
+  line-height:18px;
+}
+.alpro-ok{ background:#e7f6ee; color:#1f7a3f; border:1px solid #bfe9cf; }
+.alpro-missing{ background:#fdecec; color:#b42318; border:1px solid #f7c4c4; }
+.alpro-diff{ background:#fff4e5; color:#b54708; border:1px solid #ffd8a8; }
+.alpro-waiting{ background:#e7f0ff; color:#1d4ed8; border:1px solid #c7ddff; }
+.alpro-neutral{ background:#f2f4f7; color:#344054; border:1px solid #eaecf0; }
+
+.alpro-details summary{
+  cursor:pointer;
+  user-select:none;
+}
+
+/* BILLING: szybkie wyróżnienie problemów (legacy) */
+.alpro-well-issues{
+  border-left:4px solid #b42318;
+  background:#fdecec;
+}
+.alpro-well-ok{
+  border-left:4px solid #1f7a3f;
+  background:#e7f6ee;
+}
+
+/* Legacy podświetlanie wierszy z alertem */
+table.table tr.alpro-row-issue td{
+  background:#fff4e5;
+}
+table.table tr.alpro-row-issue td:first-child{
+  border-left:4px solid #b54708;
+}
+
+table.table tr.alpro-issue-no_refund td,
+table.table tr.alpro-issue-unpaid_fees td{
+  background:#fdecec;
+}
+table.table tr.alpro-issue-no_refund td:first-child,
+table.table tr.alpro-issue-unpaid_fees td:first-child{
+  border-left-color:#b42318;
+}
+
+table.table tr.alpro-issue-api_error td{
+  background:#e7f0ff;
+}
+table.table tr.alpro-issue-api_error td:first-child{
+  border-left-color:#1d4ed8;
+}
+
+
+/* ==============================
+   NOWOCZESNY UI (BILLING)
+   (scoped: .alpro-billing)
+   ============================== */
+
+.alpro-billing .card{
+  border-radius:12px;
+  border-color:#e6e8ee;
+  box-shadow:0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.alpro-billing .card-header{
+  background:#fff;
+  border-bottom:1px solid #e6e8ee;
+}
+
+.alpro-billing .card-body{
+  background:#fff;
+}
+
+.alpro-billing .btn .material-icons,
+.alpro-billing .alpro-chip .material-icons{
+  font-size:18px;
+  vertical-align:middle;
+  margin-right:4px;
+}
+
+.alpro-billing .alpro-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.alpro-billing .alpro-header-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  font-weight:700;
+}
+
+.alpro-billing .alpro-header-title .material-icons{
+  color:#475467;
+}
+
+.alpro-billing .alpro-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  background:#f2f4f7;
+  color:#344054;
+  border:1px solid #eaecf0;
+}
+
+.alpro-billing .alpro-last-sync{
+  font-size:12px;
+  color:#667085;
+}
+
+.alpro-billing .alpro-header-sub{
+  margin-top:6px;
+  font-size:12px;
+}
+
+.alpro-billing .alpro-filters-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.alpro-billing .alpro-active-filter{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:10px;
+  background:#fff7ed;
+  border:1px solid #fed7aa;
+  color:#9a3412;
+  font-size:12px;
+}
+
+.alpro-billing .alpro-active-filter .material-icons{
+  font-size:16px;
+  margin:0;
+}
+
+.alpro-billing .alpro-active-filter .alpro-clear{
+  margin-left:4px;
+  color:#9a3412;
+  text-decoration:none;
+  font-weight:700;
+}
+
+.alpro-billing .alpro-filters-form label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:#475467;
+  margin-bottom:4px;
+}
+
+.alpro-billing .alpro-filters-form .form-control{
+  border-radius:10px;
+  height:38px;
+}
+
+.alpro-billing .alpro-advanced{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #eaecf0;
+}
+
+.alpro-billing .alpro-advanced summary{
+  cursor:pointer;
+  user-select:none;
+  font-weight:700;
+  color:#344054;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.alpro-billing .alpro-advanced summary .material-icons{
+  font-size:18px;
+  color:#667085;
+}
+
+.alpro-billing .alpro-actions{
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.alpro-billing .alpro-help{
+  margin-top:8px;
+  font-size:12px;
+  color:#475467;
+}
+
+.alpro-billing .alpro-help ul{
+  margin:8px 0 0 18px;
+}
+
+.alpro-billing .alpro-kpi-row{
+  margin-top:12px;
+  margin-bottom:12px;
+}
+
+.alpro-billing .alpro-kpi-card{
+  padding:14px 14px;
+}
+
+.alpro-billing .alpro-kpi-top{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.alpro-billing .alpro-kpi-number{
+  font-size:22px;
+  font-weight:800;
+  color:#101828;
+}
+
+.alpro-billing .alpro-kpi-number a{
+  color:inherit;
+  text-decoration:underline;
+}
+
+.alpro-billing .alpro-kpi-label{
+  font-size:12px;
+  color:#667085;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+}
+
+.alpro-billing .alpro-kpi-sub{
+  margin-top:8px;
+  font-size:12px;
+  color:#475467;
+}
+
+.alpro-billing .alpro-kpi-mini{
+  display:inline-block;
+  margin-right:12px;
+}
+
+.alpro-billing .alpro-kpi-issues{
+  border-left:5px solid #b42318;
+}
+
+.alpro-billing .alpro-kpi-ok{
+  border-left:5px solid #1f7a3f;
+}
+
+.alpro-billing .alpro-issues-card{
+  border-left:6px solid #b42318;
+  background:#fff;
+}
+
+.alpro-billing .alpro-issues-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.alpro-billing .alpro-issues-title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:800;
+  color:#7a271a;
+}
+
+.alpro-billing .alpro-issues-title .material-icons{
+  color:#b42318;
+}
+
+.alpro-billing .alpro-chip-row{
+  margin-top:10px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.alpro-billing .alpro-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:#f2f4f7;
+  border:1px solid #eaecf0;
+  color:#344054;
+  text-decoration:none;
+  font-size:12px;
+  font-weight:700;
+}
+
+.alpro-billing .alpro-chip:hover{
+  background:#eaecf0;
+}
+
+.alpro-billing .alpro-chip-count{
+  display:inline-block;
+  min-width:18px;
+  padding:1px 6px;
+  border-radius:999px;
+  background:#fff;
+  border:1px solid #d0d5dd;
+  font-weight:800;
+}
+
+.alpro-billing .alpro-chip-danger{
+  background:#fee4e2;
+  border-color:#fecdca;
+  color:#b42318;
+}
+
+.alpro-billing .alpro-table-wrap{
+  background:#fff;
+  padding:8px;
+}
+
+.alpro-billing .alpro-table-card .table{
+  background:#fff;
+}
+
+.alpro-billing .alpro-table-card .table thead th,
+.alpro-billing .alpro-issues-list .table thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#fff;
+  border-bottom:1px solid #eaecf0;
+}
+
+.alpro-billing .alpro-table-card .table td,
+.alpro-billing .alpro-issues-list .table td{
+  vertical-align:middle;
+}
+
+/* Kolumna z checkoutFormId: nie rozjeżdża tabeli */
+.alpro-billing .alpro-col-id{
+  font-family:monospace;
+  max-width:220px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* Nowy, czytelniejszy highlight problemów (bez zalewania tła) */
+.alpro-billing table.table tr.alpro-row-issue td{
+  background:#fff;
+}
+.alpro-billing table.table tr.alpro-row-issue td:first-child{
+  border-left:5px solid #f59e0b;
+}
+.alpro-billing table.table tr.alpro-row-issue:hover td{
+  background:#f9fafb;
+}
+
+.alpro-billing table.table tr.alpro-issue-no_refund td:first-child,
+.alpro-billing table.table tr.alpro-issue-unpaid_fees td:first-child{
+  border-left-color:#ef4444;
+}
+
+.alpro-billing table.table tr.alpro-issue-api_error td:first-child{
+  border-left-color:#3b82f6;
+}
+
+.alpro-billing table.table tr.alpro-issue-partial_refund td:first-child{
+  border-left-color:#f59e0b;
+}
+
+.alpro-billing .alpro-table-footer{
+  background:#fff;
+}
+
+@media (max-width: 991px){
+  .alpro-billing .alpro-actions{
+    justify-content:flex-start;
+  }
+  .alpro-billing .alpro-header-right{
+    width:100%;
+  }
+  .alpro-billing .alpro-header-right .btn-group{
+    width:100%;
+    display:flex;
+    flex-wrap:wrap;
+  }
+  .alpro-billing .alpro-header-right .btn-group .btn{
+    flex:1 1 auto;
+  }
+}
+
+
+/* Szerokość kolumny z problemami */
+.alpro-billing .alpro-col-alert{ min-width:300px; }
+
+/* Nagłówek listy podglądu problemów */
+.alpro-billing .alpro-issues-preview-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+
+/* BILLING: szczegóły opłat (rozwiń wiersz) */
+.alpro-billing .alpro-details-action{ margin-top:4px; }
+.alpro-billing .alpro-details-link{
+  padding:0;
+  line-height:1.2;
+  font-size:12px;
+  color:#374151;
+  text-decoration:none;
+}
+.alpro-billing .alpro-details-link:hover{ text-decoration:underline; }
+.alpro-billing .alpro-details-link .material-icons{
+  font-size:16px;
+  vertical-align:middle;
+}
+
+.alpro-billing tr.alpro-billing-details-row td{
+  background:#f9fafb;
+  border-top:1px solid #eaecf0;
+}
+
+.alpro-billing .alpro-billing-details-box{
+  padding:12px 14px;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-summary{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  margin-bottom:10px;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-title{
+  font-weight:600;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-subtitle{
+  margin-top:2px;
+  font-size:12px;
+  color:#6b7280;
+  font-family:monospace;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-kpis{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:flex-start;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-kpi{
+  background:#fff;
+  border:1px solid #eaecf0;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:12px;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-details-note{
+  margin:8px 0 10px 0;
+  font-size:12px;
+  color:#6b7280;
+}
+
+.alpro-billing .alpro-billing-details-box table.alpro-details-table{
+  background:#fff;
+  border:1px solid #eaecf0;
+  border-radius:12px;
+  overflow:hidden;
+}
+
+.alpro-billing .alpro-billing-details-box table.alpro-details-table thead th{
+  background:#f3f4f6;
+  font-size:12px;
+  border-bottom:1px solid #eaecf0;
+}
+
+.alpro-billing .alpro-billing-details-box table.alpro-details-table td{
+  font-size:12px;
+  vertical-align:top;
+}
+
+.alpro-billing .alpro-billing-details-box .alpro-amt-neg{ color:#b91c1c; font-weight:600; }
+.alpro-billing .alpro-billing-details-box .alpro-amt-pos{ color:#065f46; font-weight:600; }
+.alpro-billing .alpro-billing-details-box .alpro-amt-zero{ color:#6b7280; }
+
+
+/* ==============================
+   NOWOCZESNY UI (ROZLICZENIE)
+   (scoped: .alpro-recon)
+   Cel: spójny wygląd jak w zakładce Opłaty (BILLING).
+   ============================== */
+
+.alpro-recon .card{
+  border-radius:12px;
+  border-color:#e6e8ee;
+  box-shadow:0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.alpro-recon .card-header{
+  background:#fff;
+  border-bottom:1px solid #e6e8ee;
+}
+
+.alpro-recon .card-body{
+  background:#fff;
+}
+
+.alpro-recon .btn .material-icons{
+  font-size:18px;
+  vertical-align:middle;
+  margin-right:4px;
+}
+
+.alpro-recon .alpro-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.alpro-recon .alpro-header-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  font-weight:700;
+}
+
+.alpro-recon .alpro-header-title .material-icons{ color:#475467; }
+
+.alpro-recon .alpro-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  background:#f2f4f7;
+  color:#344054;
+  border:1px solid #eaecf0;
+}
+
+.alpro-recon .alpro-last-sync{
+  font-size:12px;
+  color:#667085;
+}
+
+.alpro-recon .alpro-header-sub{
+  margin-top:6px;
+  font-size:12px;
+}
+
+.alpro-recon .alpro-filters-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.alpro-recon .alpro-active-filter{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:10px;
+  background:#fff7ed;
+  border:1px solid #fed7aa;
+  color:#9a3412;
+  font-size:12px;
+}
+
+.alpro-recon .alpro-active-filter .material-icons{
+  font-size:16px;
+  margin:0;
+}
+
+.alpro-recon .alpro-active-filter .alpro-clear{
+  margin-left:4px;
+  color:#9a3412;
+  text-decoration:none;
+  font-weight:700;
+}
+
+.alpro-recon .alpro-filters-form label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:#475467;
+  margin-bottom:4px;
+}
+
+.alpro-recon .alpro-filters-form .form-control{
+  border-radius:10px;
+  height:38px;
+}
+
+.alpro-recon .alpro-advanced{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #eaecf0;
+}
+
+.alpro-recon .alpro-advanced summary{
+  cursor:pointer;
+  user-select:none;
+  font-weight:700;
+  color:#344054;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.alpro-recon .alpro-advanced summary .material-icons{
+  font-size:18px;
+  color:#667085;
+}
+
+.alpro-recon .alpro-actions{
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.alpro-recon .alpro-kpi-row{
+  margin-top:12px;
+  margin-bottom:12px;
+}
+
+.alpro-recon .alpro-kpi-card{
+  padding:14px 14px;
+}
+
+.alpro-recon .alpro-kpi-top{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.alpro-recon .alpro-kpi-number{
+  font-size:22px;
+  font-weight:800;
+  color:#101828;
+}
+
+.alpro-recon .alpro-kpi-label{
+  font-size:12px;
+  color:#667085;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+}
+
+.alpro-recon .alpro-kpi-sub{
+  margin-top:8px;
+  font-size:12px;
+  color:#475467;
+}
+
+.alpro-recon .alpro-kpi-mini{
+  display:inline-block;
+  margin-right:12px;
+}
+
+.alpro-recon .alpro-kpi-issues{ border-left:5px solid #b42318; }
+.alpro-recon .alpro-kpi-ok{ border-left:5px solid #1f7a3f; }
+
+.alpro-recon .alpro-table-wrap{ background:#fff; }
+.alpro-recon .alpro-table-card .table{ background:#fff; }
+
+.alpro-recon .alpro-table-card .table thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#fff;
+  border-bottom:1px solid #eaecf0;
+}
+
+.alpro-recon .alpro-table-card .table td{ vertical-align:middle; }
+
+.alpro-recon .alpro-col-id{
+  font-family:monospace;
+  max-width:280px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.alpro-recon .alpro-col-alert{ min-width:260px; }
+
+/* Czytelniejsze wyróżnienie problemów */
+.alpro-recon table.table tr.alpro-row-issue td{ background:#fff; }
+.alpro-recon table.table tr.alpro-row-issue td:first-child{ border-left:5px solid #ef4444; }
+.alpro-recon table.table tr.alpro-row-issue:hover td{ background:#f9fafb; }
+
+.alpro-recon .alpro-table-footer{ background:#fff; }
+
+@media (max-width: 991px){
+  .alpro-recon .alpro-actions{ justify-content:flex-start; }
+  .alpro-recon .alpro-header-right{ width:100%; }
+  .alpro-recon .alpro-header-right .btn-group{
+    width:100%;
+    display:flex;
+    flex-wrap:wrap;
+  }
+  .alpro-recon .alpro-header-right .btn-group .btn{ flex:1 1 auto; }
+}
+
+/* ==========================
+   Rozliczenie wypłat (okresy między przelewami)
+   ========================== */
+
+.alpro-recon .alpro-payoutcheck-explain {
+  border-radius: 14px;
+  border: 1px solid rgba(13,110,253,0.18);
+  background: rgba(13,110,253,0.06);
+}
+
+.alpro-recon .alpro-payoutcheck-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 12px 0 6px;
+}
+
+.alpro-recon .alpro-mini-kpi {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+}
+
+.alpro-recon .alpro-mini-kpi-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6c757d;
+}
+
+.alpro-recon .alpro-mini-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  margin-top: 6px;
+  line-height: 1.2;
+}
+
+.alpro-recon .alpro-mini-kpi-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.alpro-recon .alpro-note-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(13,110,253,0.12);
+  color: #0d6efd;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: help;
+  line-height: 1;
+}
+
+.alpro-recon .alpro-note-text {
+  margin-left: 6px;
+}
+
+.alpro-recon .alpro-payoutcheck-table td {
+  vertical-align: top;
+}
+
+.alpro-recon .alpro-payoutcheck-period {
+  min-width: 260px;
+}
+
+/* --- Payout periods: details (expand per window) --- */
+.alpro-recon .alpro-pc-toggle{
+  border-radius: 10px;
+}
+
+.alpro-recon .alpro-pc-toggle.is-open i.material-icons{
+  transform: rotate(180deg);
+}
+
+.alpro-recon .alpro-pc-details-row td{
+  background: rgba(0,0,0,.02);
+}
+
+.alpro-recon .alpro-pc-details{
+  display: flex;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: #fff;
+  border-radius: 12px;
+}
+
+.alpro-recon .alpro-pc-details-col{
+  flex: 1;
+  min-width: 360px;
+}
+
+.alpro-recon .alpro-pc-details-title{
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.alpro-recon .alpro-pc-details-meta{
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.alpro-recon .alpro-pc-details-subtitle{
+  font-weight: 600;
+  margin: 10px 0 6px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.alpro-recon .alpro-pc-details-mini,
+.alpro-recon .alpro-pc-details-table{
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.alpro-recon .alpro-pc-details-mini th,
+.alpro-recon .alpro-pc-details-mini td,
+.alpro-recon .alpro-pc-details-table th,
+.alpro-recon .alpro-pc-details-table td{
+  padding: 6px 8px;
+}
+
+.alpro-recon .alpro-pc-details-sep{
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px dashed rgba(0,0,0,.12);
+}
+
+@media (max-width: 1200px){
+  .alpro-recon .alpro-pc-details{ flex-direction: column; }
+  .alpro-recon .alpro-pc-details-col{ min-width: unset; }
+}
+
+
+/* --- Payout periods: status badges (more colors) --- */
+.alpro-recon .alpro-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:600;
+  font-size:12px;
+  line-height:1.2;
+  border:1px solid transparent;
+  white-space:nowrap;
+}
+.alpro-recon .alpro-badge--ok{
+  background:#e8f8ef;
+  border-color:#c7f1d7;
+  color:#1e7e34;
+}
+.alpro-recon .alpro-badge--warn{
+  background:#fff3cd;
+  border-color:#ffeeba;
+  color:#856404;
+}
+.alpro-recon .alpro-badge--carry{
+  background:#e7f1ff;
+  border-color:#cfe2ff;
+  color:#0b5ed7;
+}
+.alpro-recon .alpro-badge--left{
+  background:#f1e8ff;
+  border-color:#e3d1ff;
+  color:#6f42c1;
+}
+.alpro-recon .alpro-badge--neutral{
+  background:#f1f3f5;
+  border-color:#e9ecef;
+  color:#495057;
+}
+
+
+/* --- Nawigacja zakładek (kolory jak kwoty) --- */
+.alpro-page .alpro-header-right .btn-group .btn {
+  position: relative;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  line-height: 1.1;
+}
+
+.alpro-page .alpro-header-right .btn-group .btn + .btn { margin-left: 8px; }
+
+.alpro-page .alpro-header-right .btn-group .btn i.material-icons {
+  font-size: 18px;
+  vertical-align: middle;
+  margin-right: 4px;
+  color: var(--alpro-tab-color, #94a3b8);
+}
+
+.alpro-page .alpro-header-right .btn-group .btn:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--alpro-tab-color, #94a3b8);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  opacity: .9;
+}
+
+/* 1: Wpłaty (zielony), 2: Rozliczenie (niebieski), 3: Opłaty (czerwony), 4: RAW (szary) */
+.alpro-page .alpro-header-right .btn-group .btn:nth-child(1) { --alpro-tab-color: #16a34a; }
+.alpro-page .alpro-header-right .btn-group .btn:nth-child(2) { --alpro-tab-color: #0284c7; }
+.alpro-page .alpro-header-right .btn-group .btn:nth-child(3) { --alpro-tab-color: #dc2626; }
+.alpro-page .alpro-header-right .btn-group .btn:nth-child(4) { --alpro-tab-color: #64748b; }
+
+.alpro-page .alpro-header-right .btn-group .btn:hover {
+  border-color: rgba(0,0,0,.14);
+  box-shadow: 0 10px 24px rgba(0,0,0,.06);
+}
+
+.alpro-page .alpro-header-right .btn-group .btn.active {
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.16);
+}
+
+.alpro-page .alpro-header-right .btn-group .btn.active i.material-icons {
+  color: var(--alpro-tab-color, #0284c7);
+}
+
+/* --- Zwijane sekcje (details/summary) --- */
+.alpro-details {
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.alpro-details__summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.alpro-details__summary::-webkit-details-marker { display: none; }
+
+.alpro-details__summary-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.alpro-details__summary-meta {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.alpro-details__summary:after {
+  content: '▾';
+  font-size: 12px;
+  color: #64748b;
+}
+
+.alpro-details[open] .alpro-details__summary {
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+.alpro-details[open] .alpro-details__summary:after { content: '▴'; }
+
+.alpro-details .alpro-table-wrap {
+  margin-top: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* --- Dodatkowy status: Różnica (czerwony) --- */
+.alpro-badge--diff {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid rgba(220, 38, 38, .22);
+}

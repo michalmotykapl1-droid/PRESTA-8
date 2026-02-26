@@ -1,0 +1,505 @@
+/**
+ * bb_ordermanager - Back Office styles
+ *
+ * IMPORTANT:
+ * This file must contain ONLY valid CSS.
+ */
+
+/* -------------------------------------------------------------------------
+ *  Konfiguracja: Dostęp do BIGBIO Manager
+ * ------------------------------------------------------------------------- */
+
+.bbom-access-box {
+  background: #ffffff;
+  border: 1px solid #dbe6e8;
+  border-radius: 4px;
+  padding: 15px 15px 5px;
+}
+
+.bbom-access-note {
+  margin-bottom: 15px;
+}
+
+.bbom-access-mode .btn {
+  border-radius: 3px !important;
+}
+
+.bbom-muted {
+  color: #6c868e;
+}
+
+.bbom-access-section {
+  margin-top: 10px;
+}
+
+.bbom-picker {
+  border: 1px solid #dbe6e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bbom-picker__title {
+  background: #f5f8f9;
+  padding: 10px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid #dbe6e8;
+}
+
+.bbom-picker__list {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+}
+
+.bbom-picker__list .list-group-item {
+  border: 0;
+  border-bottom: 1px solid #eeeeee;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.bbom-picker__list .list-group-item:last-child {
+  border-bottom: 0;
+}
+
+.bbom-picker__list input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.bbom-emp-meta {
+  margin-left: 6px;
+  color: #6c868e;
+  font-weight: 400;
+}
+
+.bbom-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  vertical-align: middle;
+}
+
+.bbom-tag--danger {
+  background: #fbe9e9;
+  color: #b90000;
+}
+
+.bbom-item-disabled {
+  opacity: 0.7;
+}
+
+/* Foldery / statusy (Kanban) */
+.bbom-folder-map {
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.bbom-folder-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.bbom-folder-row:last-child {
+    border-bottom: 0;
+}
+
+.bbom-folder-label {
+    flex: 0 0 320px;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bbom-folder-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    display: inline-block;
+}
+
+.bbom-folder-select {
+    flex: 1 1 auto;
+    max-width: 520px;
+}
+
+@media (max-width: 1200px) {
+    .bbom-folder-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .bbom-folder-label {
+        flex: 0 0 auto;
+    }
+
+    .bbom-folder-select {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+/* === Nowy, czytelniejszy edytor folderów (Kanban) === */
+.bbom-folder-board {
+    margin-top: 10px;
+}
+
+.bbom-folder-group {
+    border: 1px solid #e6e6e6;
+    border-radius: 6px;
+    background: #fff;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.bbom-folder-group__header {
+    background: #f7f7f7;
+    border-bottom: 1px solid #ededed;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.bbom-folder-group__title {
+    font-weight: 700;
+}
+
+.bbom-folder-group__hint {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.bbom-folder-list {
+    padding: 0;
+}
+
+.bbom-folder-item {
+    display: grid;
+    grid-template-columns: 26px 1.4fr 150px 1.2fr 40px;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.bbom-folder-item:first-child {
+    border-top: 0;
+}
+
+.bbom-folder-item.is-disabled {
+    opacity: 0.55;
+    background: #fafafa;
+}
+
+.bbom-folder-item.is-dragging {
+    opacity: 0.35;
+}
+
+.bbom-folder-handle {
+    cursor: grab;
+    color: #8a8a8a;
+    text-align: center;
+}
+
+.bbom-folder-handle:active {
+    cursor: grabbing;
+}
+
+.bbom-folder-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.bbom-folder-labeltext {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bbom-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #4338ca;
+    margin-left: 6px;
+}
+
+.bbom-tag--custom {
+    background: #ecfeff;
+    color: #0e7490;
+}
+
+.bbom-folder-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+.bbom-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 20px;
+    margin: 0;
+}
+
+.bbom-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.bbom-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #d1d5db;
+    transition: .2s;
+    border-radius: 999px;
+}
+
+.bbom-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    top: 2px;
+    background-color: white;
+    transition: .2s;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+
+.bbom-switch input:checked + .bbom-switch-slider {
+    background-color: #25b9d7;
+}
+
+.bbom-switch input:checked + .bbom-switch-slider:before {
+    transform: translateX(18px);
+}
+
+.bbom-switch-text {
+    font-size: 12px;
+    color: #4b5563;
+}
+
+.bbom-folder-actions {
+    text-align: right;
+}
+
+.bbom-add-folder-box {
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 12px;
+    margin-top: 10px;
+}
+
+.bbom-add-folder-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.bbom-add-folder-row .form-control {
+    height: 34px;
+}
+
+/* -------------------------------------------------------------------------
+ *  Kanban v2 (Etapy + foldery, edycja inline, drag&drop, HEX)
+ * ------------------------------------------------------------------------- */
+
+.bbom-kanban-config .bbom-group {
+  margin-bottom: 14px;
+}
+
+.bbom-group-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bbom-handle {
+  cursor: grab;
+  color: #7a7a7a;
+  user-select: none;
+}
+
+.bbom-handle:active {
+  cursor: grabbing;
+}
+
+.bbom-group-title {
+  font-weight: 700;
+}
+
+.bbom-group-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.bbom-kanban-config .bbom-folder-list {
+  padding: 0;
+}
+
+.bbom-kanban-config .bbom-folder-row {
+  display: grid;
+  grid-template-columns: 26px 1fr 420px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.bbom-kanban-config .bbom-folder-row:first-child {
+  border-top: 0;
+}
+
+.bbom-kanban-config .bbom-folder-row.is-disabled {
+  opacity: .55;
+  background: #fafafa;
+}
+
+.bbom-folder-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.bbom-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  flex: 0 0 auto;
+}
+
+.bbom-folder-label {
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+
+.bbom-inline-input {
+  display: inline-block;
+  width: 320px;
+  max-width: 100%;
+}
+
+.bbom-color-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.bbom-color-picker {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #dbe6e8;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.bbom-color-hex {
+  width: 110px;
+}
+
+.bbom-folder-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bbom-folder-controls select.form-control {
+  max-width: 320px;
+}
+
+.bbom-drop-hint {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #6b7280;
+  border-top: 1px dashed #e5e7eb;
+  background: #fafafa;
+}
+
+.bbom-folder-list.is-over {
+  outline: 2px dashed #25b9d7;
+  outline-offset: -2px;
+}
+
+.bbom-folder-row.is-over {
+  outline: 2px dashed #25b9d7;
+  outline-offset: -2px;
+}
+
+.bbom-group.is-over {
+  outline: 2px dashed #25b9d7;
+  outline-offset: -2px;
+}
+
+.bbom-add-row .bbom-add-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bbom-tag {
+  background: #ecfeff;
+  color: #0e7490;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+@media (max-width: 1200px) {
+  .bbom-kanban-config .bbom-folder-row {
+    grid-template-columns: 26px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .bbom-folder-controls {
+    justify-content: flex-start;
+  }
+  .bbom-folder-controls select.form-control {
+    max-width: none;
+    width: 100%;
+  }
+  .bbom-folder-main {
+    width: 100%;
+  }
+  .bbom-color-box {
+    margin-left: 0;
+    width: 100%;
+  }
+}

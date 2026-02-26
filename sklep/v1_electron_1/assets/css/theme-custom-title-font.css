@@ -1,0 +1,14 @@
+.tvall-page-top-title h1,
+#main .tvpage-header-title-wrapper h1,
+.tvleft-right-title.facet-label,
+.block-categories .category-top-menu>li.tv-category-title-wrapper a,
+.tvapp-logo-content-inner .tvdekstop-footer-all-title-wrapper .tvfooter-title span,
+.tvcategory-title-wrapper .tvleft-right-title span,
+#header .tv-menu-horizontal ul li.level-1>a,
+.menu-subtitle,
+.tvinstagram-slider-title-wrapper .tvinstagram-title,
+.tvinstagram-slider-title-wrapper .tvinstagram-user-name,
+.tvtab-title-wrapper .tvtabs-products li span,
+.tvcms-main-title .tvmain-title h2 {
+    font-family: '#fontFamily1', sans-serif;
+}

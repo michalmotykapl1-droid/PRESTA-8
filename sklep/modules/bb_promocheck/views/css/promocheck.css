@@ -1,0 +1,323 @@
+/* --- GŁÓWNY KONTENER --- */
+.bb-promo-container-v2 {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 10px 0 20px 0 !important; /* Większy odstęp od reszty strony */
+    padding: 10px 15px !important;    /* Większy padding wewnątrz */
+    
+    background: #ffffff !important;
+    border: 1px solid #ebebeb !important;
+    border-radius: 5px !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.03) !important;
+    
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 15px !important; /* Wyraźny odstęp między sekcjami */
+    
+    overflow: visible !important; /* Visible, żeby cienie przycisków nie były ucięte */
+    position: relative !important;
+}
+
+.product-variants {
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 5px !important;
+}
+
+/* --- LEWA STRONA (Ikona i Tytuł) --- */
+.bb-promo-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 0 0 auto !important; 
+    min-width: fit-content !important;
+}
+
+.bb-promo-svg-icon {
+    width: 24px !important; /* Nieco większa ikona dla czytelności */
+    height: 24px !important;
+    display: block !important;
+}
+
+.bb-promo-title-text {
+    font-size: 10px !important; 
+    font-weight: 800 !important;
+    color: #222 !important;
+    text-transform: uppercase !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+}
+
+/* --- ŚRODEK (Teksty i Statusy) --- */
+.bb-promo-content-v2 {
+    flex: 1 1 auto !important; 
+    width: 0 !important;      
+    min-width: 0 !important;  
+    
+    display: flex !important;
+    flex-direction: column !important;
+    /* To kluczowe dla wyśrodkowania, gdy nie ma statusów: */
+    justify-content: center !important;
+    padding: 0 10px !important;
+    overflow: hidden !important;
+}
+
+.bb-row-top, .bb-row-middle {
+    width: 100% !important;
+    white-space: nowrap !important;      
+    overflow: hidden !important;          
+    text-overflow: ellipsis !important; 
+    display: block !important;
+    line-height: 1.3 !important;
+}
+
+.bb-row-top { margin-bottom: 2px !important; }
+.bb-row-middle { margin-bottom: 0px !important; }
+
+/* Statusy - dynamiczna wysokość */
+.bb-row-statuses {
+    width: 100% !important;
+    height: auto !important;     /* Wysokość dopasuje się do zawartości */
+    min-height: 0 !important;    /* Pozwala zwinąć się całkowicie do 0px, gdy puste */
+    
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    
+    margin-top: 0 !important; 
+    transition: height 0.2s ease !important;
+}
+
+.bb-promo-link-v2 {
+    font-weight: 700 !important;
+    color: #ea7404 !important;
+    text-decoration: none !important;
+    font-size: 13px !important;
+}
+.bb-promo-link-v2:hover { text-decoration: underline !important; }
+
+.bb-date-info, .bb-stock-info-v2 {
+    font-size: 11px !important;
+    color: #555 !important;
+}
+.bb-sep { margin: 0 4px !important; color: #ccc !important; }
+
+/* Wygląd badge'y statusów */
+.bb-status-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    border-radius: 3px !important;
+    font-weight: 600 !important;
+    margin-right: 5px !important;
+    /* Margines górny pojawia się tylko gdy element jest widoczny */
+    margin-top: 4px !important; 
+    align-items: center !important;
+    line-height: 14px !important;
+    white-space: nowrap !important;
+    display: inline-flex; 
+}
+
+.bb-status-green { background-color: #e8f5e9 !important; color: #2e7d32 !important; border: 1px solid #c8e6c9 !important; }
+.bb-status-limit { background-color: #fff3e0 !important; color: #e65100 !important; border: 1px solid #ffe0b2 !important; }
+
+
+/* --- PRAWA STRONA (Cena, Ilość, Koszyk) --- */
+.bb-promo-action-v2 {
+    flex: 0 0 auto !important; 
+    width: auto !important;
+    
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    /* Duży odstęp oddzielający cenę od przycisków */
+    gap: 20px !important; 
+    
+    padding-left: 0 !important;
+    border-left: none !important;
+    background: #fff !important; 
+    z-index: 99 !important; 
+}
+
+.bb-promo-price-v2 {
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    color: #ea7404 !important;
+    white-space: nowrap !important;
+    margin-right: 0 !important;
+}
+
+.bb-qty-form-wrapper {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important; /* Odstęp między selektorem a przyciskiem koszyka */
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+}
+
+/* === SELEKTOR ILOŚCI (Nowy styl kafelkowy) === */
+.bb-qty-selector {
+    display: flex !important;
+    align-items: center !important;
+    border: none !important; /* Brak ramki kontenera */
+    border-radius: 0 !important;
+    width: auto !important; 
+    height: auto !important; 
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important; 
+    gap: 5px !important; /* Odstępy między kafelkami */
+}
+
+/* Przyciski Plus/Minus */
+.bb-qty-btn {
+    background: #fff !important;
+    border: 1px solid #e0e0e0 !important; /* Ramka dla przycisku */
+    border-radius: 4px !important;
+    width: 34px !important; 
+    height: 40px !important; /* Wysokość dopasowana do inputa */
+    color: #555 !important;
+    font-weight: 400 !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    transition: all 0.2s ease !important;
+}
+.bb-qty-btn:hover { 
+    background: #f9f9f9 !important; 
+    border-color: #ccc !important;
+    color: #000 !important; 
+}
+
+/* Input (Pole liczbowe) */
+.bb-qty-input {
+    width: 40px !important; 
+    height: 40px !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 4px !important;
+    text-align: center !important;
+    font-weight: 600 !important;
+    color: #333 !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    background: #fff !important;
+    margin: 0 !important;
+    appearance: none !important;
+    -moz-appearance: textfield !important;
+}
+.bb-qty-input:focus { outline: none !important; border-color: #ccc !important; }
+.bb-qty-input::-webkit-outer-spin-button,
+.bb-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* === PRZYCISK KOSZYKA === */
+.bb-promo-btn-v2 {
+    background-color: #ea7404 !important; /* Pełny pomarańczowy */
+    border: 1px solid #ea7404 !important;
+    color: #ffffff !important; /* Biała ikona */
+    width: 40px !important;     
+    height: 40px !important;    
+    min-width: 40px !important; 
+    max-width: 40px !important;
+    flex: 0 0 40px !important;
+    padding: 0 !important;
+    border-radius: 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    margin: 0 0 0 5px !important;
+    box-shadow: 0 2px 4px rgba(234, 116, 4, 0.3) !important;
+    flex-shrink: 0 !important; 
+}
+
+.bb-promo-btn-v2 i {
+    font-size: 20px !important;
+    margin: 0 !important;
+    display: block !important;
+}
+
+.bb-promo-btn-v2:hover {
+    border-color: #d66903 !important;
+    background-color: #d66903 !important;
+}
+
+.bb-promo-btn-v2.hidden-btn {
+    opacity: 0.5 !important;
+    pointer-events: none !important;
+    background-color: #ccc !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+}
+
+/* --- MOBILE (Poprawiony układ pionowy) --- */
+@media (max-width: 576px) {
+    .bb-promo-container-v2 {
+        flex-direction: column !important; /* Układ pionowy */
+        padding: 15px !important;
+        height: auto !important;
+        gap: 12px !important;
+        align-items: center !important; /* Wszystko wyśrodkowane w osi */
+    }
+
+    /* 1. PRZYWRACAMY NAGŁÓWEK */
+    .bb-promo-header { 
+        display: flex !important; /* Było none, jest flex */
+        width: 100% !important;
+        justify-content: center !important; /* Ikona i napis na środku */
+        border-bottom: 1px dashed #eee !important; /* Delikatna linia oddzielająca */
+        padding-bottom: 8px !important;
+        margin-bottom: 2px !important;
+    } 
+    
+    .bb-promo-title-text {
+        font-size: 12px !important; /* Troszkę większy font na mobile */
+    }
+
+    /* 2. TREŚĆ (Tekst i Data) */
+    .bb-promo-content-v2 {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        text-align: center !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+    }
+    
+    .bb-row-top { margin-bottom: 5px !important; }
+    
+    /* Wyśrodkowanie statusów (w koszyku/limit) */
+    .bb-row-statuses { 
+        justify-content: center !important; 
+        margin-top: 5px !important;
+    }
+    
+    /* 3. AKCJE (Cena i Przyciski) */
+    .bb-promo-action-v2 {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        flex-direction: column !important; /* Cena nad przyciskami */
+        justify-content: center !important;
+        align-items: center !important;
+        gap: 10px !important; /* Odstęp między ceną a przyciskami */
+        padding: 0 !important;
+        border: none !important;
+    }
+
+    .bb-promo-price-v2 {
+        font-size: 22px !important; /* Duża, wyraźna cena */
+        margin: 0 !important;
+    }
+
+    .bb-qty-form-wrapper {
+        width: 100% !important;
+        justify-content: center !important; /* Przyciski na środku */
+    }
+}

@@ -1,0 +1,148 @@
+/**
+* ThemeVolty - Left Side Offer Banner (Clean Minimal Style)
+*/
+
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css");
+
+/* 1. KONTENER GŁÓWNY */
+.tvcmsleftsideofferbanners-one {
+    padding: 0;
+    margin-bottom: 30px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 2. KARTA (Cała jest linkiem) */
+.tv-sale-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    
+    background: #ffffff;
+    border: 1px solid #e5e5e5; /* Delikatna szara ramka */
+    border-radius: 4px;        /* Minimalne zaokrąglenie */
+    
+    padding: 40px 20px;
+    text-decoration: none !important;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    min-height: 320px;
+    color: #333;
+}
+
+/* Efekt hover - cała karta lekko się unosi */
+.tv-sale-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    border-color: #333; /* Ramka ciemnieje przy najechaniu */
+}
+
+/* 3. IKONA (Subtelna, bez tła) */
+.tv-sale-icon {
+    margin-bottom: 20px;
+    transition: transform 0.3s ease;
+}
+
+.tv-sale-icon i {
+    font-size: 32px;
+    color: #d90244; /* Twój firmowy róż/czerwień */
+}
+
+.tv-sale-card:hover .tv-sale-icon {
+    transform: scale(1.2);
+}
+
+/* 4. TREŚĆ */
+.tv-sale-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #000;
+    margin: 0 0 5px 0;
+    text-transform: uppercase;
+    letter-spacing: 2px; /* Szerokie litery = elegancja */
+}
+
+.tv-sale-value-box {
+    margin: 15px 0;
+    line-height: 1;
+}
+
+.tv-sale-small {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.tv-sale-big {
+    display: block;
+    font-size: 56px;
+    font-weight: 900; /* Bardzo gruby font */
+    color: #d90244;   /* Akcent kolorystyczny */
+    margin: 5px 0;
+    letter-spacing: -2px;
+}
+
+.tv-sale-desc {
+    font-size: 14px;
+    color: #555;
+    margin-bottom: 30px;
+    line-height: 1.4;
+    max-width: 180px;
+}
+
+/* 5. "PRZYCISK" TEKSTOWY (Bez tła) */
+.tv-sale-btn {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #000;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #e5e5e5; /* Linia pod tekstem */
+    padding-bottom: 5px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tv-sale-btn i {
+    font-size: 12px;
+    margin-left: 8px;
+    opacity: 0; /* Ukrywamy strzałkę domyślnie */
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+}
+
+/* Efekt hover na linku */
+.tv-sale-card:hover .tv-sale-btn {
+    border-bottom-color: #d90244; /* Linia zmienia kolor */
+    color: #d90244;
+}
+
+.tv-sale-card:hover .tv-sale-btn i {
+    opacity: 1; /* Strzałka się pojawia */
+    transform: translateX(0);
+}
+
+/* --- MEDIA --- */
+@media (max-width: 991px) {
+    .tv-sale-card {
+        flex-direction: row;
+        justify-content: space-between;
+        padding: 20px;
+        min-height: auto;
+        text-align: left;
+        align-items: center;
+    }
+    .tv-sale-icon { margin: 0 15px 0 0; }
+    .tv-sale-value-box { margin: 0; }
+    .tv-sale-big { font-size: 28px; display: inline; margin: 0 5px;}
+    .tv-sale-desc { display: none; }
+    .tv-sale-btn { border: none; font-size: 0; } /* Na mobile tylko ikona */
+    .tv-sale-btn i { opacity: 1; transform: none; font-size: 20px; }
+}

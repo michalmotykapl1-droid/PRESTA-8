@@ -1,0 +1,220 @@
+/* ==========================================================================
+   KAFLE NAWIGACYJNE - MARKETING EDITION (#800080) + MOBILE FIX
+   ========================================================================== */
+
+/* 1. Ukrycie starego kontenera modułu */
+.tvmultibanner { display: none !important; }
+
+/* 2. Zmienne kolorystyczne */
+:root {
+    --bb-purple-main: #800080; 
+}
+
+/* 3. Kontener główny */
+.bb-light-banners-container {
+    margin-top: 40px;
+    margin-bottom: 50px;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+/* 4. Grid (Układ) */
+.bb-light-row {
+    display: flex;
+    gap: 30px;
+    justify-content: space-between;
+    align-items: stretch;
+}
+
+/* 5. Wygląd Karty */
+.bb-light-card {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    padding: 35px 20px;
+    text-align: center;
+    text-decoration: none !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    border: 1px solid #eaeaea;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Hover - cień w kolorze #800080 */
+.bb-light-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(128, 0, 128, 0.15); 
+    border-color: var(--bb-purple-main);
+}
+
+/* 6. Kółko z ikoną */
+.bb-card-icon-circle {
+    width: 70px;
+    height: 70px;
+    background-color: #f8f9fa;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.bb-card-icon-circle i {
+    font-size: 30px;
+    color: #555;
+    transition: all 0.3s ease;
+}
+
+/* Hover: Kółko #800080 */
+.bb-light-card:hover .bb-card-icon-circle {
+    background-color: var(--bb-purple-main);
+    transform: scale(1.1);
+}
+.bb-light-card:hover .bb-card-icon-circle i {
+    color: #fff;
+}
+
+/* 7. Typografia */
+.bb-card-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #222;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+}
+
+/* Styl dla wagi (5 KG / 20 KG) w tytule */
+.bb-weight-tag {
+    color: var(--bb-purple-main);
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.bb-card-subtitle {
+    font-size: 13px;
+    color: #777;
+    margin-bottom: 25px;
+    line-height: 1.5;
+    flex-grow: 1;
+}
+
+/* 8. Przycisk z animacją */
+.bb-card-btn {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #222;
+    position: relative;
+    padding-bottom: 5px;
+    transition: color 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bb-card-btn::after {
+    content: '';
+    position: absolute;
+    width: 0%;
+    height: 2px;
+    bottom: 0;
+    left: 0;
+    background-color: var(--bb-purple-main);
+    transition: width 0.3s ease;
+}
+
+.bb-slide-arrow {
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+    color: var(--bb-purple-main);
+}
+
+/* Efekty hover przycisku */
+.bb-light-card:hover .bb-card-btn {
+    color: var(--bb-purple-main);
+}
+
+.bb-light-card:hover .bb-card-btn::after {
+    width: 100%;
+}
+
+.bb-light-card:hover .bb-slide-arrow {
+    opacity: 1;
+    transform: translateX(0px);
+}
+
+/* ==========================================================================
+   ZABEZPIECZENIE MOBILE (Responsive)
+   To gwarantuje układ pionowy na telefonach i tabletach
+   ========================================================================== */
+@media (max-width: 991px) {
+    .bb-light-row {
+        flex-direction: column !important; /* WYMUSZENIE PIONU */
+        gap: 20px;
+    }
+
+    .bb-light-card {
+        width: 100% !important; /* Pełna szerokość */
+        margin-bottom: 10px; /* Dodatkowy odstęp bezpieczeństwa */
+    }
+
+    /* Zmniejszenie marginesów całego kontenera na telefonie */
+    .bb-light-banners-container {
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+}
+/* ==========================================================================
+   MOBILE FIX - WYMUSZENIE WIDOCZNOŚCI
+   ========================================================================== */
+@media (max-width: 991px) {
+    /* Wymuszenie układu pionowego */
+    .bb-light-row {
+        display: flex !important;
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100px;
+    }
+
+    /* Wymuszenie widoczności karty */
+    .bb-light-card {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        height: auto !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        background: #ffffff !important; /* Białe tło */
+        margin-bottom: 20px !important;
+        border: 1px solid #eaeaea !important;
+    }
+
+    /* Wymuszenie koloru tekstu (żeby nie był biały na białym) */
+    .bb-card-title, 
+    .bb-card-subtitle, 
+    .bb-card-btn {
+        color: #222222 !important;
+        display: block !important;
+        opacity: 1 !important;
+    }
+    
+    /* Poprawka dla wagi 5kg/20kg na mobile */
+    .bb-weight-tag {
+        color: #800080 !important; /* Fiolet */
+        display: inline-block !important;
+    }
+    
+    /* Upewnienie się, że kontener główny ma wysokość */
+    .bb-light-banners-container {
+        height: auto !important;
+        overflow: visible !important;
+    }
+}

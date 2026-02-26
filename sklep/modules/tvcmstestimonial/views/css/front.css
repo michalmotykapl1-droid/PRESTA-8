@@ -1,0 +1,233 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*
+* Don't forget to prefix your containers with your own identifier
+* to avoid any conflicts with others containers.
+*/
+
+/************************testimonial****************/
+.tvtestimonial {
+    position: relative;
+}
+.tvcmstestimonial {
+    margin-bottom: 100px;
+    position: relative;
+}
+.tvtestimonial-inner-content-box .tvtestimonial-img-block img {
+    margin: auto;
+    width: auto;
+    max-width: fit-content;
+}
+.tvcmstestimonial .tvcms-main-title .tvmain-title,
+.tvcmstestimonial .tvcms-main-title .tvmain-sub-title,
+.tvcmstestimonial .tvcms-main-title .tvmain-desc,
+.tvcmstestimonial .tvtestimonial-designation,
+.tvcmstestimonial .tvtestimonial-dec {
+    color: #222222;
+}
+.tvtestimonial-img-block {
+    margin-bottom: 15px;
+}
+.tvtestimonial-title-des {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-pack: center !important;
+    -ms-flex-pack: center !important;
+    justify-content: center !important;
+    margin-bottom: 10px;
+}
+.tvtestimonial-title {
+    margin-right: 10px;
+}
+@media (max-width: 991px) {
+    .tvcmstestimonial {
+        margin-bottom: 50px;
+    }
+}
+/****************** left testimonial *************/
+.tvcms-left-testimonial {
+    background-color: #ffffff;
+    margin-bottom: 30px;
+}
+@media (max-width: 991px) {
+    .tvcms-left-testimonial {
+        margin-bottom: 10px;
+    }
+}
+
+.tvcmstestimonial {
+    margin-bottom: 30px;
+    padding: 0;
+}
+.tvcmstestimonial .tvcms-main-title .tvmain-title,
+.tvcmstestimonial .tvcms-main-title .tvmain-sub-title,
+.tvcmstestimonial .tvcms-main-title .tvmain-desc,
+.tvcmstestimonial .tvtestimonial-dec {
+    color: #888888;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+}
+.tvtestimonial-img-block {
+    margin-bottom: 10px;
+}
+.tvcmstestimonial .tvtestimonial-dec,
+.tvcms-left-testimonial .tvtestimonial-dec {
+    position: relative;
+    color: #666666;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 400;
+    width: 45%;
+    margin: auto;
+    text-align: center;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    margin-bottom: 15px;
+}
+.tvcmstestimonial .tvtestimonial-dec {
+    margin-bottom: 0;
+}
+.tvtestimonial-title-des i {
+    transform: rotate(180deg);
+    -webkit-transform: rotate(180deg);
+    -moz-transform: rotate(180deg);
+    -ms-transform: rotate(180deg);
+    color: #222222;
+    font-size: 25px;
+}
+.tvtestimonial-title-des {
+    display: block;
+    margin-bottom: 15px;
+}
+.tvtestimonial-title {
+    margin: 0;
+    padding-bottom: 6px;
+}
+.tvtestimonial-inner-content-box .tvtestimonial-img-block img {
+    border-radius: 100%;
+}
+.tvcmstestimonial .tvtestimonial-designation,
+.tvcms-left-testimonial .tvtestimonial-designation {
+    color: #333333;
+    font-weight: 500;
+    font-style: italic;
+    text-transform: capitalize;
+    letter-spacing: 0.3px;
+    font-size: 14px;
+}
+.tvcmstestimonial .tvcmstestimonial-main-title-wrapper {
+    /*display: none;*/
+}
+.tvtestimonial-title a {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #000000;
+}
+.owl-item.active .tvtestimonial-title a {
+    color: #d90244;
+}
+.tvtestimonial-title a:hover {
+    color: #222222;
+}
+.tvtestimonial-inner-content-box {
+    /*margin-bottom: 15px;*/
+}
+.tvtestimonial {
+    overflow: hidden;
+    padding: 0;
+}
+#left-column .tvcms-all-testimonial .tvtestimonial {
+    width: auto;
+    margin: 0;
+}
+.tvcmstestimonial .tvtestimonial-inner-content-box .tvtestimonial-info-box {
+    padding: 45px 15px 45px 15px;
+}
+.tvcms-left-testimonial .tvtestimonial-inner-content-box {
+    margin: 0 15px;
+}
+.tvcmstestimonial .tvtestimonial-slider-inner .tvtestimonial-content-box {
+    border: 1px solid #e5e5e5;
+    /*margin-top: 50px;*/
+    background-color: #ffffff;
+}
+.tvcmstestimonial .tvtestimonial-img-block {
+    /*margin-top: -50px;*/
+}
+.tvtestimonial-slider-inner {
+    padding: 0;
+    /*margin: 0 15px;*/
+    overflow: hidden;
+}
+.tvcms-left-testimonial .tvtestimonial-slider-inner {
+    margin: 0 auto;
+}
+.tvcms-left-testimonial .tvtestimonial-dec {
+    width: 100%;
+}
+.tvtestimonial-content-box {
+    text-align: center;
+}
+.tvcmstestimonial.tvcms-all-testimonial .owl-carousel .owl-stage-outer,
+.tvcms-left-testimonial .owl-carousel .owl-stage-outer {
+    /*overflow: visible;*/
+}
+@media (max-width: 991px) {
+    .tvcmstestimonial {
+        margin-bottom: 30px;
+    }
+    .tvcmstestimonial .tvtestimonial-dec,
+    .tvcms-left-testimonial .tvtestimonial-dec {
+        width: 100%;
+    }
+}
+@media(max-width: 767px) {
+    .tvtestimonial-title-des {
+        margin-bottom: 15px;
+    }
+    .tvtestimonial {
+        padding: 0;
+    }
+    .tvcmstestimonial .tvtestimonial-dec,
+    .tvcms-left-testimonial .tvtestimonial-dec {
+        font-size: 14px;
+    }
+    .tvcmstestimonial .tvtestimonial-designation,
+    .tvcmstestimonial .tvtestimonial-inner-content-box .tvtestimonial-info-box {
+        padding-bottom: 15px;
+    }
+    .tvtestimonial-inner-content-box {
+        margin: 0;
+    }
+}
+/***** left testimonial *****/
+.tvtestimonial-slider-button-wrapper {
+    padding: 20px 0;
+}

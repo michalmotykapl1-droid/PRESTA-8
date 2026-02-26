@@ -1,0 +1,7 @@
+.dmto-stats .stat-box{border:1px solid #e5e5e5;border-radius:6px;padding:10px 12px;margin-bottom:12px;background:#fff}
+.dmto-stats .stat-box .stat-value{font-size:20px;font-weight:700;line-height:1.1}
+.dmto-stats .stat-box .stat-label{font-size:12px;color:#666}
+.dmto-stats .stat-box.stat-warn{background:#fff8e6;border-color:#f7dca7}
+.dmto-stats .stat-box.stat-root{background:#f6fbff;border-color:#cfe8ff}
+.dmto-scroll{max-height:360px;overflow:auto}
+.m-b-10{margin-bottom:10px}

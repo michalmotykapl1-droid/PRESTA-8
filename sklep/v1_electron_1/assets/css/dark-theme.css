@@ -1,0 +1,1033 @@
+/********************************************End Home Page Dark Mode***************************************************/
+body,
+#header,
+.tvsearch-header-display-wrappper form,
+.tvcmsheader-search.search-widget form input[type=text],
+.tvcmsheader-search .tvcms-select-category,
+.tvcmsvertical-menu-wrapper,
+.tvcmsvertical-menu-wrapper .tvleft-right-penal-all-block,
+.tvfooter-social-icon-left li a,
+#search_filters_brands,
+#search_filters_suppliers,
+.tvleft-right-penal-all-block,
+.block-categories,
+.tvcms-left-testimonial,
+#left-column .tvcmscustomer-services,
+#right-column .tvcmscustomer-services,
+.tvcmsblog-left-side,
+.tvproduct-wrapper,
+.tvcategory-slider-inner-info-box,
+.tvproduct-wrapper .tvtimer-wrapper,
+.tvcmsprev-btn,
+.tvcmsnext-btn,
+.tvtab-title-wrapper .tvtabs-products li:hover,
+.tvtab-title-wrapper .tvtabs-products li.active,
+.tvcategory-chain-slider-wrapper,
+.tvapp-logo-content-box,
+.tvbrand-img-block,
+.tvcmscustomer-services,
+.footer-container,
+.tvheader-top-search-wrapper,
+.product-quantity #quantity_wanted,
+.tv-category-main-div,
+.products-sort-order .select-title,
+.tvcenter-block-product-section,
+.tvcms-left-column-wrapper .tv-left-pannal-btn-wrapper,
+.tvcms-right-column-wrapper .tv-right-pannal-btn-wrapper,
+.tvcmsproduct-grid-list .tvproduct-grid,
+.tvcmsproduct-grid-list .tvproduct-grid-2,
+.tvcmsproduct-grid-list .tvproduct-list,
+.tvcmsproduct-grid-list .tvproduct-list-2,
+.tvcmsproduct-grid-list .tvproduct-catelog,
+.tv_search_filter_wrapper .tvleft-right-title-wrapper,
+#product .tvproduct-page-wrapper .tvprduct-image-info-wrapper,
+#block-reassurance li .block-reassurance-item,
+.tvproduct-description-tab .nav-tabs .nav-item .nav-link,
+.tvproduct-description-tab #tab-content,
+.product-features>dl.data-sheet dd.value,
+.product-features>dl.data-sheet dt.name,
+.tvcustom-review-box input,
+.tvcustom-review-box #review_content,
+.tabs .js-mailalert .form-control,
+.tvfooter-product-sticky-bottom,
+.tv-footer-social-icon .tvblock-social-content,
+.tvsticky-up-arrow,
+.tvsticky-wishlist,
+.tvsticky-compare,
+.tvright-sticky-account,
+.tvright-sticky-add-to-cart,
+.tvcmstheme-control .tvtheme-control-wrapper,
+.tvcmstheme-layout .tvtheme-layout-wrapper,
+.theme-switcher .slider,
+.theme-switcher .slider,
+.ttvcmscart-show-dropdown-right,
+.ttvcmscart-show-dropdown-right .ttvcart-product-label-value,
+.card,
+.bootstrap-touchspin input.form-control,
+.bootstrap-touchspin input.input-group,
+body#checkout div.checkout-step,
+.form-control,
+.custom-checkbox span,
+.custom-radio,
+body#checkout #delivery textarea,
+body#checkout #gift_message textarea,
+.page-order-confirmation .card-block,
+#content-hook_payment_return .card-block,
+#contact .contact-rich,
+.contact-form,
+.form-control:disabled,
+.form-control[readonly],
+.page-content.page-cms,
+.page-customer-account #content,
+.page-content,
+.page-addresses .address,
+.page-authentication #content,
+.tvserach-filter-wrapper,
+#newsletter_block_popup .block_content .inputNew,
+#tv-back-top-wrapper,
+.header-4 .tvcms-header-menu-offer-wrapper,
+.quickview .modal-content,
+#blockcart-modal .modal-body,
+.modal-content,
+.tvwishlist-popup,
+#pagenotfound .page-not-found,
+#products .page-not-found,
+.page-my-account #content .links a span.link-item,
+.comment_form .form-control,
+#main .tvpage-header-title-wrapper,
+.tvall-page-top-title,
+#module-tvcmsblog-archive .blog_post_content,
+.tvpagination-title-item-wrapper .tvinner-page-pagination-wrapper,
+.active_filters,
+.active_filters .filter-block,
+.tvcmstheme-control .tvtheme-control-icon,
+.tvcmstheme-layout .tvtheme-layout-icon,
+body#checkout div.checkout-step .address-item.selected {
+    background-color: #000
+}
+
+.tv-main-div,
+.tv-language-dropdown,
+.tv-currency-dropdown,
+.tvcms-header-myaccount .tv-account-dropdown,
+.tv-menu-horizontal .menu-dropdown,
+.tvcmsvertical-menu li.level-1:hover,
+.tvvertical-menu-show-hide-category .tvvertical-show-category:hover,
+.tvvertical-menu-show-hide-category .tvvertical-hide-category:hover,
+.tvcmsvertical-menu .menu-dropdown,
+.tvmain-slider-content-wrapper,
+.tvcategory-chain-title:after,
+.tvnewsleeter-input-button-wraper .input-wrapper input,
+.bootstrap-touchspin .btn-touchspin:hover,
+.products-sort-order .dropdown-menu,
+.bootstrap-touchspin .btn-touchspin,
+.tvproduct-cart-quentity-increment,
+.tvproduct-cart-quentity-decrement,
+.product-features>dl.data-sheet dd.value:nth-of-type(2n),
+.product-features>dl.data-sheet dt.name:nth-of-type(2n),
+.fancybox-overlay .fancybox-skin,
+.tvtheme-control-wrapper .tvall-theme-content:after,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select,
+.theme-switcher,
+.tvtheme-control-wrapper .tvtheme-bgcolor-box input,
+.tvtheme-control-wrapper .tvtheme-color-box input,
+.tvtheme-box-layout-option[type="radio"]:checked+label:before,
+.tvtheme-wide-layout-option[type="radio"]:checked+label:before,
+.tvtheme-bg-default-option[type="radio"]:checked+label:before,
+.tvtheme-bg-custom-option[type="radio"]:checked+label:before,
+body#checkout div.checkout-step .delivery-option,
+.definition-list dl dd,
+.definition-list dl dt,
+.definition-list dl dd:nth-of-type(2n),
+.definition-list dl dt:nth-of-type(2n),
+.thead-default th,
+#module-tvcmswishlist-mywishlist .wishlisturl,
+.tvcmsnewsletterpopup,
+.tv-indicator.tv-bar .tv-outer,
+.cms-description tr:nth-child(even),
+.tvtheme-control-wrapper .tvtheme-background-layout input,
+.tvselect-layout.tvall-theme-content .tvtheme-layout-btn,
+.tvselect-layout.tvall-theme-content .card-header,
+.form-control:focus,
+.form-control,
+.product-actions .input-container label span,
+.btn.disabled,
+.btn.disabled:hover,
+.popover,
+.pagination .tvinner-page-pagination li,
+.ttvcmscart-show-dropdown-right .ttvcart-product-wrapper:after,
+.ttvcmscart-show-dropdown-right .ttvcart-product-label-value:after {
+    background-color: #1c1c1e;
+}
+
+.tvcms-blog-inner-page {
+    background-color: #111111;
+}
+
+.tvheader-nav-offer-text i,
+.tvheader-nav-offer-text p,
+#tvcmsdesktop-language-selector .tv-language-btn .tv-language-span,
+#tvcmsdesktop-currency-selector .tv-currency-btn .tv-currency-span,
+#tvcmsdesktop-language-selector .tv-language-btn i,
+#tvcmsdesktop-currency-selector .tv-currency-btn i,
+.tv-language-dropdown li a,
+.tv-currency-dropdown li a,
+.tvcmsheader-search .tvcms-select-category,
+.tvcmsheader-search.search-widget form input[type=text],
+#tvcmsdesktop-user-info .tvhedaer-sign-btn,
+.tvcmsdesktop-view-wishlist .tvwishlist-name span,
+.tvcmsdesktop-view-compare .tvdesktop-view-compare-name,
+.tv-account-wrapper .tv-myaccount-btn span,
+.tv-vertical-menu-text-wrapper .tvvertical-menu-category,
+.tvvertical-menu-show-hide-category span,
+.tvcmsvertical-menu li.level-1:hover>.tv-vertical-menu-text-wrapper .tvvertical-menu-category,
+.tvvertical-menu-show-hide-category:hover span,
+.tvcmsvertical-menu ul li.level-1 ul li h2 a,
+.tvcmsvertical-menu ul li.level-1 ul li>a:hover,
+.tv-menu-horizontal .cat-drop-menu li a span,
+#header .tv-menu-horizontal ul li.level-1 ul li.item-header a,
+.tvmain-slider-contant .tvmain-slider-title,
+.tvleft-right-title.facet-label,
+.block-categories .category-top-menu>li.tv-category-title-wrapper a,
+#left-column .tvservices-content-box .tvservices-title,
+#right-column .tvservices-content-box .tvservices-title,
+.tvcmstestimonial .tvtestimonial-designation,
+.tvcms-left-testimonial .tvtestimonial-designation,
+.tvnews-event-content-wrapper .tvnews-event-titel a h3,
+.kr_blog_post_area .tvblog_post .post_content .post_title a,
+.kr_blog_post_area .tvblog_post .post_content .post_description p,
+#search_filters_brands .facet .tvsearch-filter-brand-wrapper li.facet-label a,
+#search_filters .facet .facet-label a,
+#search_filters_brands .facet .facet-label a,
+#search_filters_suppliers .facet .facet-label a,
+.tvcms-main-title .tvmain-title h2,
+.tvcategory-slider-info-box,
+.tvtab-title-wrapper .tvtabs-products li span,
+.tvproduct-name .product-title a h6,
+.tvproduct-wrapper .tvproduct-timer-wrapper .hours,
+.tvproduct-wrapper .tvproduct-timer-wrapper .minutes,
+.tvproduct-wrapper .tvproduct-timer-wrapper .days,
+.tvproduct-wrapper .tvtimer-dot,
+.tvcategory-chain-title a,
+.tvapp-logo-content-inner .tvdekstop-footer-all-title-wrapper .tvfooter-title span,
+.tvdekstop-footer-all-desc-wrapper span,
+.tvservices-content-box .tvservices-title,
+.tvfooter-title-wrapper .tvfooter-title,
+.tvdekstop-footer-all-title-wrapper .tvfooter-title,
+.block_newsletter .tvnewsletter-title,
+.tvwishlist-icon i,
+.tvdesktop-compare-icon i,
+#tvcmsdesktop-user-info .tvhedaer-sign-btn i,
+.tvmyccount i,
+#tvcmsdesktop-user-info .tvhedaer-sign-btn i,
+.tvquickview-main-title,
+.tvproduct-wishlist-compare .tvproduct-wishlist span,
+.tvproduct-wishlist-compare .tvcompare-wrapper span,
+.tvproduct-name.product-title a h6,
+a.tvcategory-chain-slider-category,
+.tvcategory-chain-slider-category:after,
+.tvcms-left-column-wrapper .tv-left-pannal-btn-wrapper i,
+.tvcms-right-column-wrapper .tv-right-pannal-btn-wrapper i,
+.tv_search_filter_wrapper .tvleft-right-title-wrapper i,
+.tvcmsproduct-grid-list .tvproduct-grid i,
+.tvcmsproduct-grid-list .tvproduct-grid-2 i,
+.tvcmsproduct-grid-list .tvproduct-list i,
+.tvcmsproduct-grid-list .tvproduct-list-2 i,
+.tvcmsproduct-grid-list .tvproduct-catelog i,
+.tvcms-left-column-wrapper .tv-left-pannal-btn-wrapper,
+.tvcms-right-column-wrapper .tv-right-pannal-btn-wrapper,
+.tvcmsproduct-grid-list .tvproduct-grid,
+.tvcmsproduct-grid-list .tvproduct-grid-2,
+.tvcmsproduct-grid-list .tvproduct-list,
+.tvcmsproduct-grid-list .tvproduct-list-2,
+.tvcmsproduct-grid-list .tvproduct-catelog,
+.tv_search_filter_wrapper .tvleft-right-title-wrapper,
+.products-sort-order .select-title,
+#products .tv_search_filter_wrapper .tvleft-right-title-wrapper:hover i,
+#products .tv_search_filter_wrapper .tvleft-right-title-wrapper:hover,
+.tvproduct-cart-quentity-decrement i,
+.tvproduct-cart-quentity-increment i,
+.tv-product-catalog-btn .tvproduct-cart-quentity,
+.tv-product-page-content h1,
+.cms-description p,
+#id_new_comment_form .title,
+.tvcustom-review-box #review_content,
+.form-control,
+.tvfooter-product-sticky-bottom .tvtitle-price h1,
+.tvproduct-wishlist-compare .tvcompare-wrapper i,
+.tvproduct-wishlist-compare .tvproduct-wishlist i,
+.tvtheme-control-wrapper .tvselect-theme-name,
+.tvtheme-control-wrapper .tvcolor-theme-name,
+.tvtheme-control-wrapper .tvtheme-layout-name,
+.tvtheme-control-wrapper .tvtheme-animation-name,
+.tvtheme-control-wrapper .tvtheme-page-loader-name,
+.tvtheme-control-wrapper .tvtheme-left-sticky-name,
+.tvtheme-control-wrapper .tvtheme-right-sticky-name,
+.tvtheme-control-wrapper .tvtheme-menu-sticky-name,
+.tvtheme-control-wrapper .tvbgcolor-theme-name,
+.tvtheme-control-wrapper .tvtheme-background-pattern-name,
+.tvcolor-two-theme-name,
+.tvtheme-body-background-pattern-name,
+.tvtheme-box-layout-option[type="radio"]:checked+label,
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-wide-layout-option[type="radio"]:checked+label,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-default-option[type="radio"]:checked+label,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-custom-option[type="radio"]:checked+label,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select,
+.theme-switcher label span,
+.tvtheme-control-wrapper .tvtheme-bgcolor-box input,
+.tvtheme-control-wrapper .tvtheme-color-box input,
+.ttvcmscart-show-dropdown-right .ttvcart-top-title h4,
+.ttvcmscart-show-dropdown-right .ttvcart-counter .ttvcart-products-count,
+.ttvcmscart-show-dropdown-right .ttvcart-product-label-value .ttvcart-product-value,
+.cart-grid-body .card-block h1,
+.bootstrap-touchspin input.form-control,
+.bootstrap-touchspin input.input-group,
+.cart-summary-line .value,
+body#checkout div.checkout-step .step-title,
+.custom-checkbox span i,
+body#checkout div.checkout-step .carrier-delay,
+body#checkout div.checkout-step .carrier-name,
+body#checkout #delivery textarea,
+body#checkout #gift_message textarea,
+body#checkout .condition-label label a,
+.page-order-confirmation .card-block .h1,
+.page-order-confirmation .card-block p,
+.tvorder-conformation-wrapper .card-block .card-title,
+.contact-rich h4,
+.contact-rich .block .data a,
+.contact-form h3,
+#cms .tv-sub-pages-inner-content h3,
+#cms .tv-sub-pages-inner-content h5,
+.page-customer-account #content .order-actions a,
+#main .page-content h6,
+.alert-warning,
+.page-addresses .address .address-body h4,
+.is_wish_list_default i,
+ul.wlp_bought_list li .product_infos .product-name,
+.tv-account-dropdown a.tvmyccount,
+#tv-back-top-wrapper .tv-back-top-link,
+.cms-description h1,
+.cms-description h2,
+.cms-description h3,
+.cms-description h4,
+.cms-description h5,
+.cms-description h6,
+.cms-description ol li,
+.cms-description ul li,
+.cms-description th,
+.cms-description td,
+#header .header-4 .tv-menu-horizontal ul li.level-1>a,
+#header .header-6 .tv-menu-horizontal ul li.level-1>a,
+.tvtheme-control-wrapper .tvtheme-background-layout input,
+.tvwishlist-popup p,
+.tvselect-layout.tvall-theme-content .tvtheme-layout-btn,
+.tvlayout-title,
+#pagenotfound .page-not-found h4,
+#products .page-not-found h4,
+.tabs .nav-tabs .nav-link,
+.product-features>dl.data-sheet dd.value,
+.product-features>dl.data-sheet dt.name,
+#criterions_list label,
+.form-control:focus,
+.page-my-account #content .links a span.link-item,
+#form_wishlist .page-subheading,
+.tvproduct-page-wrapper .tvproduct-timer-wrapper.tvproduct-timer-box div:first-child,
+.product-variants>.product-variants-item label input[checked="checked"]:checked+span,
+.tvproduct-page-wrapper .tvall-product-star-icon .tvall-product-review:hover,
+.tvvertical-slider .arrows .tvvertical-slider-next:hover,
+#newsletter_block_popup .block_content .newsletter_title h3,
+.tvvertical-slider .arrows .tvvertical-slider-pre:hover,
+.form-title h1,
+.contact-rich .block.tvaddress .data p,
+.tvwilshlist-view-title.bottom-indent,
+.tv_blog_post_area .post_content .post_title,
+#module-tvcmsblog-single .comment_meta_author b,
+#module-tvcmsblog-single .comment_meta_date time,
+.tvall-page-top-title h1,
+#main .tvpage-header-title-wrapper h1,
+.tvtheme-control-wrapper .tvbody-bgcolor-theme-name,
+.tvselect-title-font-1 .tvtheme-title-color .tvtheme-layout-name,
+.tvtooltip .popover-title,
+.pagination .current a,
+.tvinner-page-pagination li:hover i,
+body#checkout div.checkout-step.-current.-reachable.-complete .content a,
+.block-categories .category-sub-menu li[data-depth="0"]>a,
+.block-categories .collapse-icons .add,
+.block-categories .collapse-icons .remove,
+.block-categories .category-sub-menu li .category-sub-link,
+.tv-sub-category-title-wrapper .tv-sub-category-title,
+.tvcategory-name a,
+.tv-all-page-main-title,
+.tvnewsleeter-input-button-wraper .input-wrapper input,
+.tvcmstheme-control .tvtheme-control-icon i,
+.tvcmstheme-layout .tvtheme-layout-icon i,
+.radio-toolbar label.theme-custom,
+.tvproduct-play-icon span,
+.tvselect-theme-select .theme-custom i.tvcolor-picker,
+.tvselect-theme-select .theme-custom i.tvcolor-dropdown,
+.block-category #category-description p,
+.block_newsletter form input[type=email]::placeholder,
+.nav-item .nav-link,
+.nav-item .nav-separtor,
+body#checkout div.checkout-step .address-alias,
+body#checkout div.checkout-step p a,
+body#checkout div.checkout-step .add-address a,
+body#checkout div.checkout-step .forgot-password a,
+.tvprodpopup-close i {
+    color: #fff;
+}
+
+#product #block-reassurance span {
+    color: #ffffff !important;
+}
+
+.tvcmsheader-search.search-widget form input[type=text]::placeholder,
+.tvproduct-tax-label,
+.tvfooter-product-sticky-bottom .tvtitle-price .regular-price,
+.tvcmsvertical-menu li .tvvertical-menu-dropdown-icon,
+.tvcmsvertical-menu li:hover .tvvertical-menu-dropdown-icon,
+.tvcmsvertical-menu ul li.level-1 ul li>a,
+#header .tv-menu-horizontal ul li.level-1 ul li.item-line a,
+.tvmain-slider-contant .tvmain-slider-info p,
+.tvservices-content-box .tvservice-dec,
+.tvcmstestimonial .tvtestimonial-dec,
+.tvcms-left-testimonial .tvtestimonial-dec,
+.tvblog-date-username p,
+.tvnews-event-description,
+#module-tvcmsblog-archive .post_content .post_meta p,
+.product-price-and-shipping .regular-price,
+.tvcategory-chain-slider-category a,
+.tvcategory-chain-slider-category a:after,
+.tvfooter-logo-block .tvfooter-logo-desc,
+.footer-container li a,
+#footer_sub_menu_store_info,
+.tvfooter-store-link a,
+.tvnewsletter-description p,
+.tvcopylink p,
+.quickview .tvall-product-star-icon .tvall-product-review,
+.product-information p,
+#product-description-short p,
+.product-actions .control-label,
+.product-quantity #quantity_wanted,
+.bootstrap-touchspin .btn-touchspin,
+.tv-addtocart-content .cart-content p,
+#blockcart-modal.tv-addtocart-msg-wrapper .tv-addtocart-product-name .product-name,
+#blockcart-modal,
+.products-sort-order .select-list,
+#products.list-2 .tv-product-desc,
+#products.list .tv-product-desc,
+#products.catelog .tv-product-desc,
+.tvproduct-page-decs p,
+#product #block-reassurance span,
+#product-details .label,
+.tvproduct-description-tab .product-features p,
+.comment_author_infos strong,
+#tvcmsproduct_comments_block_tab .comment_details .title_block,
+.tvcustom-review-box label,
+#criterions_list li .cancel a:after,
+.tvsticky-up-arrow i,
+.tvsticky-wishlist i,
+.tvsticky-compare i,
+.tvright-sticky-account i,
+.tvright-sticky-add-to-cart i,
+#wrapper .breadcrumb li a,
+.ttvcmscart-show-dropdown-right .ttvcart-product-label-value .ttvshoping-cart-label,
+.product-line-grid-right .cart-line-product-actions,
+.product-line-grid-right .product-price,
+.product-line-grid-right .cart-line-product-actions .remove-from-cart,
+.product-line-grid-right .product-price .remove-from-cart,
+.cart-summary-line .label,
+.nav-item .nav-link.active,
+.nav-item .nav-separtor.active,
+.form-control-label,
+body#checkout .tvcheckout-expend,
+.definition-list dl dd,
+.definition-list dl dt,
+.definition-list dl dd:nth-of-type(2n),
+.definition-list dl dt:nth-of-type(2n),
+#order-items .details,
+#order-items .qty,
+.page-order-confirmation .card-block p a,
+.contact-rich .block .data span,
+.contact-rich .block .data p,
+.page-addresses .address .address-body address,
+.table-bordered,
+.table-bordered td,
+.table-bordered th,
+.table-bordered td a,
+.table-bordered th a,
+#module-tvcmswishlist-mywishlist .wishlistLinkTop .display_list li a,
+ul.wlp_bought_list li .product_infos .wishlist_product_detail input,
+ul.wlp_bought_list li .product_infos .wishlist_product_detail select,
+.tvcompare_extra_information span,
+#product_comparison .tvcmscomparison .tvcmsproduct-compare-list,
+#newsletter_block_popup .block_content .tvcmsnewsletterpopupContent,
+.tv-total-product-number,
+.products-selection .sort-by,
+#tv-back-top-wrapper p,
+#wrapper .breadcrumb i,
+.tvproduct-flags li,
+.tvselect-layout.tvall-theme-content i.tvlayout-dropdown,
+.page-customer-account #content .forgot-password a,
+.page-my-account #content .links a i,
+.tvproduct-page-wrapper .tvall-product-star-icon .tvall-product-review,
+.tv-indicator .tv-items,
+.product-actions .input-container label span,
+.product-variants>.product-variants-item label:hover span,
+.tvvertical-slider .arrows .tvvertical-slider-pre,
+.tvvertical-slider .arrows .tvvertical-slider-next,
+.tvproduct-page-wrapper .product-prices .tax-shipping-delivery-label,
+.quickview .product-prices .tax-shipping-delivery-label,
+.tvproduct-page-wrapper .tvproduct-timer-wrapper .tvtimer-name,
+.tvfooter-opentime-lable,
+.page-customer-account #content .no-account a,
+.register-form a,
+.tvcmscomparison .product-desc p,
+.tvwishlist-view-page-first-dec .dark,
+.label,
+label,
+.wishlist_product_detail span strong,
+.btn.disabled,
+.btn.disabled:hover,
+#hideWishlist,
+.blog_post_content p.meta_category a,
+.blog_post_content p.meta_author,
+.blog_post_content p.meta_date,
+#module-tvcmsblog-single .tvcmsblog-view-count,
+#module-tvcmsblog-single .tv-author-comment,
+#module-tvcmsblog-single .tv-author-comment p,
+.blog_post_content p.meta_category,
+/*.tv_blog_post_area .blog_post .post_content .post_description p,*/
+#respond .comment_reply_title,
+#comments .comments_title,
+#module-tvcmsblog-single .comment_meta_author i,
+#module-tvcmsblog-single .comment_content_bottom i,
+#module-tvcmsblog-single .comment_meta_date i,
+#module-tvcmsblog-single .comment_meta_date span,
+#module-tvcmsblog-single .comment_content_bottom p,
+.tvnews-event-content-wrapper .tvdate-time,
+.pagination>div:first-child,
+.tvsearch-dropdown-total-wrapper .tvsearch-dropdown-total,
+#tvcmsproduct_comments_block_tab div.comment .comment_details li button,
+.open-comment-form:hover span,
+.tvcustomize-btn:hover span,
+.tvshipping-btn:hover span,
+.active_filters .active-filter-title,
+.active_filters .filter-block,
+.active_filters .filter-block .close,
+.tvcustom-review-box input,
+.product-quantity,
+.product-price,
+.tvbrand-page-block .tvbrand-link {
+    color: #989898
+}
+
+.open-comment-form:hover .tvcustom-icons,
+.tvcustomize-btn:hover .tvcustom-icons {
+    filter: invert(1);
+}
+
+.tvcmsdesktop-top-header-wrapper .tvcmsdesktop-top-header,
+.tv-language-dropdown,
+.tv-currency-dropdown,
+.tvsearch-header-display-wrappper form,
+.tvcms-header-myaccount .tv-account-dropdown,
+.tvcmsvertical-menu-wrapper,
+.tvcategory-title-wrapper,
+.tvcmsvertical-menu .menu-dropdown,
+.tvcmsvertical-menu ul li.level-1 ul li h2 a,
+.tvverticalmenu-dropdown .product-container,
+.product-block .product-container,
+.tvbanner-hover-wrapper img,
+.tvcms-main-slider,
+.tvmain-slider-content-wrapper,
+#search_filters_brands,
+#search_filters_suppliers,
+.tvleft-right-penal-all-block,
+.block-categories,
+.tvcms-left-testimonial,
+#left-column .tvcmscustomer-services,
+#right-column .tvcmscustomer-services,
+.tvcmsblog-left-side,
+.tvleft-product-wrapper-info,
+.tvcmsblog-left-side .tvblog-event-all-block,
+.tvsearch-filter-brand-wrapper,
+.tvserach-filter-suppliers,
+.tvtestimonial-slider-button-wrapper,
+.tv-category-wrapper,
+.tv-leftcategory-wrapper,
+.tvserach-filter-wrapper,
+#left-column .tv-all-service.card-deck,
+#right-column .tv-all-service.card-deck,
+.tvproduct-wrapper,
+.tvleft-right-product-slider .tvproduct-wrapper,
+#left-column .tvcmscustomer-services .tvservices-center,
+#right-column .tvcmscustomer-services .tvservices-center,
+.tvcategory-slider-inner-info-box,
+.tvproduct-wrapper .tvtimer-wrapper,
+.tvcmsprev-btn,
+.tvcmsnext-btn,
+.tvtab-title-wrapper .tvtabs-products li:hover,
+.tvtab-title-wrapper .tvtabs-products li.active,
+.tvcategory-chain-slider-wrapper,
+.tvcmstwoofferbanners-one .tvofferbanner-two-inner img,
+.tvapp-logo-content-box,
+.tvfooter-product-box-layout .tvleft-right-product-slider .tvproduct-wrapper,
+.tvmain-all-product-wrapper .owl-item.active,
+.tvbrand-img-block,
+.tvcmscustomer-services,
+.tvcmscustomer-services .tvservices-center,
+.tvfooter-storelogo-inner,
+.tvfooter-copy-payment-icon-wrapper,
+.tvnewsleeter-input-button-wraper .input-wrapper input,
+.quickview .modal-content,
+.tvall-product-branner .tvbanner-hover-wrapper,
+.tv-category-main-div,
+.tvcenter-block-product-section,
+.tv-product-catalog-btn .tvproduct-cart-quentity,
+#product .tvproduct-page-wrapper .tvprduct-image-info-wrapper,
+#block-reassurance li .block-reassurance-item,
+.tvproduct-description-tab .nav-tabs .nav-item .nav-link,
+.tvproduct-description-tab .product-features>dl.data-sheet dt.name,
+.tvproduct-description-tab .product-features>dl.data-sheet dd.value,
+#tvcmsproduct_comments_block_tab div.comment,
+.tvcustom-review-box input,
+.tvcustom-review-box #review_content,
+.tabs .js-mailalert .form-control,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select,
+.theme-switcher,
+.tvtheme-control-wrapper .tvtheme-bgcolor-box input,
+.tvtheme-control-wrapper .tvtheme-color-box input,
+.card,
+.separator,
+.bootstrap-touchspin input.form-control,
+.bootstrap-touchspin input.input-group,
+body#checkout div.checkout-step,
+.form-control,
+.custom-checkbox span,
+body#checkout #delivery textarea,
+body#checkout #gift_message textarea,
+#contact .contact-rich,
+.page-content.page-cms,
+.page-customer-account #content,
+.thead-default th,
+.table-bordered,
+.table-bordered td,
+.table-bordered th,
+.page-content,
+.page-addresses .address .address-body,
+.wlp_bought_item_container,
+ul.wlp_bought_list li .product_infos .wishlist_product_detail input,
+ul.wlp_bought_list li .product_infos .wishlist_product_detail select,
+#newsletter_block_popup .block_content .inputNew,
+#tv-back-top-wrapper,
+.cms-description th,
+.cms-description td,
+.tvtheme-control-wrapper .tvtheme-background-layout input,
+.tvlayout-radio-img>.tvlayout-image,
+#pagenotfound .page-not-found,
+#products .page-not-found,
+.page-my-account #content .links a span.link-item,
+.tvproduct-page-wrapper .tvproduct-timer-wrapper.tvproduct-timer-box,
+#form_wishlist input.inputTxt,
+#module-tvcmswishlist-mywishlist .wishlisturl input,
+.comment_form .form-control,
+#main .tvpage-header-title-wrapper,
+.tvall-page-top-title,
+#module-tvcmsblog-archive .blog_post_content,
+.tvpagination-title-item-wrapper .tvinner-page-pagination-wrapper,
+.tvsearch-dropdown-wrapper a,
+.active_filters,
+body#checkout div#checkout-payment-step,
+.tvcmsnewsletterpopup,
+.tvbrand-page-block .tvbrand-inner,
+body#checkout div.checkout-step .address-item.selected {
+    border-color: #292929
+}
+
+.product-variants>.product-variants-item label input[checked="checked"]:checked+span,
+.product-variants>.product-variants-item label:hover span {
+    border-color: #999999;
+}
+
+.products-sort-order .select-title,
+.tv_search_filter_wrapper .tvleft-right-title-wrapper {
+    border-color: #292929;
+}
+
+.radio-label {
+    border: 2px solid #292929;
+}
+
+/***********Extra************/
+.tvcmsvertical-menu li.level-1,
+.tvvertical-menu-show-hide-category .tvvertical-show-category,
+.tvvertical-menu-show-hide-category .tvvertical-hide-category {
+    border-left: 3px solid #292929;
+}
+
+/*#blockcart-modal .divide-right,*/
+/*.ttvcmscart-show-dropdown-right .ttvclose-cart,*/
+.tvorder-conformation-wrapper #order-items,
+.contact-rich .block,
+#blockcart-modal .divide-right {
+    border-right: 1px solid #292929;
+}
+
+.quickview .modal-footer,
+#order-items hr {
+    border-top: 1px solid #292929;
+}
+
+.popover.bs-tether-element-attached-bottom:after,
+.popover.popover-top:after {
+    border-top-color: #292929;
+}
+
+#header,
+#id_new_comment_form .title,
+#criterions_list,
+/*.ttvcmscart-show-dropdown-right .ttvcart-close-title-count,*/
+/*.ttvcmscart-show-dropdown-right .ttvcart-product-wrapper,*/
+/*.ttvcmscart-show-dropdown-right .ttvcart-product-label-value,*/
+.contact-rich h4,
+.contact-form h3,
+.table thead th {
+    border-bottom: 1px solid #292929;
+}
+
+#tv-back-top-wrapper .tv-back-top-link:after {
+    border-bottom: 4px solid #989898;
+}
+
+.tvcmsvertical-menu li.level-1:hover,
+.tvvertical-menu-show-hide-category .tvvertical-show-category:hover,
+.tvvertical-menu-show-hide-category .tvvertical-hide-category:hover {
+    border-top: 1px solid #292929;
+    border-bottom: 1px solid #292929;
+}
+
+hr {
+    border-top: 1px solid #ffffff1a;
+}
+
+/********************************************Start All Inner Page Dark Mode***************************************************/
+.tvcmscart-show-dropdown {
+    background-color: #000;
+}
+
+.tvcmssearch-dropdown {
+    background-color: #1c1c1c;
+}
+
+/*.tvcmssearch-dropdown,*/
+.tvsearch-more-search,
+.tvcart-product-list,
+.tvcmscart-show-dropdown .tvcart-product-wrapper.items,
+.tvcart-product-content-box {
+    border-color: #292929
+}
+
+
+.tvsearch-dropdown-title,
+.tvshoping-cart-dropdown-title span.product-name,
+span.tvcart-product-price {
+    color: #fff;
+}
+
+.tvsearch-dropdown-total .product-price-and-shipping .regular-price,
+.tvcart-no-product-label,
+.tvcart-product-totle,
+.tvcart-product-list-price span,
+.tvcart-product-list-total-info .tvshoping-cart-subtotal,
+.tvshoping-cart-shipping,
+.tvshoping-cart-tax,
+.ttshoping-cart-total,
+.dropdown {
+    color: #989898;
+}
+
+#header .tv-cart-icon-main svg g path:nth-child(2),
+#products .tvproduct-view.tvproduct-grid:hover svg.tvgrid g path,
+#products .tvproduct-view.tvproduct-grid-2:hover svg.tvgrid-2 g path,
+#products .tvproduct-view.tvproduct-list:hover svg.tvlist g path,
+#products .tvproduct-view.tvproduct-list-2:hover svg.tvlist-2 g path,
+#products .tvproduct-view.tvproduct-catelog:hover svg.tvcatelog g path,
+#products .tvproduct-view.tvproduct-catelog:hover svg.tvcatelog g polygon,
+#products .tvproduct-view.tvproduct-grid.active svg.tvgrid g path,
+#products .tvproduct-view.tvproduct-grid-2.active svg.tvgrid-2 g path,
+#products .tvproduct-view.tvproduct-list.active svg.tvlist g path,
+#products .tvproduct-view.tvproduct-list-2.active svg.tvlist-2 g path,
+#products .tvproduct-view.tvproduct-catelog.active svg.tvcatelog g path,
+#products .tvproduct-view.tvproduct-catelog.active svg.tvcatelog g polygon,
+.tvheader-search-display-icon .tvsearch-open svg polygon,
+.tvheader-search-display-icon .tvsearch-close svg g,
+.tvsearch-header-display-full .tvheader-search-btn svg polygon,
+.tvtheme-bgcolor-box svg g path,
+.tvbody-bgcolor-wrapper svg g path,
+#tvtheme-reset-text svg path {
+    fill: #ffffff !important;
+}
+
+#header .tv-cart-icon-main svg g ellipse,
+#header .tv-myaccount-btn-desktop svg path:nth-child(1),
+#header .tv-myaccount-btn-desktop svg circle,
+.tvheader-search-display-icon .tvsearch-open svg circle:nth-child(3),
+.tvsearch-header-display-full .tvheader-search-btn svg circle:nth-child(3) {
+    fill: none !important;
+    stroke: #ffffff !important;
+}
+
+#footer .tvblock-social-icon path {
+    fill: #989898 !important;
+}
+
+#header .tv-myaccount-btn-desktop svg g g path:nth-child(2) {
+    stroke: #ffffff !important;
+}
+
+#header .tv-myaccount-btn-desktop svg g g path {
+    stroke: none !important;
+}
+
+.tvsticky-up-arrow,
+.tvsticky-wishlist,
+.tvsticky-compare,
+.tvright-sticky-account,
+.tvright-sticky-add-to-cart,
+.tv-footer-social-icon .tvblock-social-content,
+.radio-toolbar label.theme-custom span {
+    box-shadow: 0 0 2px rgb(255 255 255 / 20%);
+}
+
+
+
+@media (max-width: 991px) {
+
+    #header .mobile-header-1 .tv-cart-icon-main svg g path:nth-child(2) {
+        fill: #ffffff !important;
+    }
+
+    #header .mobile-header-2 .tv-cart-icon-main svg g ellipse,
+    #header .mobile-header-2 .tv-myaccount-btn-desktop svg path:nth-child(1),
+    #header .mobile-header-2 .tv-myaccount-btn-desktop svg circle,
+    #header .mobile-header-1 .tv-cart-icon-main svg g ellipse,
+    #header .mobile-header-1 .tv-myaccount-btn-desktop svg path:nth-child(1),
+    #header .mobile-header-1 .tv-myaccount-btn-desktop svg circle {
+        fill: none !important;
+        stroke: #ffffff !important;
+    }
+
+    #header .mobile-header-2 .tv-cart-icon-main svg g path:nth-child(2) {
+        fill: #ffffff !important;
+    }
+
+    .tv-account-wrapper .tv-myaccount-btn span {
+        color: #000000;
+    }
+
+    #index #header,
+    .tvcmsheader-sticky.sticky {
+        background-color: #000000;
+    }
+
+    .tvmega-menu-title:after,
+    .tvcmsmobile-contact:before {
+        background-color: #1c1c1e;
+    }
+
+    .tvheader-sarch-display .tvheader-search-display-icon .tvsearch-open svg path:nth-child(2) {
+        fill: #ffffff !important;
+    }
+
+    .tvmobile-slidebar,
+    .tvcmsvertical-menu li.level-1 {
+        background-color: #000000;
+        border-color: #292929;
+    }
+
+    #header .tv-menu-horizontal ul li.level-1>a,
+    .tv-menu-horizontal .menu-content .tvmega-menu-title,
+    .tvmobile-sliderbar-btn i,
+    #contact-link span,
+    #contact-link span:before,
+    .tvmobile-dropdown-close a i {
+        color: #ffffff;
+    }
+
+    .tv-menu-horizontal ul li.parent .icon-drop-mobile:after,
+    .tvmega-menu-title a i {
+        color: #989898;
+    }
+
+    .tvmobile-sliderbar-btn a {
+        background-color: #000000c2;
+        border: 1px solid #00000012;
+    }
+
+    .tv-menu-horizontal li.level-1 .img-icon {
+        filter: invert(1);
+    }
+
+    .tvfooter-title-wrapper .tvfooter-title {
+        border-color: #292929;
+    }
+
+    .tv-menu-horizontal ul li ul {
+        background-color: transparent;
+    }
+
+    #header .tv-menu-horizontal ul li.level-1>a {
+        text-shadow: 1.2px 1px #00000085;
+    }
+}
+
+/*****************************************/
+.tvcmsheader-search .tvcms-select-category {
+    background-image: url(../img/themevolty/arrow.png);
+}
+
+.shimmercard {
+    border: 1px solid #1c1c1e;
+    background-color: #1c1c1e;
+}
+
+.shimmerBG {
+    background: linear-gradient(to right, #909090 4%, #6b6b6b 25%, #929292 36%);
+    background-size: 1200px 100%;
+}
+
+.tv-main-div.tv-box-layout.container {
+    box-shadow: 0 1px 15px 2px rgba(204, 204, 204, 0.27);
+    background-color: #000;
+    border: 10px solid #131313;
+}
+
+.form-control-select {
+    color: #ccc;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAMAAAAMCGV4AAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAASUExURUdwTP///////////////////4gZPH8AAAAFdFJOUwAzEe7dBY7osgAAAChJREFUCNdjYKAcMMEAhMvIzAoBzIwoAjAuVADBBQsgc4ECLIwMNAEASfAAiRevi4sAAAAASUVORK5CYII=') right center no-repeat;
+}
+
+.ttvcmscart-show-dropdown-right .ttvclose-cart {
+    background-position: -155px -805px;
+}
+
+.radio-toolbar input[type="radio"]:checked+label span {
+    box-shadow: 4px 5px 3px 0px rgb(255 255 255 / 20%);
+}
+
+.radio-toolbar label:hover span,
+.tvlayout-radio-img>input:checked+.tvlayout-image,
+.tvlayout-radio-img>input:hover+.tvlayout-image {
+    box-shadow: 0px 2px 3px 0px rgb(255 255 255 / 20%);
+}
+
+.product-quantity .input-group-btn-vertical .btn {
+    box-shadow: 2px 2px 4px rgb(255 255 255 / 14%);
+}
+
+.tvselect-layout.tvall-theme-content .card-header {
+    box-shadow: 0px 0px 5px 0px rgb(255 255 255 / 20%);
+}
+
+.product-actions .input-container label span {
+    box-shadow: 4px 4px 4px rgb(255 255 255 / 14%);
+}
+
+#block-reassurance img {
+    filter: invert(1);
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.rss:hover a {
+    background-position: -5px -5px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.facebook:hover a {
+    background-position: -5px -55px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.twitter:hover a {
+    background-position: -5px -105px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.youtube:hover a {
+    background-position: -5px -155px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.googleplus:hover a {
+    background-position: -5px -255px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.pinterest:hover a {
+    background-position: -5px -205px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.vimeo:hover a {
+    background-position: -5px -355px;
+}
+
+.tvcmsfooter-social-icon .tvfooter-social-icon-wrapper li.instagram:hover a {
+    background-position: -5px -305px;
+}
+
+.product-4 .tvvertical-slider .arrows .tvvertical-slider-next:hover,
+.product-4 .tvvertical-slider .arrows .tvvertical-slider-pre:hover,
+.product-6 .tvvertical-slider .arrows .tvvertical-slider-next:hover,
+.product-6 .tvvertical-slider .arrows .tvvertical-slider-pre:hover {
+    color: #000000;
+}
+
+.blog_post_content p.meta_category a:hover {
+    color: #e40046;
+}
+
+.header-4 .tv-menu-horizontal li.level-1 .img-icon {
+    filter: invert(1);
+}
+
+#header .header-4 .tv-menu-horizontal ul li.level-1>a,
+#header .header-6 .tv-menu-horizontal ul li.level-1>a {
+    text-shadow: 1.2px 1px #00000085;
+}
+
+.active_filters .filter-block {
+    box-shadow: 0px 0px 3px 0 rgb(255 255 255 / 20%);
+}
+
+.block-reassurance-item .block-title {
+    color: #ffffff !important;
+}
+
+.full-wrapper-backdrop,
+body .tv-main-div .half-wrapper-backdrop {
+    background: #ffffff4d;
+}
+
+.tvcmstheme-control .tvtheme-control-icon,
+.tvcmstheme-layout .tvtheme-layout-icon {
+    box-shadow: -3px 2px 3px -1px rgb(255 255 255 / 30%);
+}
+#header .header-4 .tv-menu-horizontal ul li.level-1>a,
+#header .header-6 .tv-menu-horizontal ul li.level-1>a {
+    color: #ffffff !important;
+}
+.popover-content table tr td{
+    background-color: #000;
+    color: #ddd;
+}
+.wlp_bought_item_container .popover-content table tr td:hover {
+    color: #fff;
+}
+#footer .tvfooter-checkout.tvfooter-copy-payment-icon-wrapper{
+    background-color: #000;
+}

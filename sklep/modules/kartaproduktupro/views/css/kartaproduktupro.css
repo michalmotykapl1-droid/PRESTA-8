@@ -1,0 +1,117 @@
+/* Kontener główny - lżejszy, bez tła, delikatna ramka */
+.kpp-container {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 20px 0;
+  padding: 15px 0;
+  background: transparent; /* Brak tła */
+  border-top: 1px solid #f1f1f1;
+  border-bottom: 1px solid #f1f1f1;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  
+  /* Układ poziomy */
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+/* Pojedynczy element */
+.kpp-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column; /* Ikona nad tekstem lub obok - tu robimy ikonę obok tekstu ale w pionie centrowane */
+  align-items: center;
+  text-align: center;
+  padding: 0 5px;
+  border-right: 1px solid #f5f5f5; /* Delikatna linia między elementami */
+}
+
+/* Usuwamy linię z ostatniego elementu */
+.kpp-item:last-child {
+  border-right: none;
+}
+
+/* Ikona - zmieniona na szarą */
+.kpp-icon {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kpp-icon .material-icons {
+  font-size: 26px;
+  color: #999999; /* Jasny szary - o wiele lżejszy niż czarny */
+  transition: color 0.3s ease;
+}
+
+/* Hover - po najechaniu ikona zmienia kolor na firmowy (opcjonalnie) */
+.kpp-item:hover .kpp-icon .material-icons {
+  color: #ea7404;
+}
+
+/* Treść */
+.kpp-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tytuł - ciemny szary, nie czarny */
+.kpp-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #444444; /* Złamana czerń */
+  margin-bottom: 2px;
+  letter-spacing: 0.3px;
+}
+
+/* Opis - szary */
+.kpp-desc {
+  font-size: 11px;
+  color: #777777;
+  line-height: 1.2;
+}
+
+/* --- RESPANSYWNOŚĆ (TELEFONY) --- */
+@media (max-width: 767px) {
+  .kpp-container {
+    flex-direction: column; /* Na telefonie jeden pod drugim */
+    gap: 0;
+    padding: 0;
+    border: 1px solid #f1f1f1;
+    border-radius: 6px;
+  }
+
+  .kpp-item {
+    flex-direction: row; /* Na telefonie ikona obok tekstu */
+    align-items: center;
+    text-align: left;
+    width: 100%;
+    padding: 12px 15px;
+    border-right: none;
+    border-bottom: 1px solid #f9f9f9;
+    box-sizing: border-box;
+  }
+
+  .kpp-item:last-child {
+    border-bottom: none;
+  }
+
+  .kpp-icon {
+    margin-bottom: 0;
+    margin-right: 15px;
+    width: 24px;
+  }
+  
+  .kpp-icon .material-icons {
+      font-size: 22px;
+  }
+  
+  .kpp-title {
+      font-size: 12px;
+  }
+}

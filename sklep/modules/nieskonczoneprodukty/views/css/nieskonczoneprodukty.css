@@ -1,0 +1,108 @@
+/* ========================================================= */
+/* NIESKOŃCZONE PRODUKTY - Styl bliźniaczy do Slidera        */
+/* ========================================================= */
+
+.np-section-wrapper {
+    margin-top: -30px;
+    margin-bottom: 50px;
+    background: #fff;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 40px;
+    position: relative;
+    display: block;
+    clear: both;
+}
+
+.np-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 15px;
+    position: relative;
+}
+
+/* NAGŁÓWEK */
+.np-header {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 30px;
+}
+
+.np-title {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    color: #222;
+    text-transform: uppercase;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+    letter-spacing: 0.5px;
+}
+
+.np-title-line {
+    display: block !important;
+    width: 60px !important;
+    height: 4px !important;
+    background-color: #ff6600 !important;
+    margin: 0 auto;
+    border-radius: 2px;
+}
+
+/* SIATKA PRODUKTÓW */
+.np-products-list {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+    justify-content: flex-start;
+}
+
+/* PRODUKT */
+.np-item {
+    flex: 0 0 16.66666%; /* Desktop: 6 */
+    max-width: 16.66666%;
+    padding: 0 10px;
+    margin-bottom: 20px;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* LOADER */
+.np-loader {
+    width: 100%;
+    text-align: center;
+    padding: 30px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    clear: both;
+    margin-top: 10px;
+}
+.np-spinner {
+    width: 30px; height: 30px; 
+    border: 3px solid #f0f0f0; 
+    border-top: 3px solid #999; 
+    border-radius: 50%; 
+    animation: np-spin 0.8s linear infinite; 
+    margin-bottom: 10px;
+}
+@keyframes np-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.np-end-message {
+    width: 100%;
+    text-align: center;
+    padding: 15px;
+    color: #999;
+    font-size: 13px;
+    display: none;
+    clear: both;
+}
+
+/* RWD */
+@media (max-width: 1400px) { .np-item { flex: 0 0 20%; max-width: 20%; } }
+@media (max-width: 1200px) { .np-item { flex: 0 0 25%; max-width: 25%; } }
+@media (max-width: 991px) { .np-item { flex: 0 0 33.333%; max-width: 33.333%; } }
+@media (max-width: 767px) {
+    .np-container { padding: 0 5px; }
+    .np-products-list { margin: 0 -4px; }
+    .np-item { flex: 0 0 50%; max-width: 50%; padding: 0 4px; margin-bottom: 15px; } 
+    .np-title { font-size: 20px !important; }
+}

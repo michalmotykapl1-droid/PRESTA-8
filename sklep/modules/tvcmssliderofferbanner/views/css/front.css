@@ -1,0 +1,148 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*
+* Don't forget to prefix your containers with your own identifier
+* to avoid any conflicts with others containers.
+*/
+
+/*Left Align*/
+.tvofferbanner-text.left {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: max-content;
+    /*-webkit-transform: translateY(-50px);
+    -moz-transform: translateY(-50px);
+    -ms-transform: translateY(-50px);
+    -o-transform: translateY(-50px);
+    transform: translateY(-50px);*/
+    left: 9%;
+    text-align: left;
+}
+
+.tvofferbanner-text.top-left {
+    top: 10%;
+    left: 9%;
+    position: absolute;
+    width: 100%;
+    text-align: left;
+}
+
+.tvofferbanner-text.bottom-left {
+    bottom: 10%;
+    left: 9%;
+    position: absolute;
+    width: 100%;
+    text-align: left;
+}
+
+/*Right Align*/
+
+.tvofferbanner-text.right {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: max-content;
+    /*webkit-transform: translateY(-50px);
+    -moz-transform: translateY(-50px);
+    -ms-transform: translateY(-50px);
+    -o-transform: translateY(-50px);
+    transform: translateY(-50px);*/
+    right: 6%;
+    text-align: center;
+}
+
+.tvofferbanner-text.top-right {
+    position: absolute;
+    width: 100%;
+    top: 10%;
+    right: 6%;
+    text-align: right;
+}
+
+.tvofferbanner-text.bottom-right {
+    position: absolute;
+    width: 100%;
+    bottom: 10%;
+    right: 6%;
+    text-align: right;
+}
+
+/*Center Align*/
+
+.tvofferbanner-text.center {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: max-content;
+    /*-webkit-transform: translateY(-50px);
+    -moz-transform: translateY(-50px);
+    -ms-transform: translateY(-50px);
+    -o-transform: translateY(-50px);
+    transform: translateY(-50px);*/
+    right: 0;
+    left: 0;
+    text-align: center;
+}
+
+.tvofferbanner-text.top-center {
+    position: absolute;
+    /*width: 100%;*/
+    top: 10%;
+    right: 0;
+    left: 0;
+    text-align: center;
+}
+
+.tvofferbanner-text.bottom-center {
+    position: absolute;
+    /*width: 100%;*/
+    bottom: 10%;
+    right: 0;
+    left: 0;
+    text-align: center;
+}
+
+.tvofferbanner-text.none {
+    display: none;
+}
+
+.tvofferbanner-text h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.tvcmssliderofferbanners a {
+    border: 1px solid #00000012;
+}
+.tvcmssliderofferbanners img {
+    border: none !important;
+}

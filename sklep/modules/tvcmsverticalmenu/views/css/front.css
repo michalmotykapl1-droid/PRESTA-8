@@ -1,0 +1,346 @@
+/**
+ * BB simplified styles for ThemeVolty Vertical Menu (tvcmsverticalmenu)
+ * Rewritten from scratch to be light and visually consistent with ps_categorytree.
+ */
+
+/* --- Variables (matching ps_categorytree) --- */
+:root{
+  --cat-active: #e53935;        /* active category color */
+  --cat-path:   #6b7280;        /* ancestors on path */
+  --cat-bg:     transparent;
+  --cat-count-color: #9aa0a6;   /* subtle grey for counts & icons */
+}
+
+/* --- Base container --- */
+.tvcmsvertical-menu,
+.tvcmsverticalmenu{
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* --- Desktop layout --- */
+@media (min-width: 992px){
+
+  /* Główna lista */
+  .tvcmsvertical-menu .menu-content{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Poziom 1 */
+  .tvcmsvertical-menu ul li.level-1{
+    position: relative;
+    border-bottom: 1px solid #f3f4f6;
+    background: #ffffff;
+    /* Zabezpieczenie: usuwamy domyślne obramowania motywu, żeby nie było podwójnych pasków */
+    border-left: none !important; 
+  }
+
+  .tvcmsvertical-menu ul li.level-1:last-child{
+    border-bottom: none;
+  }
+
+  /* Paddingi - dużo powietrza */
+  .tvcmsvertical-menu ul li.level-1 > .tv-vertical-menu-text-wrapper{
+    display: flex;
+    align-items: center;
+    padding: 13px 10px 13px 15px; 
+  }
+
+  /* Styl tekstu kategorii */
+  .tvcmsvertical-menu .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block{
+    flex: 1 1 auto;
+    display: block;
+    font-size: 0.90em;
+    font-weight: 500;
+    color: #111827;
+    text-decoration: none;
+    background: transparent;
+    letter-spacing: 0.01em;
+    line-height: 1.3; 
+    position: relative; /* Ważne dla pozycjonowania paska */
+  }
+
+  /* Kolor tekstu po najechaniu */
+  .tvcmsvertical-menu .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block:hover{
+    color: #e5004c; 
+  }
+
+  /* ============================================================
+     PASEK PO LEWEJ STRONIE (Hover vs Active)
+     ============================================================ */
+  
+  /* 1. Pasek HOVER (gdy najeżdżamy myszką) - Średni POPIEL */
+  .tvcmsvertical-menu ul li.level-1:hover > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block::before {
+    content: "";
+    position: absolute;
+    left: -15px; /* Przesunięcie w lewo, żeby pasek był na krawędzi kontenera */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: #9ca3af; /* <-- TUTAJ ZMIANA: Popielaty kolor zamiast czarnego */
+    border-radius: 2px;
+    display: block;
+  }
+
+  /* 2. Pasek ACTIVE (gdy kategoria jest wybrana) - CZERWONY */
+  /* Musi być ważniejszy niż hover (!important w kolorze załatwia sprawę) */
+  .tvcmsvertical-menu li.current > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block::before{
+    content: "";
+    position: absolute;
+    left: -15px; 
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: var(--cat-active) !important; /* Czerwony wygrywa */
+    border-radius: 2px;
+    display: block;
+  }
+  
+  /* Tekst aktywnej kategorii */
+  .tvcmsvertical-menu li.current > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block{
+    font-weight: 700;
+    color: var(--cat-active);
+  }
+
+
+  /* Ikona po prawej (plus / minus) */
+  .tvcmsvertical-menu .tv-vertical-menu-icon-wrapper{
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    opacity: 0.6;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right{
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    font-size: 0 !important;
+    color: transparent !important;
+    line-height: 0 !important;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right::before,
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right::after{
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--cat-count-color);
+    border-radius: 1px;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right::before{
+    width: 10px;
+    height: 2px;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right::after{
+    width: 2px;
+    height: 10px;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.open::after{
+    display: none;
+  }
+
+  .tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right.open::before{
+    background: var(--cat-active);
+  }
+
+  /* --- Submenu --- */
+  .tvcmsvertical-menu .menu-dropdown{
+    list-style: none;
+    margin: 0;
+    padding: 4px 0 4px 24px;
+    border-left: 1px solid #e5e7eb;
+    display: none;
+    background: var(--cat-bg);
+  }
+
+  .tvcmsvertical-menu .menu-dropdown.open{
+    display: block;
+  }
+
+  .tvcmsvertical-menu .menu-dropdown .menu-dropdown{
+    display: none !important;
+  }
+
+  .tvcmsvertical-menu .menu-dropdown > li{
+    position: relative;
+  }
+
+  .tvcmsvertical-menu .menu-dropdown > li > .tv-vertical-menu-text-wrapper{
+    display: flex;
+    align-items: center;
+    padding: 6px 24px 6px 0; 
+  }
+
+  .tvcmsvertical-menu .menu-dropdown > li > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block{
+    font-size: 0.85em;
+    font-weight: 400;
+    color: #6b7280;
+    text-decoration: none;
+  }
+
+  .tvcmsvertical-menu .menu-dropdown > li > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block:hover{
+    color: #000000;
+  }
+
+  /* Ścieżka (rodzice aktywnej kategorii) */
+  .tvcmsvertical-menu li.is-in-path > .tv-vertical-menu-text-wrapper > a.tvvertical-menu-all-text-block{
+    color: var(--cat-path);
+    font-weight: 600;
+  }
+}
+
+/* --- Common tweaks --- */
+.tvcmsvertical-menu .menu-dropdown{
+  display: none;
+}
+
+.tvcmsvertical-menu .menu-dropdown.open{
+  display: block;
+}
+
+.tvcmsvertical-menu a,
+.tvcmsvertical-menu a:hover,
+.tvcmsvertical-menu a:focus{
+  background: transparent !important;
+}
+
+.tvcmsvertical-menu li .tvvertical-menu-dropdown-icon1,
+.tvcmsverticalmenu li .tvvertical-menu-dropdown-icon1{
+  display: none !important;
+}
+
+.tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.right{
+  display: inline-block;
+}
+.tvcmsvertical-menu li .tvvertical-menu-dropdown-icon.down{
+  display: none !important;
+}
+.tvcmsvertical-menu li .tvvertical-menu-dropdown-icon1{
+  display: none !important;
+}
+
+.tvcmsvertical-menu .tv-vertical-menu-icon-wrapper *,
+.tvcmsverticalmenu .tv-vertical-menu-icon-wrapper *{
+  font-size: 0 !important;
+  color: transparent !important;
+  line-height: 0 !important;
+}
+
+
+/* --- Chmurki DIETA? / HOT / TOP --- */
+.tvcmsvertical-menu .tvvertical-menu-category{
+  display: inline;
+}
+
+.tvcmsvertical-menu .tvmenu-subtitle{
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 5px;
+  padding: 0 3px;
+  border-radius: 2px;
+  
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+
+  border: 1px solid #e5004c;
+  color: #e5004c;
+  background: transparent;
+  
+  position: relative;
+  top: -1px;
+}
+
+
+.tvcmsvertical-menu .more_title,
+.tvcmsvertical-menu .less_title,
+.tvcmsvertical-menu .vertical-one{
+  display: none !important;
+}
+
+.tvcmsvertical-menu-wrapper,
+#tvcmsdesktop-vertical-menu,
+#tvverticalmenu.tvcmsvertical-menu{
+  padding-right: 0;
+}
+
+.tvcmsvertical-menu .menu-content.tvverticalmenu-dropdown{
+  padding-right: 0;
+}
+
+.tvcmsvertical-menu .menu-dropdown > li > .tv-vertical-menu-text-wrapper > .tv-vertical-menu-icon-wrapper{
+  display: none !important;
+}
+
+#tvcmsdesktop-vertical-menu,
+#tvcmsdesktop-vertical-menu .tvcmsvertical-menu-wrapper,
+#tvcmsdesktop-vertical-menu .tvcmsvertical-menu{
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#tvcmsdesktop-vertical-menu .menu-content.tvverticalmenu-dropdown{
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.tvcmsvertical-menu-wrapper .tvleft-right-penal-all-block{
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+
+/* TOP KATEGORIE – CENTROWANIE I SPACING */
+#tvcmsdesktop-vertical-menu .tvcategory-title-wrapper{
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 5px;
+}
+
+#tvcmsdesktop-vertical-menu .tvcategory-title-wrapper .facet-label{
+  width: 100% !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center !important;
+  padding: 12px 0;
+  margin: 0 !important;
+}
+
+#tvcmsdesktop-vertical-menu .tvleft-right-title-toggle,
+#tvcmsdesktop-vertical-menu .tvleft-right-title-toggle *{
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#tvcmsdesktop-vertical-menu .tvcategory-title-wrapper span{
+  letter-spacing: .1em;
+  font-weight: 700;
+  text-align: center;
+  font-size: 15px;
+}

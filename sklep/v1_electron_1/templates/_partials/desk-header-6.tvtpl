@@ -1,0 +1,68 @@
+<div class="tvcmsdesktop-top-header-wrapper header-6" data-header-layout="6">
+    <div class='container-fluid tvcmsdesktop-top-second hidden-md-down'>
+        <div class="container">
+            <div class="row tvcmsdesktop-top-header-box">
+                <div class='col-lg-2 col-md-2 col-xl-2 col-sm-12 tvcms-header-logo-wrapper'>
+                    <div class="hidden-sm-down tvcms-header-logo" id="tvcmsdesktop-logo">
+                        {if $withData}
+                        <div class="tv-header-logo">
+                            <a href="{$urls.base_url}">
+                                <img class="logo img-responsive" src="#" alt="{$shop.name}" height="35" width="201">
+                            </a>
+                        </div>
+                        {/if}
+                    </div>
+                </div>
+                <div class="col-lg-8 col-md-8 col-xl-8 col-sm-12 tvcms-header-menu-offer-wrapper tvcmsheader-sticky">
+                    <div class="position-static tvcms-header-menu">
+                        <div class='tvcmsmain-menu-wrapper'>
+                            <div id='tvdesktop-megamenu'>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-md-2 col-xl-2 col-sm-12 tvcmsheader-nav-right">
+                    <div class="tv-contact-account-cart-wrapper">
+                        <div class='tvcmssearch-wrapper' id="_desktop_search">
+                        </div>
+                        <div id='tvcmsdesktop-account-button'>
+                            {if $withData}
+                            <div class="tv-header-account tv-account-wrapper tvcms-header-myaccount">
+                                <button class="btn-unstyle tv-myaccount-btn tv-myaccount-btn-desktop" name="User Icon" aria-label="User Icon">
+                                    <svg version="1.1" id="Layer_1" x="0px" y="0px" width="31.377px" height="30.938px" viewBox="0 0 31.377 30.938" xml:space="preserve">
+                                        <g>
+                                            <path style="fill:none;stroke:#000000;stroke-width:0.6;stroke-miterlimit:10;" d="M15.666,17.321
+        c7.626,0,13.904,5.812,14.837,13.316h0.525c-1.253-8.325-7.642-13.6-15.341-13.6c-7.698,0-14.088,5.274-15.339,13.6h0.48
+        C1.764,23.134,8.041,17.321,15.666,17.321z"></path>
+                                            <path style="fill:#FFD742;" d="M15.688,16.992c-4.494,0-8.15-3.654-8.15-8.148c0-4.497,3.656-8.152,8.15-8.152
+        c4.497,0,8.15,3.655,8.15,8.152C23.839,13.338,20.186,16.992,15.688,16.992"></path>
+                                            <circle style="fill:none;stroke:#000000;stroke-miterlimit:10;" cx="15.689" cy="8.838" r="8.338"></circle>
+                                        </g>
+                                    </svg>
+                                </button>
+                                <ul class="dropdown-menu tv-account-dropdown tv-dropdown">
+                                    {if $customer.is_logged}
+                                    <li><a href="{$urls.pages.my_account}" class="tvmyccount"><i class="material-icons">&#xe7fd;</i>{l s='My Account' d='Shop.Theme.Catalog'}</a></li>
+                                    {/if}
+                                    <li class="tvcms-signin"></li>
+                                    <li class="ttvcms-wishlist-icon"></li>
+                                    <li class="tvheader-compare"></li>
+                                    <li class="tvheader-language"></li>
+                                    <li class="tvheader-currency"></li>
+                                </ul>
+                            </div>
+                            {/if}
+                        </div>
+                        <div id="_desktop_cart_manage" class="tvcms-header-cart">
+                        </div>
+                    </div>
+                </div>
+                <div class="tvcmsdesktop-contact tvforce-hide">
+                    <div id="_desktop_contact_link" class="">
+                        <div id="contact-link"><a href="tel:(055) 888 8888"><i class="material-icons"></i><span>(055) 888 8888</span></a></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

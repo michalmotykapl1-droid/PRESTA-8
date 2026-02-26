@@ -1,0 +1,201 @@
+/* --- MODUŁ FEATURED PRODUCTS (POLECANE) - FINAL NO LINK --- */
+
+/* 1. GŁÓWNY KONTENER */
+.bb-featured-section {
+    margin-top: 40px !important;
+    padding-top: 0px !important;
+    position: relative;
+    background: #fff !important;
+    width: 100% !important;
+    display: block;
+}
+
+/* Resetowanie wewnątrz */
+.bb-featured-section .tvall-block-box-shadows, 
+.bb-featured-section .tvcmsfeatured-product-content,
+.bb-featured-section .tvcmsfeatured-product-all-box {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+}
+
+/* 2. TYTUŁ */
+.bb-featured-section .tvtab-main-title-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px !important;
+    margin-bottom: 45px !important;
+    width: 100%;
+    position: relative;
+}
+
+.bb-featured-section .tv-allegro-title {
+    text-align: center;
+    margin-bottom: 5px;
+    width: 100%;
+    border: none !important;
+}
+
+.bb-featured-section .tv-allegro-title h2 {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #111 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px;
+    margin: 0;
+    padding-bottom: 10px;
+    position: relative;
+    display: inline-block;
+}
+
+.bb-featured-section .tv-allegro-title h2::after {
+    content: ''; 
+    display: block; 
+    width: 60px; 
+    height: 4px; 
+    background: #ff5a00; 
+    margin: 5px auto 0; 
+    border-radius: 2px;
+    position: absolute; 
+    bottom: 0; 
+    left: 50%; 
+    transform: translateX(-50%);
+}
+
+/* 3. STRZAŁKI NAWIGACJI */
+.bb-featured-section .tvtab-pagination-wrapper .tvcms-next-pre-btn { 
+    display: flex; 
+    align-items: center; 
+    gap: 15px; 
+    width: auto; 
+}
+
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsprev-btn, 
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsnext-btn {
+    width: 40px !important; 
+    height: 40px !important; 
+    background: #ffffff !important; 
+    border: 1px solid #ddd !important; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; 
+    border-radius: 0 !important;
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    cursor: pointer; 
+    transition: all 0.2s ease;
+    z-index: 20 !important;
+}
+
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsprev-btn:hover, 
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsnext-btn:hover { 
+    background: #f0f0f0 !important; 
+    color: #000 !important; 
+}
+
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsprev-btn i, 
+.bb-featured-section .tvtab-pagination-wrapper .tvcmsnext-btn i { 
+    font-size: 24px !important; 
+    color: #333 !important; 
+}
+
+/* 4. KAFELKI I ODSTĘPY PIONOWE */
+.bb-featured-section .products .item { width: 100% !important; max-width: 100%; }
+.bb-featured-section .product-miniature { margin: 0 auto; width: 100%; }
+
+.bb-featured-section .tv-product-vertical-wrapper {
+    margin-bottom: 20px !important;
+    display: block;
+    width: 100%;
+}
+.bb-featured-section .tv-product-vertical-wrapper:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* --- MEDIA QUERIES (RWD) --- */
+
+/* DESKTOP */
+@media (min-width: 992px) {
+    .bb-featured-section .tvtab-pagination-wrapper { 
+        position: absolute; 
+        top: 32px !important;
+        right: 0; 
+        z-index: 50; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        width: auto !important; 
+        display: block !important;
+    }
+    
+    .bb-featured-section .tvcmsfeatured-product-content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+}
+
+/* MOBILE */
+@media (max-width: 991px) {
+    .bb-featured-section {
+        margin-top: 10px !important; 
+        padding-bottom: 20px !important; /* Odstęp dolny od strzałek */
+    }
+
+    .bb-featured-section .tvtab-main-title-wrapper {
+        padding-top: 30px !important;
+        padding-bottom: 0 !important;
+        order: 1; 
+    }
+
+    .bb-featured-section .tvcmsfeatured-product-all-box { 
+        display: flex; 
+        flex-direction: column; 
+    }
+    
+    .bb-featured-section .tvall-product-offer-banner { order: 2; }
+    
+    .bb-featured-section .tvtab-pagination-wrapper { 
+        order: 3; 
+        margin-top: 15px !important; 
+        margin-bottom: 0px !important; 
+        position: static; 
+        width: 100%; 
+        display: block !important; 
+    }
+    .bb-featured-section .tvtab-pagination-wrapper .tvcms-next-pre-btn { justify-content: center; }
+    
+    .bb-featured-section .tv-allegro-title h2 { font-size: 18px !important; }
+    .bb-featured-section .tv-allegro-title h2::after { width: 40px; height: 3px; }
+    
+    /* FIX ODSTĘPÓW */
+    .bb-featured-section .tvcmsfeatured-product-content {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
+    .bb-featured-section .products.owl-carousel {
+        padding: 0 5px !important; 
+        margin: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .bb-featured-section .products .owl-item {
+        padding: 0 5px !important; 
+        width: 100%; 
+    }
+    
+    .bb-featured-section .product-miniature {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 auto 10px auto !important;
+        padding: 0 !important;
+        display: block !important;
+        box-shadow: none !important; 
+    }
+}

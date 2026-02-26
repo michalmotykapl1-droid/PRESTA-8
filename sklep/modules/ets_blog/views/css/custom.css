@@ -1,0 +1,263 @@
+.ets-blog-post-footer .read_more:hover,
+.blog-managament-information button[type="submit"]:hover,
+.ets-blog-tag-a:hover,
+#form_blog .btn.edit_view_post:hover,
+.form_reply_comment input[type="submit"]:hover,
+.form_reply input.btn.btn-primary.btn-default[name="addReplyComment"]:hover,
+.form-polls-body button[name="polls_cancel"]:hover,
+.form-polls-body button:hover
+{
+    background:#00cefd;
+    border-color:#00cefd;
+}
+.ets-blog-like-span.active, .be-tag-block .be-tags a, .be-tag-block .be-tags,
+.ets-blog-related-posts-meta-categories > a,
+.view_post,
+.comment-content h4.comment_name span,
+.ets_block_categories .active > a,
+.comment-content .post_title span a,
+.blog-managament-information .help-block a,
+.ets-blog-comment-info .post-author .ets_title_block {
+  color:#2fb5d2;
+}
+.ets-block-comment-reply:hover,
+.ets_title_block:hover,
+.read_more:hover,
+.form_reply input.btn.btn-primary.btn-default[name="addReplyComment"] + .btn.btn-default:hover,
+.comment-content .post_title span a:hover,
+.list_category_item .sub_category li a:hover,
+.ets_block_categories .active > a:hover,
+.ets-blog-comment-info .post-author .ets_title_block:hover,
+.blog-managament-information .help-block a:hover,
+#form_blog a.ets_button_backtolist:hover{
+    color: #00cefd;
+}
+.ets-blog-thumbnail-list.carousel .ets-blog-thumbnail-item.slick-current:before,
+.ets-blog-slider.carousel .slick-dots .slick-active button{
+    border-color: #2fb5d2;
+}
+.ets-blog-form-comment .blog-submit .button,
+.blog-managament-information button[type="submit"],
+.ets-blog-slider.carousel .slick-dots .slick-active button,
+.blog_view_all, .view_all_link,
+.blog_view_all_button a,
+.form-polls-body button,
+.form_reply input.btn.btn-primary.btn-default[name="addReplyComment"],
+.add_new_post_blog a,
+#form_blog button[type="submit"],
+#form_blog .btn.edit_view_post,
+.form_reply_comment input[type="submit"],
+.ets_blog_loading .squaresWaveG
+{
+  background:#2fb5d2; 
+}
+
+.ets-blog-form-comment .blog-submit .button:hover,
+.blog_view_all:hover, .view_all_link:hover,
+.blog_view_all_button a:hover,
+.add_new_post_blog a:hover,
+#form_blog button[type='submit']:hover
+{
+  background:#00cefd; 
+}
+.ets_blog_ltr_mode a:hover, 
+.ets-blog-wrapper-detail a:hover,
+.ets-blog-like-span:hover, 
+.blog-main-page a:hover,
+.ets_button_backtolist:hover,
+.ets-block-comment-report:hover{
+    color: #00cefd;
+}
+
+.form-polls-body button,
+.form_reply_comment input[type="submit"]{
+    border: 1px solid #2fb5d2;
+}
+.blog_view_all, .view_all_link {
+    background-color: #2fb5d2;
+}
+.blog_view_all:hover, .view_all_link:hover,
+.ets-blog-form-comment .blog-submit .button:hover {
+    background-color: #00cefd;
+}
+@keyframes bounce_squaresWaveG {
+    0% {
+        background-color: #2fb5d2;
+    }
+
+    100% {
+        background-color: rgb(255, 255, 255);
+    }
+}
+
+@-o-keyframes bounce_squaresWaveG {
+    0% {
+        background-color: #2fb5d2;
+    }
+
+    100% {
+        background-color: rgb(255, 255, 255);
+    }
+}
+
+@-ms-keyframes bounce_squaresWaveG {
+    0% {
+        background-color: #2fb5d2;
+    }
+
+    100% {
+        background-color: rgb(255, 255, 255);
+    }
+}
+
+@-webkit-keyframes bounce_squaresWaveG {
+    0% {
+        background-color: #2fb5d2;
+    }
+
+    100% {
+        background-color: rgb(255, 255, 255);
+    }
+}
+
+@-moz-keyframes bounce_squaresWaveG {
+    0% {
+        background-color: #2fb5d2;
+    }
+
+    100% {
+        background-color: rgb(255, 255, 255);
+    }
+}
+.blog-sources,
+.blog-sources h2,
+.blog-sources .sources-content {
+  font-size: 14px !important;
+  color: #999999 !important;
+  font-weight: normal !important;
+  line-height: 1.6 !important;
+}
+.ets_blog_button_share ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 10px;
+}
+.ets_blog_button_share ul li {
+  display: inline-block;
+}
+.ets_blog_button_share ul li a {
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 15px;
+}
+.ets_blog_button_share ul li a i {
+  margin-right: 5px;
+  font-size: 16px;
+  vertical-align: middle;
+}
+/* =================================================================== */
+/* === Wersja 10: Ostateczna poprawka klikalności (z-index)         === */
+/* =================================================================== */
+
+/* --- Style podstawowe (działają wszędzie) --- */
+
+div.ets_block_search form {
+    position: relative;
+    width: 100%;
+    margin-bottom: 0;
+}
+
+div.ets_block_search input[name="ets_blog_search"] {
+    height: 45px;
+    width: 100%;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #fff;
+    padding: 5px 45px 5px 15px;
+    font-size: 14px;
+    color: #333;
+    transition: border-color 0.3s ease;
+    box-shadow: none;
+    -webkit-appearance: none;
+}
+
+div.ets_block_search input[name="ets_blog_search"]:focus {
+    border-color: #2fb5d2;
+    outline: none;
+}
+
+/* --- KLUCZOWA ZMIANA JEST TUTAJ --- */
+div.ets_block_search .icon_search {
+    position: absolute;
+    top: 2.5px;
+    right: 5px;
+    height: 40px;
+    width: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    background-color: transparent;
+    z-index: 5; /* NOWOŚĆ: Ta linia umieszcza ikonę na wierzchu! */
+}
+
+div.ets_block_search .icon_search::before {
+    content: "\f002";
+    font-family: FontAwesome;
+    color: #888;
+    font-size: 18px;
+    transition: color 0.2s ease-in-out;
+}
+
+/* --- Efekty HOVER (działają wszędzie) --- */
+
+div.ets_block_search .icon_search:hover {
+    background-color: #f5f5f5;
+}
+
+div.ets_block_search .icon_search:hover::before {
+    color: #2fb5d2;
+}
+
+
+/* --- Ukrycie przycisku <input type="submit"> (działa wszędzie) --- */
+div.ets_block_search input[type="submit"] {
+    display: none !important;
+}
+
+/* POCZĄTEK - Style dla znalezionych kategorii w wynikach wyszukiwania */
+
+.ets_blog_found_categories {
+    margin: 15px 0;
+    padding: 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+.ets_blog_found_categories .found-in-label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.ets_blog_found_categories a {
+    display: block; /* To sprawia, że każdy link jest w nowej linii */
+    padding: 4px 0;
+    color: #2fb5d2;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.ets_blog_found_categories a:hover {
+    color: #00cefd;
+}
+
+/* KONIEC - Style dla znalezionych kategorii w wynikach wyszukiwania */
+
+

@@ -1,0 +1,128 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author PrestaShop SA <contact@prestashop.com>
+*  @copyright  2007-2025 PrestaShop SA
+*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*/
+
+/****************************category*********************/
+.tvcategory-chain-slider-main-title-wrapper {
+    position: relative;
+}
+
+.tvcmscategory-chain-slider {
+    margin-bottom: 30px;
+}
+.tvcategory-chain-slider-wrapper {
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    border-radius: 3px;
+    overflow: hidden;
+    background-color: #ffffff;
+}
+.tvcategory-chain-slider-wrapper-info {
+    padding: 0 7.5px;
+}
+.tvcategory-chin-img-block {
+    padding: 0;
+}
+.tvcategory-chain-content-wrapper {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 20px 20px 2px 20px;
+}
+.tvcategory-chain-title {
+    text-align: center;
+    padding: 12px;
+    position: relative;
+}
+.tvcategory-chain-title:after {
+    position: absolute;
+    content: "";
+    width: 90%;
+    height: 1px;
+    background-color: #e5e5e5;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    text-align: center;
+}
+.tvcategory-chain-title a {
+    color: #333333;
+    font-size: 18px;
+    font-weight: 500;
+    text-transform: capitalize;
+    letter-spacing: 0.3px;
+}
+.tvcategory-chain-slider-category {
+    width: 50%;
+    float: left;
+    padding-bottom: 18px;
+}
+a.tvcategory-chain-slider-category {
+    color: #333333;
+    font-size: 14px;
+    font-weight: 400;
+    display: block;
+    letter-spacing: 0.3px;
+    padding-left: 30px;
+    position: relative;
+}
+.tvcategory-chain-slider-category:hover:after,
+.tvcategory-chain-slider-category:hover {
+    color: #d90244;
+}
+.tvcategory-chain-slider-category:after {
+    position: absolute;
+    font-family: 'Material Icons';
+    content: '\e315';
+    font-size: 16px;
+    left: 5px;
+    color: #333333;
+    top: 25%;
+    transform: translate(0, -50%);
+    -webkit-transform: translate(0, -50%);
+    -o-transform: translate(0, -50%);
+    -ms-transform: translate(0, -50%);
+    -moz-transform: translate(0, -50%);
+}
+@media(max-width: 991px) {
+    .tvcmscategory-chain-slider {
+        margin-bottom: 30px;
+    }
+}
+@media(max-width: 575px) {
+    .tvcategory-chain-slider-category {
+        font-size: 14px;
+        padding-left: 20px;
+    }
+}
+.lang-rtl .tvcategory-chain-slider-category {
+    text-align: right;
+    padding-left: 0;
+    padding-right: 30px;
+}
+.lang-rtl .tvcategory-chain-slider-category:after {
+    right: 5px;
+    left: auto;
+    transform: rotate(180deg) translate(0, 50%);
+}

@@ -1,0 +1,298 @@
+/* =========================================
+   DIET ZONE - FULL HEIGHT STRETCH FIX
+   ========================================= */
+
+.diet-premium-container {
+    padding: 60px 0;
+    background: #ffffff;
+    margin-bottom: 60px;
+    font-family: inherit;
+}
+
+/* --- 1. NAGŁÓWEK --- */
+.diet-header-section {
+    text-align: center;
+    margin-bottom: 50px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.diet-header-accent {
+    color: #d90244;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 15px;
+    font-family: inherit;
+}
+
+.diet-header-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    font-family: inherit;
+}
+
+.diet-header-line {
+    width: 60px;
+    height: 4px;
+    background: #d90244;
+    margin: 0 auto 20px auto;
+    border-radius: 2px;
+}
+
+.diet-header-desc {
+    font-size: 16px;
+    color: #666;
+    line-height: 1.6;
+    font-family: inherit;
+}
+
+/* --- UKŁAD KOLUMN --- */
+.diet-premium-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    /* Rozciągnij obie kolumny do równej wysokości */
+    align-items: stretch; 
+}
+
+/* --- 2. LEWA KOLUMNA --- */
+.diet-left-column {
+    flex: 0 0 100%;
+}
+
+@media (min-width: 992px) {
+    .diet-left-column {
+        flex: 0 0 35%;
+        max-width: 35%;
+    }
+}
+
+/* KARTA INFO */
+.diet-info-card-box {
+    background-color: #fff5f7;
+    padding: 40px;
+    border-radius: 8px;
+    height: 100%; /* Wypełnij całą wysokość kolumny */
+    box-shadow: none; 
+    border: 1px solid #ffeef2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.diet-info-badge {
+    background: #ffffff;
+    color: #d90244;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    font-family: inherit;
+}
+
+.diet-info-heading {
+    font-size: 28px;
+    font-weight: 700;
+    color: #222;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    font-family: inherit;
+}
+
+.diet-info-text {
+    font-size: 15px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    font-family: inherit;
+}
+
+.diet-card-btn {
+    display: inline-flex;
+    align-items: center;
+    color: #d90244;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none !important;
+    border-bottom: 2px solid rgba(217, 2, 68, 0.2);
+    padding-bottom: 5px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    font-family: inherit;
+}
+
+.diet-card-btn i {
+    margin-left: 8px;
+    font-size: 12px;
+    transition: transform 0.3s;
+}
+
+.diet-card-btn:hover {
+    color: #b00237;
+    border-bottom-color: #b00237;
+}
+
+.diet-card-btn:hover i {
+    transform: translateX(5px);
+}
+
+
+/* --- 3. PRAWA KOLUMNA (GRID & STRETCHING) --- */
+.diet-right-column {
+    flex: 1;
+    /* Kluczowe: Flex column pozwala dziecku (siatce) zająć 100% wysokości */
+    display: flex; 
+    flex-direction: column; 
+}
+
+.diet-premium-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    /* Kluczowe: Wypełnij całą dostępną wysokość kolumny */
+    height: 100%; 
+}
+
+@media (min-width: 768px) {
+    .diet-premium-grid {
+        grid-template-columns: repeat(4, 1fr);
+        /* Kluczowe na desktop: Podziel wysokość na 2 równe rzędy (1fr 1fr) */
+        grid-template-rows: 1fr 1fr; 
+    }
+}
+
+/* --- KAFELKI --- */
+.diet-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #fff;
+    padding: 25px 10px;
+    /* Kluczowe: Karta ma zająć 100% wysokości komórki w siatce */
+    height: 100%; 
+    min-height: 140px; /* Zabezpieczenie */
+    border-radius: 8px;
+    border: 1px solid #eaeaea;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+    /* Ważne dla Firefoxa/niektórych przeglądarek przy height 100% */
+    box-sizing: border-box; 
+}
+
+.diet-card:hover {
+    transform: translateY(-5px);
+    border-color: #d90244;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.diet-icon-box {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #f8f8f8;
+    color: #333;
+    transition: all 0.3s ease;
+}
+
+.diet-icon-box i {
+    font-size: 22px;
+}
+
+.diet-card:hover .diet-icon-box {
+    background: #d90244;
+    color: #fff;
+}
+
+.diet-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    line-height: 1.3;
+    font-family: inherit;
+}
+
+.diet-card:hover .diet-card-name {
+    color: #d90244;
+}
+
+/* --- MOBILE LINK --- */
+.diet-mobile-only-wrapper {
+    display: none;
+    width: 100%;
+    margin-top: 20px;
+    justify-content: center;
+}
+
+.diet-desktop-only {
+    display: block;
+}
+
+/* =========================================
+   RESPONSYWNOŚĆ (MOBILE)
+   ========================================= */
+
+@media (max-width: 991px) {
+    .diet-premium-container {
+        padding-top: 40px;
+        padding-bottom: 30px;
+    }
+    .diet-premium-wrapper {
+        flex-direction: column;
+        gap: 20px;
+        align-items: normal; /* Reset na mobilu */
+    }
+    .diet-left-column {
+        max-width: 100%;
+    }
+    .diet-info-card-box {
+        padding: 30px;
+        align-items: center;
+        text-align: center;
+        height: auto;
+    }
+    
+    /* Na mobilu siatka nie musi mieć 100% wysokości, ma być auto */
+    .diet-premium-grid {
+        height: auto; 
+        grid-template-rows: auto; 
+    }
+    
+    .diet-desktop-only {
+        display: none;
+    }
+    .diet-mobile-only-wrapper {
+        display: flex;
+    }
+    .diet-text-link.mobile-forced-active {
+        color: #d90244 !important;
+        font-weight: 700;
+        text-decoration: none;
+        font-size: 14px;
+        padding: 15px;
+        display: flex;
+        align-items: center;
+        font-family: inherit;
+    }
+    .diet-text-link.mobile-forced-active i {
+        margin-left: 8px;
+    }
+}

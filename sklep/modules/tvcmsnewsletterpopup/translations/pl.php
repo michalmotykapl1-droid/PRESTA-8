@@ -1,0 +1,35 @@
+<?php
+
+global $_MODULE;
+$_MODULE = array();
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_fc0b3fe9c6692b6dd03bf0a5c25bab9c'] = 'ThemeVolty - Popup Newslettera';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_a6794fab2cb492138854842e4319b660'] = 'Wyświetla wyskakujące okno newslettera z Twoją wiadomością';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_c8a86870f60c49bfc997e7711f8163d3'] = 'Popup Newslettera został zaktualizowany';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_be53a0541a6d36f6ecb879fa2c584b08'] = 'Obraz';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_894332abeca01614354338288d8dc34d'] = 'Status obrazu';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_72a9c31b6bf1fc322f2f4e0162583930'] = 'Ukryj lub Pokaż Obraz';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_498f79c4c5bbde77f1bceb6c86fd0f6d'] = 'Pokaż';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_62a5e490880a92eef74f167d9dc6dca0'] = 'Ukryj';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_abd809c9e3c1c08e97740f86b8ceabfb'] = 'Obraz tła';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_3b8b255785f6ef55e628f2b5f5a2c88d'] = 'Ukryj lub pokaż obraz tła';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_b78a3223503896721cca1303f776159b'] = 'Tytuł';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_ae1ca42050a83e3f088db858148cba66'] = 'Podtytuł';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_b5a7adde1af5c87d7fd797b6245c2a39'] = 'Opis';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_120008da8ac3edb7d7bb3869d4cf52bc'] = 'Popup Newslettera';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_311e638d3a901f60b765b77736883490'] = 'Ukryj lub pokaż popup newslettera';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_2910974f1715f8499e0eb4c0e22485e3'] = 'Popup Newslettera';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_c9cc8cce247e49bae79f15173ce97354'] = 'Zapisz';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_99c8b8e5e51bf8f00f1d66820684be9a'] = 'Ten adres e-mail jest już zarejestrowany i/lub nieprawidłowy.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_4e1c51e233f1ed368c58db9ef09010ba'] = 'Dziękujemy za subskrypcję naszego newslettera.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_e267e2be02cf3e29f4ba53b5d97cf78a'] = 'Nieprawidłowy adres e-mail.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_f6618fce0acbfca15e1f2b0991ddbcd0'] = 'Ten adres e-mail jest już zarejestrowany.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_e172cb581e84f43a3bd8ee4e3b512197'] = 'Wystąpił błąd podczas procesu subskrypcji.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_ebc069b1b9a2c48edfa39e344103be1e'] = 'Wysłano e-mail weryfikacyjny. Proszę sprawdzić skrzynkę odbiorczą.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_77c576a354d5d6f5e2c1ba50167addf8'] = 'Pomyślnie zasubskrybowałeś/zasubskrybowałaś ten newsletter.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_image_upload.class_78d74457b54742f21fef23b2f29063cd'] = 'Problem z przesłaniem obrazu';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_image_upload.class_d441d4ecb525cb8c94efee379f64c752'] = 'Proszę wybrać prawidłowy plik obrazu.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>form_92fbf0e5d97b8afd7e73126b52bdc4bb'] = 'Wybierz plik';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>form_5466116e4abfd50455657f147e11da72'] = 'Proszę wybrać obraz.';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_300558e4d93b83d426666d82d7342d9c'] = 'Twój adres e-mail...';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_484b96cb279f7e4d48b07499415231d9'] = 'Zapisuję się';
+$_MODULE['<{tvcmsnewsletterpopup}prestashop>tvcmsnewsletterpopup_1bc362a055acaa614920f47279d63f65'] = 'Nie pokazuj ponownie tego okna';

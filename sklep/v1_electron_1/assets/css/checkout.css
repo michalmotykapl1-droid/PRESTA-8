@@ -1,0 +1,700 @@
+/**
+ * PRO CHECKOUT DESIGN - BIGBIO - FINAL COMPLETE VERSION
+ */
+
+/* --- 1. INPUTY I CZYSZCZENIE --- */
+.form-control-comment { display: none !important; }
+
+.form-control-label {
+    display: block !important;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin-bottom: 8px;
+    padding-top: 0;
+}
+
+/* Style dla .required (gwiazdka) w labelu */
+.form-control-label.required::after {
+    content: " *";
+    color: #d0021b;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.form-control, 
+#customer-form .form-control,
+#login-form .form-control {
+    background: #fff !important;
+    border: 1px solid #e6e6e6 !important;
+    border-radius: 8px !important;
+    height: 50px !important;
+    padding: 0 15px;
+    font-size: 15px;
+    color: #333;
+    box-shadow: none;
+    margin-bottom: 5px;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: #555 !important;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.05) !important;
+    outline: none;
+}
+
+.form-group { margin-bottom: 24px; position: relative; }
+
+.form-group .form-control-comment {
+    display: none !important;
+}
+
+/* --- 2. ZAKŁADKI FIRMA / OSOBA --- */
+.address-type-tabs {
+    margin-bottom: 30px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0;
+}
+
+.tabs-wrapper {
+    display: flex;
+    gap: 35px;
+}
+
+.tab-item {
+    position: relative;
+    cursor: pointer;
+    margin: 0;
+    padding-bottom: 12px;
+    margin-bottom: -1px;
+}
+
+.tab-item input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.tab-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: #aaa; 
+    transition: all 0.3s ease;
+    display: block;
+    border-bottom: 3px solid transparent; 
+    padding-bottom: 10px;
+}
+
+.tab-item input:checked + .tab-text {
+    color: #000 !important; 
+    border-bottom-color: #000 !important; 
+}
+
+.tab-item:hover .tab-text { color: #666; }
+.tab-item input:checked:hover + .tab-text { color: #000; }
+
+
+/* --- 3. UKŁAD KOLUMN --- */
+.form-group.row .col-md-3 {
+    display: block !important; flex: 0 0 100%; max-width: 100%; padding: 0 15px; text-align: left;
+}
+.form-group.row:has(.custom-checkbox) .col-md-3 { display: none !important; }
+
+.form-group.row .col-md-9,
+.form-group.row .col-md-12 {
+    flex: 0 0 100%; max-width: 100%; padding: 0 15px;
+}
+
+/* --- FIX: RÓWNE KAFLE FIRMA/NIP --- */
+.business-split-wrapper {
+    display: flex; 
+    flex-wrap: wrap; 
+    margin-top: 15px; 
+}
+.business-fields-row {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+}
+.business-field-item {
+    flex: 1; 
+    min-width: 48%; 
+}
+
+
+/* --- 4. CHECKBOXY --- */
+.custom-checkbox {
+    display: flex !important; align-items: flex-start !important; width: 100% !important;
+    position: relative; margin-bottom: 15px; padding: 0 !important; min-height: 24px;
+}
+.custom-checkbox input[type="checkbox"] {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 10; cursor: pointer;
+}
+.custom-checkbox > span {
+    display: flex !important; align-items: center; justify-content: center;
+    width: 20px !important; height: 20px !important; min-width: 20px !important; flex-shrink: 0 !important;
+    background-color: #fff; border: 1px solid #ccc; border-radius: 4px;
+    margin-right: 12px; margin-top: 2px; transition: all 0.2s; position: relative; z-index: 1;
+}
+.custom-checkbox .material-icons { font-size: 14px; color: #fff; display: none; font-weight: bold; }
+.custom-checkbox input:checked + span { border-color: #333; }
+.custom-checkbox input:checked + span .material-icons { display: block; }
+.custom-checkbox label {
+    flex: 1 !important; width: auto !important; text-align: left; margin: 0; display: block;
+    font-size: 14px; line-height: 1.5; color: #555; position: relative; z-index: 1;
+}
+.form-group.row:has(input[required]) .custom-checkbox label::after {
+    content: " *"; color: #d0021b; font-weight: bold; font-size: 14px;
+}
+.create-account-box label::after { content: "" !important; }
+
+
+/* --- 5. HASŁO, OKO, PRZYCISKI --- */
+.input-group { position: relative; display: flex; flex-wrap: wrap; width: 100%; }
+.js-child-focus { padding-right: 50px !important; }
+.input-group-btn { position: absolute; top: 0; right: 0; height: 50px; width: 50px; z-index: 10; display: flex; align-items: center; justify-content: center; }
+.input-group-btn button { background: transparent !important; border: none !important; font-size: 0 !important; color: transparent !important; width: 100%; height: 100%; outline: none; display: flex; align-items: center; justify-content: center; }
+.input-group-btn button::before { font-family: 'Material Icons'; content: "\E417"; font-size: 24px; color: #ccc !important; transition: color 0.3s; line-height: 1; visibility: visible; }
+.input-group-btn button:hover::before { color: #999 !important; }
+.input-group-btn button.is-visible::before { color: #333 !important; }
+
+.form-footer { margin-top: 40px; border-top: 1px solid #f5f5f5; padding-top: 30px; width: 100%; clear: both; }
+.footer-flex-wrapper { display: flex !important; align-items: center; justify-content: space-between !important; width: 100% !important; flex-wrap: wrap; gap: 20px; }
+.required-field-note { font-size: 13px; color: #888; }
+.red-star { color: #d0021b; font-weight: bold; }
+
+.tvall-inner-btn {
+    background-color: #4a4a4a !important; color: #fff !important; font-weight: 600; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 1.5px; padding: 16px 50px; border: none;
+    border-radius: 50px !important; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: all 0.3s;
+    cursor: pointer; margin-left: auto; overflow: hidden; position: relative; z-index: 1;
+}
+.tvall-inner-btn::before, .tvall-inner-btn::after { display: none !important; }
+.tvall-inner-btn:hover { background-color: #333 !important; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+
+.forgot-password { display: block; width: 100%; text-align: right !important; margin: 10px 0; }
+.forgot-password a { color: #666; font-size: 13px; text-decoration: none; transition: color 0.2s; }
+.forgot-password a:hover { color: #000; text-decoration: underline; }
+
+.checkout-auth-tabs .nav-pills { display: flex; gap: 35px; border-bottom: 1px solid #eee; margin-bottom: 35px; padding-bottom: 0; }
+.checkout-auth-tabs .nav-item { margin-bottom: -1px; }
+.checkout-auth-tabs .nav-link { background: transparent !important; color: #aaa !important; font-weight: 600; font-size: 15px; padding: 12px 5px; border: none; border-bottom: 2px solid transparent; transition: all 0.3s; opacity: 1 !important; }
+.checkout-auth-tabs .nav-link.active { color: #222 !important; border-bottom: 2px solid #222; background-color: transparent !important; opacity: 1 !important; }
+
+/* --- 6. ROZBITE POLE ADRESU --- */
+.address-fields-row { display: flex; gap: 20px; width: 100%; }
+.address-street-field { flex: 2; }
+.address-number-field { flex: 1; }
+.address-sub-label { display: block; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-bottom: 8px; }
+.required-mark-sub::after { content: " *"; color: #d0021b; font-weight: bold; font-size: 12px; }
+
+/* --- 7. WALIDACJA BŁĘDÓW --- */
+.has-error { border-color: #d0021b !important; background-color: #fffafa !important; }
+.js-phone-error-msg { color: #d0021b; font-weight: 600; font-size: 12px; margin-top: 4px; display: block; }
+
+/* [NOWOŚĆ] Highlight dla kontenerów (np. checkboxów), gdy pole w środku ma błąd */
+.has-error-highlight label,
+.has-error-highlight > span {
+    color: #d0021b !important;
+}
+/* Podświetlenie ramki i tła dla customowego checkboxa */
+.custom-checkbox.has-error-highlight > span {
+    border-color: #d0021b !important;
+    background-color: #fffafa !important;
+}
+
+
+
+
+
+
+/* ========================================================================== */
+/* == KROK 3: SPOSÓB DOSTAWY (Wersja Kompletna - z Odbiorem Osobistym) == */
+/* ========================================================================== */
+
+/* --- 8. STYLOWANIE KART DOSTAWY --- */
+
+/* Ukrywamy oryginalny input radio */
+.carrier-radio-input {
+    display: none;
+}
+
+/* Kontener na wszystkie karty */
+.delivery-options-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 30px;
+}
+
+/* Wrapper (cały blok) - to on ma ramkę */
+.delivery-option-card-wrapper {
+    border: 1px solid #e6e6e6; /* Domyślna ramka */
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    background: #fff;
+    overflow: hidden; /* Ważne dla border-radius */
+}
+
+/* Styl "selected" jest teraz na wrapperze */
+.delivery-option-card-wrapper.is-selected {
+    border-color: #333;
+    box-shadow: 0 0 0 1px #333;
+}
+
+/* Karta wewnątrz wrappera (już BEZ WŁASNEJ ramki) */
+.delivery-option-card {
+    display: flex;
+    align-items: center;
+    padding: 20px 18px;
+    width: 100%;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.delivery-option-card:hover {
+    background-color: #fcfcfc;
+}
+
+/* Fałszywe radio */
+.card-radio-button {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    margin-right: 18px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.card-radio-button::before {
+    content: '';
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #333;
+    border-radius: 50%;
+    transform: scale(0);
+    transition: transform 0.2s ease;
+}
+
+/* Logo, content, price */
+.card-logo { width: 80px; flex-shrink: 0; margin-right: 15px; }
+.card-logo img { max-width: 100%; height: auto; max-height: 40px; }
+.card-content { flex-grow: 1; display: flex; flex-direction: column; gap: 2px; }
+.card-title { font-weight: 600; font-size: 15px; color: #222; }
+
+/* Data dostawy z ikoną */
+.card-delay {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Odstęp między ikoną a tekstem */
+    font-size: 13px;
+    color: #555;
+    font-weight: 500;
+}
+.card-delay::before {
+    font-family: 'Material Icons';
+    content: "\E8DF"; /* ikona ciężarówki: local_shipping */
+    font-size: 16px; /* Rozmiar ikony */
+    color: #555; /* Kolor ikony */
+    position: relative;
+    top: 1px;
+}
+
+.card-price { font-weight: 600; font-size: 15px; color: #222; margin-left: auto; padding-left: 15px; }
+
+
+/* Styl "selected" dla wewnętrznych elementów (kropka w radio) */
+.delivery-option-card-wrapper.is-selected .card-radio-button {
+    border-color: #333;
+}
+.delivery-option-card-wrapper.is-selected .card-radio-button::before {
+    transform: scale(1);
+}
+
+/* Kontener na dodatkową treść (InPost LUB Odbiór) */
+.carrier-extra-content {
+    width: 100%;
+    /* Wcięcie pasujące do karty */
+    padding: 0 20px 20px 58px; 
+    border-top: 1px solid #f0f0f0;
+    margin-top: -5px; 
+}
+
+/* Ukryj separator, jeśli blok jest pusty */
+.carrier-extra-content:empty {
+    display: none;
+}
+
+/* --- 9. STYLOWANIE WEWNĘTRZNE MODUŁU INPOST --- */
+
+/* 1. Zresetuj tło i ramki kontenera głównego InPost */
+.carrier-extra-content .inpost-shipping-container-js {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 2. Nadaj styl *wszystkim* wewnętrznym blokom InPost (Paczkomat, Twoje dane, itp.) */
+.carrier-extra-content .inpost-shipping-container-js .inpost-shipping-machine-info,
+.carrier-extra-content .inpost-shipping-container-js .form-group {
+    background: #fff !important; /* Białe tło */
+    border: 1px solid #e6e6e6 !important; /* Delikatna ramka dla każdego bloku */
+    border-radius: 8px !important;
+    padding: 16px !important;
+    margin-bottom: 10px !important;
+    box-shadow: none !important;
+}
+
+/* 3. Specjalna obsługa bloku "Twoje dane" (Flexbox) */
+.carrier-extra-content .inpost-shipping-container-js .form-group.mb-0 {
+    display: flex !important;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* 4. Zresetuj style dla DZIECI bloku Flexbox (aby nie miały podwójnych ramek) */
+.carrier-extra-content .inpost-shipping-container-js .form-group.mb-0 > div[class*="col-"]:first-child {
+    flex-grow: 1; 
+    padding-right: 15px !important;
+    flex-basis: 70%;
+    padding: 0 !important; border: none !important; box-shadow: none !important; 
+    background: transparent !important; margin-bottom: 0 !important;
+}
+.carrier-extra-content .inpost-shipping-container-js .form-group.mb-0 > div[class*="col-"]:last-child {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: 30%;
+    text-align: right;
+    padding: 0 !important; border: none !important; box-shadow: none !important; 
+    background: transparent !important; margin-bottom: 0 !important;
+}
+
+/* 5. Stylujemy przyciski "Wybierz Paczkomat" / "Wybierz ten punkt" */
+.carrier-extra-content .btn-inpost {
+    background-color: #f0f0f0 !important;
+    color: #333 !important;
+    border: 1px solid #ccc !important;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 12px 25px;
+    border-radius: 8px !important;
+    transition: all 0.3s ease;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    box-shadow: none !important;
+    width: auto;
+    margin-top: 5px;
+}
+.carrier-extra-content .btn-inpost:hover {
+    background-color: #e0e0e0 !important;
+    border-color: #999 !important;
+}
+
+/* 6. Ukrywamy zbędne nagłówki modułu */
+.carrier-extra-content .inpost-shipping-container-js h5 {
+    display: none;
+}
+
+/* --- 10. POPRAWKA UKŁADU KOMENTARZA DO ZAMÓWIENIA --- */
+
+#delivery {
+    margin-top: 20px;
+}
+
+#delivery label {
+    display: block; /* Etykieta nad polem */
+    text-align: left;
+    font-weight: 600;
+    font-size: 14px;
+    color: #444;
+    margin-bottom: 10px; /* Odstęp od pola tekstowego */
+}
+
+#delivery textarea {
+    width: 100%; /* Pole na całą szerokość */
+    border: 1px solid #e6e6e6 !important;
+    border-radius: 8px !important;
+    min-height: 80px;
+    padding: 12px 15px;
+}
+#delivery textarea:focus {
+    border-color: #555 !important;
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.05) !important;
+}
+
+/* --- 11. NOWOŚĆ: STYLOWANIE BLOKU ODBIORU OSOBISTEGO --- */
+
+.pickup-store-details {
+    width: 100%;
+}
+.pickup-map-container {
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid #e6e6e6;
+}
+.pickup-map-container iframe {
+    display: block; /* Usuwa białą przestrzeń pod mapą */
+}
+
+.pickup-store-details h6 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 15px;
+}
+
+.pickup-info-block {
+    display: flex;
+    align-items: flex-start; /* Dopasowanie do wieloliniowego tekstu */
+    gap: 12px;
+    font-size: 14px;
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+.pickup-info-block .material-icons {
+    font-size: 20px;
+    color: #666;
+    position: relative;
+    top: 2px; /* Lepsze dopasowanie do tekstu */
+}
+.pickup-info-block span {
+    flex: 1;
+}
+
+/* Ostatni blok bez marginesu na dole */
+.pickup-info-block:last-child {
+    margin-bottom: 0;
+}
+
+
+
+/* ========================================================================== */
+/* == KROK 4: PŁATNOŚĆ (Wersja Kompletna - Poprawka Pustych Divów) == */
+/* ========================================================================== */
+
+/* --- 11. (NOWOŚĆ) UKRYCIE PUSTYCH DIV-ÓW MODUŁÓW --- */
+/* Ukrywa puste kontenery (np. z P24) które są między kartami a zgodami */
+.payment-options-cards + .form-group.row {
+    display: none !important;
+}
+
+/* --- 12. STYLOWANIE KART PŁATNOŚCI --- */
+
+.payment-options-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 30px;
+}
+.payment-option-card-wrapper {
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    background: #fff;
+    overflow: hidden;
+}
+.payment-option-card-wrapper.is-selected {
+    border-color: #333;
+    box-shadow: 0 0 0 1px #333;
+}
+.payment-option-card {
+    display: flex;
+    align-items: center;
+    padding: 20px 18px;
+    width: 100%;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.payment-option-card:hover {
+    background-color: #fcfcfc;
+}
+.payment-option-card .card-radio-button {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    margin-right: 18px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.payment-option-card .card-radio-button::before {
+    content: '';
+    display: block;
+    width: 10px;
+    height: 10px;
+    background-color: #333;
+    border-radius: 50%;
+    transform: scale(0);
+    transition: transform 0.2s ease;
+}
+.payment-option-card-wrapper.is-selected .card-radio-button {
+    border-color: #333;
+}
+.payment-option-card-wrapper.is-selected .card-radio-button::before {
+    transform: scale(1);
+}
+.payment-option-card .card-content {
+    flex-grow: 1;
+}
+.payment-option-card .card-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #222;
+}
+.payment-option-card .card-logo-payment {
+    margin-left: auto;
+    padding-left: 15px;
+    max-height: 25px;
+    display: flex;
+    align-items: center;
+}
+.payment-option-card .card-logo-payment img {
+    max-height: 25px;
+    width: auto;
+}
+.additional-information {
+    padding: 0 20px 20px 58px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: -5px; 
+}
+.additional-information .definition-list {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+
+/* --- 13. STYLOWANIE WARUNKÓW ZAKUPÓW --- */
+
+#conditions-to-approve ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+#conditions-to-approve li {
+    padding: 0;
+    margin: 0;
+}
+
+/* Zerujemy margines, bo puste divy zniknęły */
+.conditions-to-approve-clean {
+    margin: 0;
+}
+
+.conditions-to-approve-clean .custom-checkbox {
+    margin: 0 0 15px 0; /* Odstęp między zgodami */
+}
+.conditions-to-approve-clean .custom-checkbox:last-child {
+    margin-bottom: 0;
+}
+.conditions-to-approve-clean .custom-checkbox label {
+    color: #333;
+    font-size: 14px;
+}
+.conditions-to-approve-clean .custom-checkbox label a {
+    color: #333;
+    font-weight: 600;
+    text-decoration: underline;
+}
+.conditions-to-approve-clean .custom-checkbox label a:hover {
+    text-decoration: none;
+}
+.conditions-to-approve-clean .custom-checkbox.has-error-highlight label {
+    color: #d0021b !important;
+}
+
+
+/* --- 14. STYLOWANIE PRZYCISKU ZAMÓWIENIA --- */
+
+.tvall-inner-btn.btn-full-width {
+    width: 100%;
+    margin: 0;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+.js-alert-payment-conditions {
+    display: none !important;
+}
+
+/* --- 15. SEPARATOR PRZED PODSUMOWANIEM --- */
+
+.checkout-step-separator-wrapper {
+    margin: 40px 0 35px 0; /* POPRAWKA: Zwiększony odstęp (góra/dół) */
+}
+hr.checkout-step-separator {
+    border: none;
+    border-top: 1px solid #e6e6e6;
+    margin: 0;
+}
+/* ========================================================================== */
+/* == KROK 4: POPRAWKI PODSUMOWANIA ZAMÓWIENIA == */
+/* ========================================================================== */
+
+/* --- 16. POPRAWKI STYLU PODSUMOWANIA ZAMÓWIENIA --- */
+
+/* Usuwamy domyślną ramkę z bloku produktów (jeśli jest) */
+.order-confirmation-table {
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* Poprawiamy separator (linię) między produktami a sumami */
+.order-confirmation-table hr {
+    margin-top: 25px;
+    margin-bottom: 20px;
+    border-top: 1px solid #e6e6e6;
+}
+
+/* Stylujemy tabelę z sumami (wyrównanie do prawej) */
+.order-confirmation-table table {
+    width: 100%;
+    max-width: 400px; /* Ograniczamy szerokość dla czytelności */
+    margin-left: auto; /* Wyrównujemy do prawej */
+    font-size: 15px;
+}
+
+.order-confirmation-table table tr td {
+    padding: 6px 0;
+    color: #444;
+}
+
+.order-confirmation-table table tr td:last-child {
+    text-align: right;
+    font-weight: 600;
+    color: #222;
+}
+
+/* Styl dla "RAZEM (brutto)" */
+.order-confirmation-table table tr.font-weight-bold td {
+    padding-top: 15px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #000;
+}
+.order-confirmation-table table tr.font-weight-bold td:first-child {
+    font-size: 16px; /* "RAZEM (brutto)" mniejsze niż kwota */
+    font-weight: 700;
+    color: #000;
+}
+
+
+
+
+
+
+
+

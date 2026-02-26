@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>ps_newproducts</name>
+    <displayName><![CDATA[Blok nowych produkt&oacute;w]]></displayName>
+    <version><![CDATA[1.0.4]]></version>
+    <description><![CDATA[Wyr&oacute;żnij najnowsze produkty swojego sklepu, wyświetl blok na stronie gł&oacute;wnej i poinformuj odwiedzających o nowościach w Twoim sklepie.]]></description>
+    <author><![CDATA[PrestaShop]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>

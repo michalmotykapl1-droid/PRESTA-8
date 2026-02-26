@@ -1,0 +1,88 @@
+/* ========================================================= */
+/* STREFA SUPLEMENTÓW - CSS (Grey Loader)                    */
+/* ========================================================= */
+
+.suple-wrapper { background: #fff; padding: 60px 0; margin-bottom: 60px; border-top: 1px solid #f0f0f0; margin-top: -45px; display: block; position: relative; min-height: 550px; }
+
+/* FIX: Ukrywanie EDAN */
+.suple-item .product-flags, .suple-item .product-flag, .suple-item .tvproduct-flags { display: none !important; }
+.suple-item .product-flag.discount { display: block !important; }
+
+/* NAGŁÓWEK */
+.suple-header { text-align: center; margin-bottom: 40px; position: relative; }
+.suple-header-content { width: 100%; max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+.suple-title { font-size: 24px !important; font-weight: 700 !important; color: #222; text-transform: uppercase; margin: 0 0 15px 0; line-height: 1.2; letter-spacing: 0.5px; }
+.suple-line { width: 60px; height: 4px; background: #ff6600; margin: 0 auto 20px auto; border-radius: 2px; }
+.suple-desc { font-size: 14px; color: #777; line-height: 1.6; margin: 0 auto; font-weight: 400; }
+.suple-btn-container { position: absolute; right: 0; top: 50%; transform: translateY(100%); z-index: 2; bottom: 0; top: auto; transform: none; }
+.suple-btn-all { background: transparent; border: none; padding: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #222; display: inline-flex; align-items: center; gap: 8px; transition: all 0.3s ease; text-decoration: none !important; }
+.suple-btn-all:hover { color: #ff6600; transform: translateX(5px); }
+
+/* UKŁAD */
+.suple-layout-flex { display: flex; gap: 30px; align-items: stretch; }
+.suple-nav-col { flex: 0 0 270px; width: 270px; display: flex; flex-direction: column; }
+.suple-products-col { flex: 1; width: calc(100% - 300px); display: flex; flex-direction: column; }
+
+/* MENU */
+.suple-menu { background: #fff; border: 1px solid #eee; border-radius: 4px; overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+.suple-menu-item { display: flex; align-items: center; padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #f5f5f5; transition: all 0.3s; color: #444; position: relative; background: #fff; }
+.suple-menu-item:last-child { border-bottom: none; }
+.suple-icon { width: 25px; text-align: center; margin-right: 15px; font-size: 16px; color: #bbb; transition: color 0.3s; }
+.suple-menu-item:hover, .suple-menu-item.active { background: #fff9f0; color: #ff6600; padding-left: 25px; }
+.suple-menu-item.active::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #ff6600; }
+.suple-menu-item:hover .suple-icon, .suple-menu-item.active .suple-icon { color: #ff6600; }
+
+/* PRODUKTY */
+.suple-pane { display: none; animation: fadeIn 0.4s ease; height: 100%; }
+.suple-pane.active { display: block; }
+.suple-grid { display: grid; grid-template-columns: repeat(var(--suple-cols, 4), 1fr); gap: 20px; height: 100%; }
+
+/* --- NOWY LOADER (POPIELATY / SZARY) --- */
+.suple-loading-overlay {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px dashed #f0f0f0;
+    border-radius: 8px;
+    color: #999;
+    gap: 15px;
+}
+
+.suple-loading-text {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #999; /* Szary tekst */
+}
+
+.suple-spinner { 
+    width: 40px; 
+    height: 40px; 
+    border: 3px solid #f0f0f0;   /* Bardzo jasne tło */
+    border-top: 3px solid #888;  /* Popielaty/Ciemnoszary */
+    border-radius: 50%; 
+    animation: spin 0.8s linear infinite; 
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* CENTROWANIE */
+.suple-item { margin: 0 !important; height: 100%; display: flex; }
+.suple-item .tvproduct-wrapper, .suple-item .product-miniature, .suple-item .thumbnail-container { width: 100% !important; display: flex !important; flex-direction: column !important; justify-content: center !important; min-height: 100% !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; background: transparent !important; }
+.suple-item .tvproduct-image { margin-top: auto !important; margin-bottom: 10px !important; align-self: center !important; }
+.suple-item .tvproduct-info-box-wrapper { margin-bottom: auto !important; margin-top: 0 !important; width: 100%; text-align: center; }
+
+/* RWD */
+@media (max-width: 1300px) { .suple-btn-container { position: relative; right: auto; bottom: auto; margin-top: 20px; display: flex; justify-content: center; transform: none; } }
+@media (max-width: 991px) {
+    .suple-layout-flex { flex-direction: column; } .suple-nav-col, .suple-products-col { width: 100%; flex: none; } .suple-nav-col { height: auto; margin-bottom: 20px; }
+    .suple-menu { display: flex; flex-direction: row; overflow-x: auto; border: none; background: transparent; gap: 10px; height: auto; }
+    .suple-menu-item { border: 1px solid #eee; border-radius: 30px; white-space: nowrap; background: #fff; padding: 10px 20px; flex-grow: 0; }
+    .suple-menu-item.active::before { display: none; } .suple-menu-item.active { background: #ff6600; color: #fff; border-color: #ff6600; } .suple-menu-item.active .suple-icon { color: #fff; }
+}

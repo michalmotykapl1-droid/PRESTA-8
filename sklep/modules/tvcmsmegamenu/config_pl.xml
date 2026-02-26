@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>tvcmsmegamenu</name>
+    <displayName><![CDATA[ThemeVolty - Mega Menu]]></displayName>
+    <version><![CDATA[4.0.1]]></version>
+    <description><![CDATA[Wyświetla Mega Menu na stronie gł&oacute;wne]]></description>
+    <author><![CDATA[Themevolty]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+	<confirmUninstall><![CDATA[Warning: all the data saved in your database will be deleted .  Are you sure you want uninstall this module?]]></confirmUninstall>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>

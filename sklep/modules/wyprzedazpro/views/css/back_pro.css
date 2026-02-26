@@ -1,0 +1,28 @@
+#wyprzedazpro-app-container {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 15px;
+}
+.short-expiry {
+  background-color: #ffd6d6 !important;
+}
+.table tr.danger {
+    background-color: #f2dede !important;
+}
+.table tr.warning {
+    background-color: #fcf8e3 !important;
+}
+.row-even {
+    background-color: #f8f8f8;
+}
+.row-odd {
+    background-color: #f1f9ff;
+}
+.table-scrollable-container {
+    max-height: 500px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+}

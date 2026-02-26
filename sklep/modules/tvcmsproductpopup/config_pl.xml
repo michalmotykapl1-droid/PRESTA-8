@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>tvcmsproductpopup</name>
+    <displayName><![CDATA[Themevolty - Product Popup]]></displayName>
+    <version><![CDATA[4.0.0]]></version>
+    <description><![CDATA[Show Product Popup on Front Side]]></description>
+    <author><![CDATA[Themevolty]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>1</is_configurable>
+    <need_instance>1</need_instance>
+</module>

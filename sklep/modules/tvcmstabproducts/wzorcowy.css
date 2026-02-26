@@ -1,0 +1,225 @@
+/**
+* ThemeVolty - Category Tiles (FIXED: Clipping, Arrow Color & Position)
+*/
+
+/* GŁÓWNY KONTENER */
+.tvcmstwoofferbanners-one {
+    background: #fff;
+    padding: 20px 0 40px 0;
+    width: 100%;
+    position: relative;
+    z-index: 10;
+    
+    /* Usuwamy główne obramowania */
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+}
+
+.tvcmstwoofferbanners-one::before,
+.tvcmstwoofferbanners-one::after {
+    display: none !important;
+}
+
+/* --- NAGŁÓWEK (Z POMARAŃCZOWĄ LINIĄ) --- */
+.tv-allegro-title {
+    text-align: center;
+    /* Zmniejszam margines dolny, bo dodajemy padding do karuzeli */
+    margin-bottom: 5px; 
+    position: relative;
+    z-index: 5; /* NIŻSZY Z-INDEX niż karuzela, żeby nie przykrywał kafelków */
+    
+    border: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+}
+
+.tv-allegro-title h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: #111;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0;
+    display: inline-block;
+    padding-bottom: 10px;
+}
+
+/* PRZYWRÓCONA POMARAŃCZOWA LINIA */
+.tv-allegro-title h2::after {
+    content: ''; 
+    display: block; 
+    width: 60px; 
+    height: 4px; 
+    background: #ff5a00; 
+    margin: 5px auto 0; 
+    border-radius: 2px;
+}
+
+/* --- KONTENER KARUZELI (FIX UCINANIA) --- */
+.tv-category-wrapper {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    position: relative;
+    padding: 0 50px;
+    
+    /* KLUCZOWA POPRAWKA UCINANIA: */
+    /* Dajemy duży padding od góry (25px), żeby kafelek miał miejsce na uniesienie */
+    padding-top: 25px !important; 
+    /* Dajemy wysoki z-index, żeby był NAD tytułem */
+    z-index: 50; 
+}
+
+/* KAFELEK */
+.tv-category-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%; 
+    height: 180px; 
+    text-decoration: none !important;
+    padding: 20px 10px;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    
+    /* Styl Karty */
+    background: #ffffff;
+    border: 1px solid #eee;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+    color: #333;
+    box-sizing: border-box;
+    
+    position: relative;
+    z-index: 1;
+}
+
+/* Hover */
+.tv-category-tile:hover {
+    /* Unosimy o 5px (mamy 25px zapasu w paddingu wyżej, więc nie utnie) */
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    border-color: #ff5a00;
+    background: #fff;
+    z-index: 100;
+}
+
+/* IKONA */
+.tv-tile-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+    background: transparent; 
+    transition: transform 0.3s ease;
+    color: #ff5a00; 
+    flex-shrink: 0;
+}
+
+.tv-category-tile:hover .tv-tile-icon-wrapper {
+    transform: scale(1.1);
+}
+
+.tv-tile-icon-wrapper i {
+    font-size: 42px;
+    line-height: 1;
+}
+
+/* TEKST */
+.tv-tile-name {
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: center;
+    font-weight: 700;
+    color: #444;
+    word-wrap: break-word;
+    max-width: 100%;
+    text-transform: uppercase;
+    
+    height: auto;
+    min-height: 34px;
+    max-height: 55px; 
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.tv-category-tile:hover .tv-tile-name {
+    color: #000;
+}
+
+/* --- NAWIGACJA (STRZAŁKI) --- */
+#tv-category-slider .owl-nav {
+    position: absolute;
+    /* PODNIESIONE: Ustawiam na 35%, żeby celowały w środek ikon, a nie całego kafla */
+    top: 35% !important; 
+    transform: translateY(-50%);
+    width: 100%;
+    left: 0;
+    pointer-events: none; 
+    display: flex;
+    justify-content: space-between;
+    opacity: 0; 
+    transition: opacity 0.3s ease;
+}
+
+/* POKAZUJEMY PO NAJECHANIU */
+.tvcmstwoofferbanners-one:hover #tv-category-slider .owl-nav {
+    opacity: 1;
+}
+
+#tv-category-slider .owl-nav button.owl-prev,
+#tv-category-slider .owl-nav button.owl-next {
+    pointer-events: auto; 
+    width: 40px;
+    height: 40px;
+    /* KOLOR: Biały domyślnie */
+    background: #ffffff !important; 
+    color: #333 !important;
+    border: 1px solid #ddd !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    transition: all 0.2s ease;
+    border-radius: 0 !important;
+    margin: 0 !important;
+}
+
+#tv-category-slider .owl-nav button.owl-prev { position: absolute; left: -40px; }
+#tv-category-slider .owl-nav button.owl-next { position: absolute; right: -40px; }
+
+/* Hover na strzałkę: Jasny szary */
+#tv-category-slider .owl-nav button:hover {
+    background: #f0f0f0 !important; 
+    color: #000 !important;
+    border-color: #ccc !important;
+}
+
+#tv-category-slider .owl-nav i { font-size: 24px; line-height: 1; }
+
+/* --- MOBILE --- */
+@media (max-width: 767px) {
+    .tvcmstwoofferbanners-one { padding: 20px 0; margin-top: -2px !important; }
+    .tv-allegro-title h2 { font-size: 18px; }
+    .tv-allegro-title h2::after { width: 40px; height: 3px; margin-top: 8px; }
+    
+    /* Na mobile też dajemy lekki padding góry, żeby nie ucinało */
+    .tv-category-wrapper { padding: 0 15px; padding-top: 15px !important; max-width: 100%; }
+    
+    #tv-category-slider .owl-nav { display: none; }
+    
+    .tv-category-tile {
+        height: 140px;
+        padding: 10px 5px;
+    }
+    .tv-tile-icon-wrapper { width: 40px; height: 40px; margin-bottom: 10px; }
+    .tv-tile-icon-wrapper i { font-size: 30px; }
+    .tv-tile-name { font-size: 10px; min-height: 28px; }
+}

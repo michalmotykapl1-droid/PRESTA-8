@@ -1,0 +1,262 @@
+services:
+  inpost.shipping.module:
+    class: InPostShipping
+    factory: [ 'Module', 'getInstanceByName' ]
+    public: false
+    arguments:
+      - 'inpostshipping'
+
+  inpost.shipping.context:
+    class: Context
+    factory: [ 'Context', 'getContext' ]
+    public: false
+
+  InPostShipping: '@inpost.shipping.module'
+
+  inpost.shipping.db:
+    class: Db
+    public: false
+    factory: [ Db, getInstance ]
+
+  inpost.shipping.shop_context:
+    class: InPost\Shipping\PrestaShopContext
+    public: true
+
+  InPost\Shipping\PrestaShopContext: '@inpost.shipping.shop_context'
+
+  inpost.shipping.hook_dispatcher:
+    class: InPost\Shipping\HookDispatcher
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+      - '@inpost.shipping.context'
+      - '@inpost.shipping.shop_context'
+
+  InPost\Shipping\HookDispatcher: '@inpost.shipping.hook_dispatcher'
+
+  inpost.shipping.adapter.assets_manager:
+    class: InPost\Shipping\Adapter\AssetsManager
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+      - '@inpost.shipping.context'
+
+  inpost.shipping.configuration.shipx:
+    class: InPost\Shipping\Configuration\ShipXConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\ShipXConfiguration: '@inpost.shipping.configuration.shipx'
+
+  InPost\Shipping\Repository\PointRepository:
+    class: InPost\Shipping\Repository\PointRepository
+    public: false
+
+  inpost.shipping.configuration.geo_widget:
+    class: InPost\Shipping\Configuration\GeoWidgetConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\GeoWidgetConfiguration: '@inpost.shipping.configuration.geo_widget'
+
+  inpost.shipping.configuration.szybkie_zwroty:
+    class: InPost\Shipping\Configuration\SzybkieZwrotyConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\SzybkieZwrotyConfiguration: '@inpost.shipping.configuration.szybkie_zwroty'
+
+  inpost.shipping.configuration.carriers:
+    class: InPost\Shipping\Configuration\CarriersConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\CarriersConfiguration: '@inpost.shipping.configuration.carriers'
+
+  inpost.shipping.configuration.orders:
+    class: InPost\Shipping\Configuration\OrdersConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\OrdersConfiguration: '@inpost.shipping.configuration.orders'
+
+  inpost.shipping.configuration.checkout:
+    class: InPost\Shipping\Configuration\CheckoutConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\CheckoutConfiguration:
+    alias: 'inpost.shipping.configuration.checkout'
+    public: true
+
+  inpost.shipping.configuration.sending:
+    class: InPost\Shipping\Configuration\SendingConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\SendingConfiguration:
+    alias: inpost.shipping.configuration.sending
+    public: true
+
+  inpost.shipping.configuration.shop:
+    class: InPost\Shipping\Configuration\ShopConfiguration
+    public: true
+
+  InPost\Shipping\Configuration\ShopConfiguration: '@inpost.shipping.configuration.shop'
+
+  inpost.shipping.data_provider.customer_choice:
+    class: InPost\Shipping\DataProvider\CustomerChoiceDataProvider
+    public: true
+
+  InPost\Shipping\DataProvider\CustomerChoiceDataProvider: '@inpost.shipping.data_provider.customer_choice'
+
+  inpost.shipping.data_provider.point:
+    class: InPost\Shipping\DataProvider\PointDataProvider
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.shipx'
+      - '@inpost.shipping.geo_widget.token_provider'
+      - '@InPost\Shipping\Repository\PointRepository'
+      - '@inpost.shipping.context'
+
+  InPost\Shipping\DataProvider\PointDataProvider:
+    alias: inpost.shipping.data_provider.point
+    public: true
+
+  inpost.shipping.data_provider.closest_point:
+    class: InPost\Shipping\DataProvider\ClosestPointDataProvider
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.shipx'
+      - '@inpost.shipping.geo_widget.token_provider'
+      - '@inpost.shipping.context'
+
+  InPost\Shipping\DataProvider\ClosestPointDataProvider:
+    alias: inpost.shipping.data_provider.closest_point
+    public: true
+
+  inpost.shipping.data_provider.language:
+    class: InPost\Shipping\DataProvider\LanguageDataProvider
+    public: false
+
+  InPost\Shipping\DataProvider\LanguageDataProvider: '@inpost.shipping.data_provider.language'
+
+  inpost.shipping.psr_implementation_locator:
+    class: Symfony\Component\DependencyInjection\ServiceLocator
+    tags: [ 'container.service_locator' ]
+    arguments:
+      -
+        Psr\Http\Client\ClientInterface: '@?Psr\Http\Client\ClientInterface'
+        Psr\Http\Message\RequestFactoryInterface: '@?Psr\Http\Message\RequestFactoryInterface'
+        Psr\Http\Message\StreamFactoryInterface: '@?Psr\Http\Message\StreamFactoryInterface'
+
+  InPost\Shipping\Api\PsrHttpImplementationFinder:
+    class: InPost\Shipping\Api\PsrHttpImplementationFinder
+    public: false
+    arguments:
+      - '@inpost.shipping.psr_implementation_locator'
+
+  InPost\Shipping\ShipX\ShipXClientFactory:
+    class: InPost\Shipping\ShipX\ShipXClientFactory
+    public: false
+    arguments:
+      - '@InPost\Shipping\Api\PsrHttpImplementationFinder'
+
+  InPost\Shipping\ShipX\ShipXClient:
+    class: InPost\Shipping\ShipX\ShipXClient
+    public: false
+    factory: [ '@InPost\Shipping\ShipX\ShipXClientFactory', 'createClient' ]
+
+  inpost.shipping.shipx.factory.request:
+    class: InPost\Shipping\ShipX\RequestFactory\ShipXRequestFactory
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.shipx'
+      - '@InPost\Shipping\ShipX\ShipXClient'
+      - '@inpost.shipping.context'
+
+  InPost\Shipping\ShipX\RequestFactory\ShipXRequestFactory: '@inpost.shipping.shipx.factory.request'
+
+  inpost.shipping.shipx.factory.authorized_request:
+    class: InPost\Shipping\ShipX\RequestFactory\AuthorizedRequestFactory
+    public: true
+    parent: 'inpost.shipping.shipx.factory.request'
+
+  InPost\Shipping\ShipX\RequestFactory\AuthorizedRequestFactory: '@inpost.shipping.shipx.factory.authorized_request'
+
+  inpost.shipping.shipx.factory.points_api_request:
+    class: InPost\Shipping\ShipX\RequestFactory\PointsApiRequestFactory
+    public: true
+    parent: 'inpost.shipping.shipx.factory.authorized_request'
+
+  InPost\Shipping\ShipX\RequestFactory\PointsApiRequestFactory: '@inpost.shipping.shipx.factory.points_api_request'
+
+  inpost.shipping.shipx.factory.organization_request:
+    class: InPost\Shipping\ShipX\RequestFactory\OrganizationRequestFactory
+    public: true
+    parent: 'inpost.shipping.shipx.factory.authorized_request'
+
+  inpost.shipping.presenter.point:
+    class: InPost\Shipping\Presenter\PointPresenter
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+      - '@inpost.shipping.data_provider.language'
+
+  InPost\Shipping\Presenter\PointPresenter: '@inpost.shipping.presenter.point'
+
+  inpost.shipping.presenter.point_address:
+    class: InPost\Shipping\Presenter\PointAddressPresenter
+    public: true
+    arguments:
+      - '@inpost.shipping.presenter.point'
+
+  inpost.shipping.handler.shipment.update_status:
+    class: InPost\Shipping\Handler\Shipment\UpdateShipmentStatusHandler
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.shipx'
+      - '@inpost.shipping.configuration.orders'
+      - '@InPost\Shipping\Repository\ObjectModel\ShipmentRepository'
+
+  inpost.shipping.time_checker:
+    class: InPost\Shipping\TimeChecker
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.carriers'
+
+  inpost.shipping.handler.check_delivery_option:
+    class: InPost\Shipping\Handler\DeliveryOption\CheckDeliveryOptionHandler
+    public: true
+    arguments:
+      - '@inpost.shipping.time_checker'
+      - '@inpost.shipping.geo_widget.token_provider'
+
+  InPost\Shipping\Repository\ObjectModel\ShipmentRepository:
+    class: InPost\Shipping\Repository\ObjectModel\ShipmentRepository
+    public: false
+    arguments:
+      - '@inpost.shipping.db'
+
+  InPost\Shipping\Handler\Shipment\UpdateShipmentStatusHandler: '@inpost.shipping.handler.shipment.update_status'
+
+  inpost.shipping.handler.cron_jobs:
+    class: InPost\Shipping\Handler\CronJobsHandler
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+      - '@inpost.shipping.context'
+      - '@inpost.shipping.handler.shipment.update_status'
+
+  InPost\Shipping\Handler\CronJobsHandler: '@inpost.shipping.handler.cron_jobs'
+
+  inpost.shipping.geo_widget.token_provider:
+    class: InPost\Shipping\GeoWidget\GeoWidgetTokenProvider
+    public: true
+    arguments:
+      - '@inpost.shipping.configuration.geo_widget'
+      - '@inpost.shipping.configuration.shipx'
+      - '@inpost.shipping.context'
+
+  InPost\Shipping\GeoWidget\GeoWidgetTokenProvider: '@inpost.shipping.geo_widget.token_provider'
+
+  inpost.shipping.helper.coordinates_extractor:
+    class: InPost\Shipping\Helper\CoordinatesExtractor
+    public: true
+    arguments:
+      - '@inpost.shipping.module'
+
+  InPost\Shipping\Helper\CoordinatesExtractor: '@inpost.shipping.helper.coordinates_extractor'

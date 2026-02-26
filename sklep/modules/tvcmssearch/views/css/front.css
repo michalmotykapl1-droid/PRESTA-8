@@ -1,0 +1,471 @@
+/**
+ * 2007-2025 PrestaShop
+ * TVCMSSEARCH - MODERN CLEAN LOOK
+ * (White column, Orange Hover, Special Badges Kept)
+ */
+
+/* ================================================================
+   1. OGÓLNE UKRYWANIE STARYCH ELEMENTÓW (Desktop)
+   ================================================================ */
+@media (min-width: 992px) {
+    #header .tvcmsheader-search .tvsearch-open,
+    #header .tvcmsheader-search .tvsearch-close,
+    #header .tvheader-sarch-display,
+    .tvsearch-dropdown-total-wrapper { 
+        display: none !important; 
+    }
+
+    /* UKRYCIE ZBĘDNEGO PRZYCISKU FILTRA */
+    .tvsearch-show-filtered-wrapper,
+    .tvsearch-show-filtered-btn,
+    .tvsearch-reset-wrapper {
+        display: none !important;
+    }
+
+    /* NOWOŚĆ: UKRYCIE KRZYŻYKA ZAMYANIA (X) */
+    .tvsearch-dropdown-close-wrapper, 
+    .tvsearch-dropdown-close {
+        display: none !important;
+    }
+}
+
+/* ================================================================
+   2. PASEK WYSZUKIWANIA
+   ================================================================ */
+@media (min-width: 992px) {
+    .tvsearch-header-display-wrappper {
+        position: relative !important; 
+        width: 100% !important;
+        max-width: 900px !important;
+        margin: 0 auto !important;
+        z-index: 100;
+    }
+
+    form.premium-search-form {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        height: 50px !important;
+        background: #ffffff !important;
+        border: 1px solid #e1e1e1 !important; 
+        border-radius: 6px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03) !important; 
+        overflow: hidden !important;
+        transition: all 0.3s ease;
+        box-sizing: border-box !important;
+    }
+    form.premium-search-form:focus-within {
+        border-color: #b0b0b0 !important; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    }
+
+    .premium-input-group {
+        flex-grow: 1 !important;
+        height: 100% !important;
+        background: transparent !important;
+        border: none !important;
+        position: relative !important;
+    }
+
+    input.premium-input {
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        background: transparent !important;
+        padding: 0 45px 0 25px !important;
+        font-size: 15px !important;
+        color: #444 !important;
+        outline: none !important;
+        box-shadow: none !important;
+        font-weight: 400 !important;
+    }
+    input.premium-input::placeholder { color: #999 !important; font-weight: 300; }
+
+    button.premium-search-btn {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 20px !important;
+        height: 100% !important;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    button.premium-search-btn svg {
+        width: 22px !important;
+        height: 22px !important;
+        display: block;
+        transition: all 0.2s ease;
+    }
+    button.premium-search-btn svg path { stroke: #ea7404 !important; }
+    button.premium-search-btn:hover svg { transform: scale(1.05); }
+}
+
+/* ================================================================
+   3. WYNIKI WYSZUKIWANIA
+   ================================================================ */
+@media (min-width: 992px) {
+
+    .tvsearch-result {
+        position: absolute !important;
+        top: 100% !important;
+        margin-top: 12px !important;
+        left: 50% !important; 
+        transform: translateX(-50%) !important;
+        width: 1100px !important; 
+        max-width: 95vw !important;
+        z-index: 99999 !important;
+    }
+
+    #_desktop_search .tvcmssearch-dropdown {
+        position: static !important; 
+        width: 100% !important;
+        margin: 0 !important;
+        background: #fff !important;
+        border: none !important;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.12) !important;
+        border-radius: 8px;
+        padding: 0 !important;
+        overflow: hidden;
+    }
+
+    .tvsearch-results-container {
+        display: flex !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        margin: 0 !important;
+        max-height: 750px; 
+    }
+
+    /* --- LEWA KOLUMNA (Kategorie) - MODERN CLEAN --- */
+    .tvsearch-filter-column {
+        flex: 0 0 260px !important;
+        width: 260px !important;
+        /* ZMIANA: Białe tło zamiast szarego */
+        background-color: #ffffff !important; 
+        border-right: 1px solid #f0f0f0 !important; /* Bardzo delikatna linia */
+        padding: 25px 15px !important;
+        box-sizing: border-box !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tvsearch-filter-column h4 {
+        font-size: 11px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1.5px !important;
+        color: #999 !important;
+        font-weight: 700 !important;
+        margin-bottom: 15px !important;
+        flex-shrink: 0;
+    }
+
+    .tvsearch-category-list {
+        list-style: none; padding: 0; margin: 0;
+        overflow-y: auto; scrollbar-width: thin; flex-grow: 1; padding-right: 5px;
+    }
+    .tvsearch-category-list li { margin-bottom: 2px !important; }
+    
+    /* LINKI KATEGORII - NOWOCZESNE */
+    .tvsearch-category-list li a {
+        font-size: 14px !important;
+        color: #444 !important; /* Elegancki ciemny szary */
+        font-weight: 400 !important; /* Lżejszy font */
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 12px !important; /* Większy komfort */
+        border-radius: 6px;
+        transition: all 0.2s ease;
+        text-decoration: none !important;
+        background-color: transparent !important;
+    }
+
+    /* HOVER - TO CZEGO CHCIAŁEŚ */
+    .tvsearch-category-list li a:hover {
+        /* Bardzo jasny, prawie niewidoczny popiel pod spodem */
+        background-color: #fcfcfc !important; 
+        /* POMARAŃCZOWY TEKST */
+        color: #ea7404 !important; 
+        /* Delikatne przesunięcie w prawo dla efektu */
+        padding-left: 15px !important; 
+    }
+
+    .tvsearch-product-count {
+        font-size: 11px !important;
+        color: #ccc !important;
+        transition: color 0.2s;
+    }
+    /* Licznik też robi się pomarańczowy */
+    .tvsearch-category-list li a:hover .tvsearch-product-count { color: #ea7404 !important; }
+
+
+    /* --- WYRÓŻNIENIE KATEGORII (NIENARUSZONE) --- */
+    
+    /* ID 45: STREFA OKAZJI - POMARAŃCZOWY */
+    .tvsearch-category-link[data-id-category="45"] {
+        color: #ea7404 !important;
+        font-weight: 800 !important;
+        background-color: rgba(234, 116, 4, 0.06) !important;
+        border: 1px solid rgba(234, 116, 4, 0.15) !important;
+        margin-top: 5px !important;
+        margin-bottom: 2px !important;
+    }
+    /* Hover na 45 - musi nadpisywać standardowy hover */
+    .tvsearch-category-link[data-id-category="45"]:hover {
+        background-color: #ea7404 !important; /* Pełny kolor */
+        color: #fff !important; /* Biały tekst */
+        padding-left: 12px !important; /* Reset przesunięcia */
+    }
+    .tvsearch-category-link[data-id-category="45"]:hover .tvsearch-product-count { color: #fff !important; }
+
+
+    /* ID 180: KRÓTKA DATA - CZERWONY */
+    .tvsearch-category-link[data-id-category="180"] {
+        color: #d32f2f !important;
+        font-weight: 800 !important;
+        background-color: rgba(211, 47, 47, 0.06) !important;
+        border: 1px solid rgba(211, 47, 47, 0.15) !important;
+        margin-bottom: 15px !important; /* Większy odstęp od reszty */
+    }
+    /* Hover na 180 */
+    .tvsearch-category-link[data-id-category="180"]:hover {
+        background-color: #d32f2f !important;
+        color: #fff !important;
+        padding-left: 12px !important;
+    }
+    .tvsearch-category-link[data-id-category="180"]:hover .tvsearch-product-count { color: #fff !important; }
+
+
+    .tvsearch-extra-filter-section, .tvsearch-filter-toggle { display: none !important; }
+    .tvsearch-category-list li:nth-child(n+11) { display: block !important; }
+
+    /* --- PRAWA KOLUMNA (Produkty) --- */
+    .tvsearch-products-column {
+        flex: 1 !important;
+        width: auto !important;
+        background-color: #fff !important;
+        padding: 25px !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tvsearch-all-dropdown-wrapper {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 20px !important; 
+        padding: 5px !important;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        flex-grow: 1; 
+        align-content: flex-start !important; 
+    }
+
+    /* --- KARTA PRODUKTU --- */
+    .tvsearch-dropdown-wrapper {
+        width: calc(33.333% - 14px) !important; 
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        border: 1px solid #f2f2f2 !important; 
+        border-radius: 8px;
+        background: #fff;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+        height: fit-content !important; 
+    }
+    
+    .tvsearch-dropdown-wrapper:hover {
+        border-color: #e0e0e0 !important;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.06) !important;
+        transform: translateY(-3px);
+        z-index: 2;
+    }
+
+    .tvsearch-dropdown-wrapper a {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        padding: 15px !important;
+        border-bottom: none !important;
+        text-decoration: none !important;
+        height: auto !important; 
+        text-align: center;
+        position: relative; 
+    }
+    .tvsearch-dropdown-wrapper:hover a { background-color: transparent !important; }
+
+    /* --- NAKLEJKI (BADGES) --- */
+    .badge-custom {
+        position: absolute;
+        top: 10px;
+        left: 10px; 
+        z-index: 10;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        line-height: 1;
+        letter-spacing: 0.5px;
+    }
+    .badge-sale { background-color: #ea7404; }
+    .badge-shortdate { background-color: #d32f2f; }
+
+    /* --- ZDJĘCIE (150px) --- */
+    .tvsearch-dropdown-img-block {
+        width: 100% !important; 
+        height: 150px !important; 
+        margin-right: 0 !important;
+        margin-bottom: 12px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none !important;
+        padding: 0 !important; 
+    }
+    .tvsearch-dropdown-img-block img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        transition: transform 0.3s;
+    }
+    .tvsearch-dropdown-wrapper:hover .tvsearch-dropdown-img-block img {
+        transform: scale(1.05);
+    }
+
+    .tvsearch-dropdown-content-box {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100%;
+        justify-content: flex-start !important;
+        flex-grow: 1;
+    }
+    
+    /* TYTUŁ */
+    .tvsearch-dropdown-title {
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: #333 !important;
+        line-height: 1.4 !important;
+        margin-bottom: 8px !important;
+        padding: 0 !important;
+        text-align: center !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        height: 38px;
+    }
+    .tvsearch-dropdown-wrapper:hover .tvsearch-dropdown-title {
+        color: #ea7404 !important;
+    }
+    
+    /* Ceny */
+    .tvsearch-result .product-price-and-shipping {
+        display: flex;
+        flex-direction: column;
+        align-items: center !important;
+        width: 100%;
+        margin-top: auto;
+    }
+    
+    .tvsearch-dropdown-price .price {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        color: #222 !important;
+    }
+    .tvsearch-dropdown-wrapper:hover .tvsearch-dropdown-price .price {
+         color: #ea7404 !important;
+    }
+
+    .tvsearch-dropdown-price .regular-price {
+        font-size: 12px !important;
+        color: #bbb !important;
+        text-decoration: line-through;
+        margin-top: 2px;
+    }
+    
+    .tvsearch-dropdown-categories { display: none !important; }
+
+    /* Przycisk na dole */
+    .tvsearch-more-search-wrapper {
+        padding: 20px 30px !important;
+        text-align: center;
+        border-top: 1px solid #f5f5f5;
+        background: #fff;
+    }
+    .tvsearch-show-all-results-btn {
+        width: auto !important;
+        min-width: 220px;
+        background-color: #333 !important;
+        color: #fff !important;
+        text-transform: uppercase;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        padding: 14px 30px !important;
+        border-radius: 4px !important;
+        border: none !important;
+        cursor: pointer;
+        transition: all 0.2s;
+        letter-spacing: 1px;
+    }
+    .tvsearch-show-all-results-btn:hover {
+        background-color: #ea7404 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(234, 116, 4, 0.25);
+    }
+    
+    .tvsearch-dropdown-close-wrapper {
+        position: absolute !important;
+        top: 15px !important;
+        right: 15px !important;
+        z-index: 100;
+        cursor: pointer;
+        color: #ccc;
+    }
+    .tvsearch-dropdown-close-wrapper:hover { color: #333; }
+    
+    .no-results { padding: 40px; text-align: center; color: #777; width: 100%; }
+}
+
+/* =================================================================
+   LOADER
+   ================================================================= */
+.tvsearch-spinner {
+    display: none;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    margin-top: -11px;
+    width: 22px;
+    height: 22px;
+    border: 2px solid rgba(234, 116, 4, 0.1);
+    border-top: 2px solid #ea7404;
+    border-radius: 50%;
+    animation: tvsearch-spin 0.8s linear infinite;
+    z-index: 10;
+    pointer-events: none;
+}
+@keyframes tvsearch-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.premium-search-form.is-loading .tvsearch-spinner {
+    display: block;
+}
+/* --- STAN AKTYWNY (ZAZNACZONA KATEGORIA) --- */
+    .tvsearch-category-list li a.active {
+        color: #ea7404 !important;       /* Pomarańczowy tekst */
+        font-weight: 700 !important;     /* Wyraźne pogrubienie */
+        background-color: #fcfcfc !important; /* Bardzo delikatne tło (opcjonalne) */
+        cursor: default; /* Kursor wskazuje, że to już jest wybrane */
+    }
+
+    /* Licznik w aktywnej kategorii też na pomarańczowo */
+    .tvsearch-category-list li a.active .tvsearch-product-count {
+        color: #ea7404 !important;
+        font-weight: 700 !important;
+    }

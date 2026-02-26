@@ -1,0 +1,244 @@
+/* --- MODUŁ NEW PRODUCTS (FINAL FIX: Bestseller Clone) --- */
+
+/* ===================================================== */
+/* 1. USTAWIENIA BAZOWE (Desktop & Mobile)               */
+/* ===================================================== */
+
+/* Kontener na pełną szerokość - reset marginesów */
+.bb-new-section.container-fluid {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    background: #fff;
+    display: block;
+    position: relative;
+}
+
+/* Klasa omijająca custom.css (usuwa ramkę i białe tło) */
+.tvcmsnew-product-fix {
+    display: block;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+}
+
+/* Reset wewnętrznych wrapperów */
+.bb-new-section .tvall-block-box-shadows, 
+.bb-new-section .tvcmsnew-product-content,
+.bb-new-section .tvcmsnew-product-all-box {
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: transparent !important;
+}
+
+/* Stylizacja Tytułu */
+.bb-new-section .tvtab-main-title-wrapper {
+    position: relative; /* Ważne dla pozycjonowania strzałek */
+    text-align: center;
+    margin-top: 40px;
+    margin-bottom: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 50px; /* Rezerwuje miejsce na wysokość strzałek */
+}
+
+.bb-new-section .tv-allegro-title h2 {
+    font-size: 24px;
+    font-weight: 800;
+    text-transform: uppercase;
+    display: inline-block;
+    position: relative;
+    padding-bottom: 10px;
+    margin: 0;
+    color: #111;
+}
+
+.bb-new-section .tv-allegro-title h2::after {
+    content: ''; 
+    display: block; 
+    width: 60px; 
+    height: 4px; 
+    background: #ff5a00; 
+    margin: 5px auto 0; 
+    position: absolute; 
+    bottom: 0; 
+    left: 50%; 
+    transform: translateX(-50%);
+}
+
+/* Slider - dociągnięcie do krawędzi */
+.bb-new-section .products.owl-carousel {
+    width: 100% !important;
+    padding: 0 1px !important;
+    margin: 0 !important;
+    display: block !important;
+}
+
+.bb-new-section .products .owl-item {
+    padding: 0 2px !important; /* Odstęp między kafelkami */
+}
+
+.bb-new-section .product-miniature {
+    margin: 0 auto;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100%;
+}
+
+/* ===================================================== */
+/* 2. DESKTOP (min-width: 992px) - STRZAŁKI OBOK TYTUŁU  */
+/* ===================================================== */
+@media (min-width: 992px) {
+    
+    /* 1. Ważne: Ustawiamy punkt odniesienia na głównym kontenerze */
+    .bb-new-section .tvcmsnew-product-all-box {
+        position: relative !important;
+    }
+
+    /* 2. Strzałki pozycjonowane absolutnie do prawego górnego rogu */
+    .bb-new-section .tvtab-pagination-wrapper {
+        position: absolute !important;
+        top: 0 !important;           /* Startujemy od samej góry kontenera */
+        right: 5px !important;      /* Odstęp od prawej krawędzi */
+        margin-top: 0 !important; /* Opuść w dół, aby zrównać z tekstem tytułu */
+        z-index: 100 !important;
+        width: auto !important;
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    /* Styl przycisków (kwadratowe z obramowaniem) */
+    .bb-new-section .tvcmsprev-btn, 
+    .bb-new-section .tvcmsnext-btn {
+        width: 40px !important;
+        height: 40px !important;
+        background: #fff !important;
+        border: 1px solid #ddd !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer;
+        margin-left: 8px;
+        transition: all 0.3s ease;
+        /* Upewniamy się, że nic ich nie przesuwa */
+        position: static !important; 
+        transform: none !important;
+    }
+    
+    .bb-new-section .tvcmsprev-btn:hover, 
+    .bb-new-section .tvcmsnext-btn:hover { 
+        background: #f0f0f0 !important; 
+        border-color: #ccc !important;
+    }
+}
+
+/* ===================================================== */
+/* 3. MOBILE (max-width: 991px) - WZÓR BESTSELLER        */
+/* ===================================================== */
+@media (max-width: 991px) {
+
+    /* 1. GŁÓWNY KONTENER */
+    .bb-new-section {
+        /* Resetujemy padding kontenera, żeby sterować odstępem z poziomu tytułu */
+        padding-top: 0 !important; 
+        padding-bottom: 30px !important;
+        margin-top: 20px !important;
+        width: 100% !important;
+        background: #fff !important;
+        overflow: hidden !important;
+    }
+
+    /* 2. UKŁAD KOLUMNOWY */
+    .bb-new-section .tvcmsnew-product-all-box {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    /* --- POZYCJA 1: TYTUŁ (Tu robimy odstęp) --- */
+    .bb-new-section .tvtab-main-title-wrapper {
+        order: 1 !important;
+        position: static !important;
+        
+        /* TO JEST KLUCZOWA ZMIANA: */
+        /* Dodajemy margines u góry bezpośrednio do tytułu, żeby odepchnąć go od krawędzi */
+        margin-top: 30px !important; 
+        
+        margin-bottom: 20px !important;
+        padding: 0 !important;
+        width: 100% !important;
+        display: flex;
+        justify-content: center;
+    }
+
+    /* Font tytułu */
+    .bb-new-section .tv-allegro-title h2 { font-size: 18px !important; margin: 0 !important; }
+    .bb-new-section .tv-allegro-title h2::after { width: 40px !important; height: 3px !important; }
+
+
+    /* --- POZYCJA 2: SLIDER (PRODUKTY) --- */
+    .bb-new-section .tvall-product-offer-banner {
+        order: 2 !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .bb-new-section .products.owl-carousel {
+        width: 100% !important;
+        padding: 0 1px !important; 
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        display: block !important;
+    }
+
+    .bb-new-section .products .owl-item {
+        padding: 0 2px !important; 
+        width: 100%;
+    }
+
+    .bb-new-section .product-miniature {
+        width: 100% !important;
+        margin: 0 auto !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+
+    /* --- POZYCJA 3: STRZAŁKI --- */
+    .bb-new-section .tvtab-pagination-wrapper {
+        order: 3 !important;
+        position: static !important;
+        margin-top: 20px !important;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+    }
+
+    .bb-new-section .tvcms-next-pre-btn {
+        display: flex !important;
+        gap: 15px !important;
+        justify-content: center;
+    }
+
+    .bb-new-section .tvcmsprev-btn, 
+    .bb-new-section .tvcmsnext-btn {
+        width: 45px !important;
+        height: 45px !important;
+        background: #fff !important;
+        border: 1px solid #ddd !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}

@@ -1,0 +1,210 @@
+/* ========================================================= */
+/* FRESH PRODUKTY - CSS (Final - Cienka ramka 1px)           */
+/* ========================================================= */
+
+/* --- KONTENER GŁÓWNY --- */
+.freshprodukty-section {
+    background-color: #ffffff; 
+    margin-top: -20px !important; 
+    margin-bottom: 60px !important;
+    padding: 60px 0 40px 0; 
+    border-top: 1px solid #f0f0f0; 
+    position: relative; 
+    z-index: 10; 
+    min-height: 500px;
+    box-sizing: border-box;
+}
+
+/* --- NAGŁÓWEK --- */
+.fresh-prod-header { 
+    text-align: center; 
+    margin-bottom: 40px; 
+    position: relative; 
+    width: 100%;
+    max-width: 100%;
+    padding: 0 15px; /* Margines bezpieczeństwa na telefony */
+    box-sizing: border-box;
+}
+
+.fresh-prod-title { 
+    font-size: 24px !important; 
+    font-weight: 700 !important; 
+    color: #222; 
+    text-transform: uppercase; 
+    margin: 0 0 15px 0; 
+    line-height: 1.3; 
+    word-wrap: break-word; /* Zapobiega wystawaniu długich słów */
+    overflow-wrap: break-word;
+}
+
+.fresh-prod-line { width: 60px; height: 4px; background: #00a8cc; margin: 0 auto 25px auto; border-radius: 2px; }
+.fresh-prod-desc { font-size: 14px; color: #777; line-height: 1.6; margin: 0 auto; max-width: 750px; font-weight: 400; }
+
+/* --- UKŁAD STRONY (DESKTOP - DOMYŚLNY) --- */
+.fresh-hero-layout { 
+    display: grid; 
+    grid-template-columns: 320px 1fr; 
+    gap: 30px; 
+    align-items: stretch; 
+    width: 100%;
+}
+
+.fresh-hero-column { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 20px; 
+    min-width: 0; 
+    height: 100%; 
+}
+
+/* LEWA STRONA: INFO I KARTA */
+.fresh-hero-intro { 
+    background-color: #ffffff; 
+    padding: 25px; 
+    border-radius: 8px; 
+    border: 1px solid #eee; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.03); 
+}
+.intro-title { font-size: 16px; font-weight: 700; color: #00a8cc; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; text-transform: uppercase; }
+.intro-text { font-size: 14px; color: #555; line-height: 1.6; margin: 0; }
+
+.fresh-hero-card-wrapper { 
+    position: relative; 
+    background: #fff; 
+    border-radius: 8px; 
+    padding: 5px; 
+    /* ZMIANA: Zmniejszono grubość ramki z 2px na 1px */
+    border: 1px solid #00a8cc; 
+    transition: border-color 0.3s ease; 
+    overflow: visible !important; 
+    margin-top: auto !important; 
+}
+
+.fresh-hero-card-wrapper .tvproduct-wrapper { margin-bottom: 0 !important; border: none !important; box-shadow: none !important; }
+
+/* --- ETYKIETA PRODUKTU DNIA (STYL: RAMKA NA LINII) --- */
+.hero-badge { 
+    position: absolute; 
+    top: -15px;                  /* Lekka korekta wysokości dla cieńszej ramki */
+    left: 50%; 
+    transform: translateX(-50%); 
+    
+    background: #ffffff;         
+    /* ZMIANA: Zmniejszono grubość obwódki pastylki z 2px na 1px, żeby pasowała do głównej ramki */
+    border: 1px solid #00a8cc;   
+    color: #00a8cc;              
+    
+    font-size: 11px; 
+    font-weight: 800; 
+    padding: 4px 18px;           
+    border-radius: 20px;         
+    text-transform: uppercase; 
+    z-index: 20;                 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    white-space: nowrap;
+}
+
+/* PRAWA STRONA: GRID */
+.fresh-grid-column { min-width: 0; } /* Ważne dla grida */
+
+.fresh-dense-grid { 
+    display: grid; 
+    grid-template-columns: repeat(var(--fresh-cols, 5), 1fr); 
+    gap: 15px; 
+}
+
+.fresh-grid-item .tvproduct-wrapper { margin-bottom: 0 !important; transition: all 0.3s ease; border: 1px solid #eee; height: 100%; }
+.fresh-grid-item .tvproduct-wrapper:hover { border-color: #00a8cc !important; box-shadow: 0 5px 15px rgba(0,168,204, 0.1) !important; }
+
+/* --- LOADER --- */
+.fresh-loading-overlay { width: 100%; height: 100%; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff; border: 1px dashed #f0f0f0; border-radius: 8px; color: #999; gap: 15px; }
+.fresh-loading-text { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #999; }
+.fresh-spinner { width: 40px; height: 40px; border: 3px solid #f0f0f0; border-top: 3px solid #888; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+
+/* ========================================================= */
+/* RWD - NAPRAWA MOBILNA (SAFE MODE)                         */
+/* ========================================================= */
+
+/* LAPTOPY (Mniejszy ekran) */
+@media (max-width: 1199px) { 
+    .fresh-hero-layout { 
+        grid-template-columns: 1fr; /* Zmiana na jedną kolumnę */
+        gap: 30px; 
+    } 
+    
+    /* Lewa kolumna staje się górnym paskiem - elementy obok siebie */
+    .fresh-hero-column {
+        flex-direction: row;
+        align-items: stretch;
+        height: auto; /* Reset wysokości na mniejszych ekranach */
+    }
+    .fresh-hero-intro, .fresh-hero-card-wrapper {
+        flex: 1;
+        margin-top: 0 !important; /* Reset marginu auto na tablecie */
+    }
+}
+
+/* TABLETY I MOBILE (< 991px) */
+@media (max-width: 991px) {
+    
+    /* Resetujemy układ do pionowego "klocka" */
+    .fresh-hero-layout {
+        display: block; /* Bezpieczniejszy niż grid na mobile */
+        width: 100%;
+    }
+
+    .fresh-hero-column {
+        display: block; /* Elementy jeden pod drugim */
+        width: 100%;
+        margin-bottom: 30px;
+        height: auto;
+    }
+
+    .fresh-hero-intro {
+        margin-bottom: 20px;
+    }
+
+    .fresh-hero-card-wrapper { 
+        position: relative; 
+        background: #fff; 
+        border-radius: 8px; 
+        padding: 5px; 
+        /* ZMIANA MOBILE: Tutaj też 1px */
+        border: 1px solid #00a8cc; 
+        transition: border-color 0.3s ease; 
+        overflow: visible !important; 
+        margin-top: 15px !important; /* Reset marginu na mobile */
+        max-width: 320px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* NAPRAWA TYTUŁU */
+    .fresh-prod-title {
+        font-size: 20px !important;
+        padding: 0 10px;
+    }
+
+    /* --- SLIDER PRODUKTÓW NA MOBILE --- */
+    .fresh-dense-grid { 
+        display: flex !important; 
+        grid-template-columns: none !important; /* Wyłączamy grid */
+        overflow-x: auto; 
+        gap: 15px; 
+        padding-bottom: 20px; 
+        scroll-snap-type: x mandatory; 
+        -webkit-overflow-scrolling: touch; 
+        scrollbar-width: none; /* Firefox */
+    }
+    
+    .fresh-dense-grid::-webkit-scrollbar { display: none; } /* Chrome */
+
+    .fresh-grid-item { 
+        min-width: 150px; 
+        max-width: 150px; 
+        flex-shrink: 0; /* Nie ściskaj elementów */
+        scroll-snap-align: start; 
+    }
+}

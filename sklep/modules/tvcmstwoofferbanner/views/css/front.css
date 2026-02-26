@@ -1,0 +1,211 @@
+/**
+* ThemeVolty - Category Tiles (FINAL VERSION: USER MOBILE TWEAKS)
+*/
+
+/* 1. PEWNOŚĆ, ŻE IKONY DZIAŁAJĄ */
+@import url("https://fonts.googleapis.com/icon?family=Material+Icons");
+
+/* KONTENER GŁÓWNY */
+.tvcmstwoofferbanners-one {
+    background: #fff;
+    padding: 30px 0 50px 0;
+    width: 100%;
+    position: relative;
+    z-index: 10;
+    border: 0 !important;
+    margin: 0 !important;
+}
+
+/* --- SEKCJA NAGŁÓWKA (STRUKTURA JAK W SUPLE) --- */
+.tv-allegro-header {
+    text-align: center;
+    margin-bottom: 40px !important;
+    position: relative;
+}
+
+.tv-allegro-header-content {
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* TYTUŁ (DESKTOP) */
+.tv-allegro-title-text {
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    margin: 0 0 15px 0 !important;
+    padding: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* LINIA (DESKTOP) */
+.tv-allegro-line {
+    width: 60px !important;
+    height: 4px !important;
+    background: #ff5a00 !important;
+    margin: 0 auto 20px auto !important;
+    border-radius: 2px !important;
+    display: block !important;
+}
+
+/* --- WRAPPER SLIDERA --- */
+.tv-category-wrapper {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    position: relative;
+    padding: 10px 50px;
+}
+
+/* --- KAFELEK --- */
+.tv-category-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%; 
+    height: 160px;
+    text-decoration: none !important;
+    padding: 15px 10px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    border: 1px solid #f2f2f2; 
+    color: #555;
+    box-sizing: border-box;
+}
+
+.tv-category-tile:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 25px rgba(0,0,0,0.08);
+    border-color: #ffffff;
+    color: #ff5a00;
+    z-index: 2;
+}
+
+/* IKONA */
+.tv-tile-icon-wrapper {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+    color: #444; 
+}
+
+.tv-tile-icon-wrapper i {
+    font-size: 38px;
+    line-height: 1;
+}
+
+.tv-category-tile:hover .tv-tile-icon-wrapper {
+    color: #ff5a00; 
+    transform: scale(1.1);
+}
+
+/* TEKST */
+.tv-tile-name {
+    font-size: 13px;
+    line-height: 1.3;
+    text-align: center;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: inherit;
+    height: 34px; 
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* STRZAŁKI NAWIGACJI */
+#tv-category-slider .owl-nav {
+    display: block !important;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    left: 0;
+    height: 0;
+    opacity: 0; 
+    pointer-events: none;
+    transition: all 0.4s ease;
+}
+
+.tvcmstwoofferbanners-one:hover #tv-category-slider .owl-nav {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#tv-category-slider .owl-nav button.owl-prev,
+#tv-category-slider .owl-nav button.owl-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 34px !important;
+    height: 34px !important;
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+    border-radius: 0px !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    color: #333 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0; 
+    cursor: pointer;
+    z-index: 99;
+    margin: 0 !important;
+    transition: all 0.2s ease;
+}
+
+#tv-category-slider .owl-nav button.owl-prev { left: -40px; }
+#tv-category-slider .owl-nav button.owl-next { right: -40px; }
+
+#tv-category-slider .owl-nav button i {
+    font-size: 20px;
+    line-height: 1;
+    color: inherit;
+    font-weight: normal;
+}
+
+#tv-category-slider .owl-nav button:hover {
+    background: #f2f2f2 !important; 
+    border-color: #ccc !important;
+    color: #000 !important; 
+}
+
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 991px) {
+    .tvcmstwoofferbanners-one { padding: 30px 0 20px 0; }
+    
+    .tv-category-wrapper { padding: 0 15px; }
+    #tv-category-slider .owl-nav { display: none !important; }
+    
+    /* WIĘKSZE KAFELKI (TWOJA POPRAWKA) */
+    .tv-category-tile { 
+        height: 150px !important; 
+        padding: 15px 10px; 
+        transform: none !important;
+    }
+    
+    .tv-tile-icon-wrapper i { font-size: 36px !important; }
+    .tv-tile-name { font-size: 12px !important; line-height: 1.3; }
+    
+    /* --- TWOJE USTWIENIA NAGŁÓWKA NA MOBILE --- */
+    .tv-allegro-title-text { 
+        font-size: 24px !important; /* Powiększone */
+        margin-bottom: 10px !important; 
+    }
+    .tv-allegro-line { 
+        width: 60px !important; /* Szersza linia */
+        height: 4px !important; 
+    }
+}

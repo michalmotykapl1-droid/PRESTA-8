@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>bb_promocheck</name>
+    <displayName><![CDATA[Sprawdzacz Łap Okazje]]></displayName>
+    <version><![CDATA[1.0.4]]></version>
+    <description><![CDATA[Wyświetla link do produktu outletowego z obliczeniem r&oacute;żnicy ceny.]]></description>
+    <author><![CDATA[BigBio]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>0</is_configurable>
+    <need_instance>1</need_instance>
+</module>

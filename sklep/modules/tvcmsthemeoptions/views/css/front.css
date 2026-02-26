@@ -1,0 +1,1355 @@
+/**
+* 2007-2025 PrestaShop
+*
+* NOTICE OF LICENSE
+*
+* This source file is subject to the Academic Free License (AFL 3.0)
+* that is bundled with this package in the file LICENSE.txt.
+* It is also available through the world-wide-web at this URL:
+* http://opensource.org/licenses/afl-3.0.php
+* If you did not receive a copy of the license and are unable to
+* obtain it through the world-wide-web, please send an email
+* to license@prestashop.com so we can send you a copy immediately.
+*
+* DISCLAIMER
+*
+* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+* versions in the future. If you wish to customize PrestaShop for your
+* needs please refer to http://www.prestashop.com for more information.
+*
+*  @author    PrestaShop SA <contact@prestashop.com>
+*  @copyright 2007-2025 PrestaShop SA
+*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+*  International Registered Trademark & Property of PrestaShop SA
+*/
+
+
+/***********************START THEME_CONTOL*****************/
+.tvcmstheme-control .tvtheme-control-icon,
+.tvcmstheme-layout .tvtheme-layout-icon {
+    width: 46px;
+    height: 46px;
+    background-color: #ffffff;
+    line-height: 47px;
+    text-align: center;
+    float: left;
+    position: absolute;
+    left: -44px;
+    top: 0;
+    border-radius: 0;
+    cursor: pointer;
+    /*box-shadow: -1px 0px 5px 0px rgba(0, 0, 0, 0.30);*/
+    box-shadow: -3px 2px 3px -1px rgb(0 0 0 / 30%);
+}
+
+.tvcmstheme-control .tvtheme-control-icon:hover,
+.tvcmstheme-layout .tvtheme-layout-icon:hover {
+    background-color: #d90244;
+}
+.tvcmstheme-control .tvtheme-option,
+.tvcmstheme-control .tvtheme-body-background {
+    border: none;
+    margin: 0 auto;
+    /*float: right;*/
+}
+.tvcmstheme-control {
+    position: fixed;
+    z-index: 1001;
+    top: 136px;
+    bottom: 0px;
+    right: -400px;
+    -webkit-transition: all 0.2s ease-in-out;
+    -moz-transition: all 0.2s ease-in-out;
+    -ms-transition: all 0.2s ease-in-out;
+    -o-transition: all 0.2s ease-in-out;
+    transition: all 0.2s ease-in-out;
+}
+.tvcmstheme-layout {
+    position: fixed;
+    z-index: 1001;
+    top: 186px;
+    bottom: 0px;
+    right: -400px;
+    -webkit-transition: all 0.2s ease-in-out;
+    -moz-transition: all 0.2s ease-in-out;
+    -ms-transition: all 0.2s ease-in-out;
+    -o-transition: all 0.2s ease-in-out;
+    transition: all 0.2s ease-in-out;
+}
+.tvcmstheme-control.open,
+.tvcmstheme-layout.open {
+    right: 0;
+    left: auto;
+    -webkit-transition: all 0.2s ease-in-out;
+    -moz-transition: all 0.2s ease-in-out;
+    -ms-transition: all 0.2s ease-in-out;
+    -o-transition: all 0.2s ease-in-out;
+    transition: all 0.2s ease-in-out;
+}
+.tvcmstheme-control table,
+.tvcmstheme-layout table {
+    width: 100%;
+}
+.tvcmstheme-control .tvtheme-control-wrapper.open {
+    display: block;
+}
+.tvcmstheme-control .tvtheme-control-icon i,
+.tvcmstheme-layout .tvtheme-layout-icon i {
+    font-size: 24px;
+    color: #000000;
+    position: relative;
+    height: 44px;
+    line-height: 42px;
+}
+.tvcmstheme-control .tvtheme-control-icon:hover i,
+.tvcmstheme-layout .tvtheme-layout-icon:hover i {
+    color: #ffffff;
+}
+
+@-moz-keyframes spin {
+    from {
+        -moz-transform: rotate(0deg);
+    }
+    to {
+        -moz-transform: rotate(360deg);
+    }
+}
+@-webkit-keyframes spin {
+    from {
+        -webkit-transform: rotate(0deg);
+    }
+    to {
+        -webkit-transform: rotate(360deg);
+    }
+}
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1-select select {
+    padding: 0;
+    width: 165px;
+    font-size: 12px;
+    height: 30px;
+    border: 1px solid #e5e5e5;
+}
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select:focus,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1-select select:focus {
+    outline: none;
+}
+.tvcmstheme-control .tvtheme-control-wrapper {
+    width: 400px;
+    border-radius: 0;
+    padding: 0;
+    max-height: calc(100vh - 130px);
+    height: calc(100vh - 130px);
+    /*max-height: 87vh;*/
+    background-color: #ffffff;
+    /*text-align: center;*/
+    transition: all 600ms ease 0s;
+    -webkit-transition: all 600ms ease 0s;
+    -moz-transition: all 600ms ease 0s;
+    -ms-transition: all 600ms ease 0s;
+    -o-transition: all 600ms ease 0s;
+    /*height:490px;*/
+    overflow-y: auto;
+    direction: ltr;
+}
+.tvcmstheme-layout .tvtheme-layout-wrapper {
+    width: 400px;
+    border-radius: 0;
+    padding: 0;
+    max-height: calc(100vh - 182px);
+    height: calc(100vh - 182px);
+    /*max-height: 81.7vh;*/
+    background-color: #ffffff;
+    /*text-align: center;*/
+    transition: all 600ms ease 0s;
+    -webkit-transition: all 600ms ease 0s;
+    -moz-transition: all 600ms ease 0s;
+    -ms-transition: all 600ms ease 0s;
+    -o-transition: all 600ms ease 0s;
+    /*height:490px;*/
+    overflow-y: auto;
+    direction: ltr;
+}
+.tvcmstheme-control .tvtheme-control-wrapper.open,
+.tvcmstheme-layout .tvtheme-layout-wrapper.open {
+    box-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.1);
+}
+.tvthemecontrol-heading,
+.tvthemelayout-heading {
+    /*background-color: #333333;*/
+    /*padding: 11px 15px;*/
+}
+#order-confirmation .tvcmstheme-control .tvtheme-control-wrapper table td {
+    border: none;
+}
+.tvcmstheme-control.active {
+    right: 0;
+}
+.tvtheme-control-wrapper {
+    color: #222222;
+}
+.tvtheme-control-wrapper .tvselect-theme-name,
+.tvtheme-control-wrapper .tvtheme-layout-name,
+.tvtheme-control-wrapper .tvtheme-animation-name,
+.tvtheme-control-wrapper .tvtheme-page-loader-name,
+.tvtheme-control-wrapper .tvtheme-left-sticky-name,
+.tvtheme-control-wrapper .tvtheme-right-sticky-name,
+.tvtheme-control-wrapper .tvtheme-menu-sticky-name,
+.tvtheme-control-wrapper .tvbgcolor-theme-name,
+.tvtheme-control-wrapper .tvtheme-background-pattern-name,
+.tvtheme-body-background-pattern-name {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #000000;
+    font-weight: 400;
+}
+.tvtheme-control-wrapper .tvcolor-theme-name,
+.tvcolor-two-theme-name {
+    margin: 10px 0 6px;
+    font-size: 14px;
+    color: #000000;
+    font-weight: 400;
+}
+.tvtheme-box-layout .notice {
+    color: #000000;
+    margin-bottom: 0;
+    text-align: center;
+    margin-top: 10px;
+    font-size: 13px;
+}
+.tvtheme-control-wrapper .tvtheme-option .btn-default {
+    background-color: #333333;
+}
+.tvtheme-control-wrapper .tvtheme-option .btn-primary {
+    background-color: #e02b35;
+    color: #ffffff;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-handle {
+    background-color: #ffffff;
+}
+.tvtheme-control-wrapper .tvtheme-color-box {
+    /*float: right;*/
+}
+.tvtheme-control-wrapper .tvtheme-color-box input {
+    width: 165px;
+}
+.tvtheme-control-wrapper .tvall-theme-content,
+.tvtheme-layout-wrapper .tvall-layout-content {
+    /*padding-bottom: 20px;*/
+    position: relative;
+    /*text-align: center;*/
+}
+/*.tvtheme-control-wrapper .tvtheme-color-one {
+    margin-bottom: 10px;
+    overflow: hidden;
+}*/
+
+.tvtheme-custom {
+    display: block;
+    width: 85%;
+    margin: 0 auto;
+}
+
+.tvtheme-control-wrapper .tvtheme-color-one,
+.tvtheme-control-wrapper .tvtheme-color-two {
+    width: 50%;
+    display: inline-block;
+    margin-bottom: 10px;
+    /*overflow: hidden;*/
+}
+.tvtheme-control-wrapper .tvtheme-color-one,
+.tvtheme-control-wrapper .tvtheme-color-two {
+    padding: 0px 10px;
+    border: none;
+    text-align: left;
+    margin: 0 auto;
+    margin-bottom: 20px;
+    /*width: 80%;*/
+    /*display: block;*/
+}
+.tvtheme-control-wrapper td {
+    padding: 4px 0;
+}
+.tvtheme-control-wrapper .tvtheme-option .btn-primary {
+    background-color: #222222;
+    color: #FFF;
+    text-align: center;
+    border: none;
+    font-weight: 500;
+    margin: 0;
+    text-transform: uppercase;
+}
+.tvtheme-control-wrapper .tvtheme-option .btn-default {
+    background-color: #888;
+    color: #FFF;
+    text-align: center;
+    margin: 0;
+    border: none;
+    text-transform: uppercase;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-handle {
+    background-color: #FFF;
+    padding: 0px 20px;
+}
+.last-child .tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select,
+.last-child .tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select,
+.last-child .tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select {
+    direction: ltr;
+}
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select::-ms-expand,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select::-ms-expand,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select::-ms-expand {
+    display: none;
+}
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select option,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select option,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select option {
+    background-color: #ffffff;
+    color: #222222;
+}
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-theme select option:hover,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-1 select option:hover,
+.tvcmstheme-control .tvtheme-control-wrapper .tvselect-title-font-2 select option:hover {
+    background-color: #e02b35;
+    color: #ffffff;
+}
+.tvtheme-control-wrapper .tvtheme-color-box input {
+    border: none;
+    height: 25px;
+    padding: 0 32px;
+    border: 1px solid #e5e5e5;
+    font-size: 12px;
+}
+.tvtheme-control-wrapper .tvtheme-control-title-name {
+    float: left;
+}
+.tvtheme-control-wrapper .tvtheme-control-reset,
+.tvtheme-layout-wrapper .tvtheme-layout-reset {
+    width: 90%;
+    margin: 0 auto;
+    display: block;
+    margin-top: 0;
+    margin-bottom: 15px;
+    border-radius: 3px;
+    padding: 15px 15px;
+}
+.tvtheme-control-wrapper .tvtheme-control-reset:after {
+    border-radius: 3px;
+}
+.tvtheme-control-wrapper .toggle.btn {
+    min-width: 70px;
+    min-height: 30px;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-off.btn {
+    padding: 6px 0 6px 20px;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-on.btn {
+    padding: 6px 20px 6px 0px;
+}
+.tvtheme-control-wrapper td {
+    padding: 20px 20px;
+    /*position: relative;*/
+    /*z-index: 1;*/
+    /*border-bottom: 1px solid #e5e5e5;*/
+}
+.tvtheme-control-wrapper .tvselect-theme,
+.tvtheme-layout-wrapper .tvselect-layout {
+    margin: 0;
+}
+.tvtheme-control-wrapper .tvselect-theme td,
+.tvtheme-layout-wrapper .tvselect-layout td {
+    border: none;
+    padding: 20px 20px 0;
+}
+.tvtheme-control-title-name-reset-btn,
+.tvtheme-layout-title-name-reset-btn {
+    width: 100%;
+    overflow: hidden;
+    display: block;
+    text-align: center;
+}
+.tvtheme-control-title-name-reset-btn p,
+.tvtheme-layout-title-name-reset-btn p {
+    font-size: 18px;
+    margin-bottom: 0;
+    font-weight: 500;
+    color: #ffffff;
+}
+.tvtheme-control-wrapper .tvtheme-control-reset:focus {
+    outline: none;
+}
+.tvtheme-control-wrapper .tvtheme-all-pattern-wrapper,
+.tvtheme-control-wrapper .tvtheme-all-body-pattern-wrapper,
+.tvtheme-all-body-pattern {
+    /*width: 330px;*/
+    width: 91%;
+    margin: 0 auto;
+    margin-top: 15px;
+    overflow: hidden;
+}
+.tvtheme-control-wrapper .tvtheme-all-pattern,
+.tvtheme-all-body-pattern-wrapper .tvtheme-all-body-pattern {
+    width: 34px;
+    height: 34px;
+    background-color: #FFF;
+    overflow: hidden;
+    border: 1px solid #eeeeee;
+    border-radius: 6px;
+    float: left;
+    margin: 0px 5px 10px 5px;
+    cursor: pointer;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+.tvtheme-control-wrapper .tvtheme-all-pattern .tvtheme-pattern-image:hover,
+.tvtheme-control-wrapper .tvtheme-all-pattern .tvtheme-pattern-image.active,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image:hover,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image.active {
+    box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.15);
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+.tvtheme-control-wrapper .tvtheme-all-pattern .tvtheme-pattern-image,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image {
+    width: 34px;
+    height: 34px;
+    border-radius: 3px;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+    /*border: 1px solid #e5e5e5;*/
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image1,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image1 {
+    background-position: 0 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image2,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image2 {
+    background-position: -37px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image3,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image3 {
+    background-position: -74px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image4,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image4 {
+    background-position: -108px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image5,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image5 {
+    background-position: -146px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image6,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image6 {
+    background-position: -180px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image7,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image7 {
+    background-position: -215px 0;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image8,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image8 {
+    background-position: 0px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image9,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image9 {
+    background-position: -37px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image10,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image10 {
+    background-position: -74px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image11,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image11 {
+    background-position: -108px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image12,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image12 {
+    background-position: -144px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image13,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image13 {
+    background-position: -180px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image14,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image14 {
+    background-position: -217px -36px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image15,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image15 {
+    background-position: 0px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image16,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image16 {
+    background-position: -37px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image17,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image17 {
+    background-position: -74px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image18,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image18 {
+    background-position: -108px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image19,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image19 {
+    background-position: -144px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image20,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image20 {
+    background-position: -180px -73px;
+}
+.tvtheme-all-pattern-wrapper .tvtheme-pattern-image21,
+.tvtheme-all-body-pattern .tvtheme-body-pattern-image21 {
+    background-position: -217px -73px;
+}
+.tvcms_theme_active {
+    border: 2px solid #f00;
+}
+.tvtheme-control-wrapper .tvtheme-bgcolor-box input,
+.tvtheme-control-wrapper .tvtheme-color-box input,
+.tvtheme-control-wrapper .tvtheme-background-layout input {
+    height: 40px;
+    padding: 0 0 0 50px;
+    width: 100%;
+    border: 1px solid #e5e5e5;
+    border-radius: 3px;
+    font-size: 14px;
+}
+.tvtheme-bgcolor-box .minicolors-theme-default.minicolors,
+.tvtheme-control-wrapper .tvtheme-background-layout .minicolors-theme-default.minicolors {
+    width: 90%;
+}
+
+.tvtheme-title-color .tvtheme-color-box .minicolors-theme-default.minicolors {
+    width: 80%;
+}
+
+.tvtheme-bgcolor-box .minicolors-theme-default.minicolors {
+    /*float: right;*/
+}
+
+.tvtheme-control .minicolors-theme-default .minicolors-swatch {
+    top: 8px;
+    left: 8px;
+    width: 34px;
+    height: 25px;
+    border: none;
+    border-radius: 3px;
+    background-position: -280px 0;
+}
+.tvtheme-control .minicolors-swatch-color {
+    border-radius: 3px;
+}
+
+.tvtheme-bgcolor-box {
+    width: 90%;
+    margin: 0 auto;
+    margin-top: 15px;
+}
+.tvtheme-left-sticky {
+    display: none;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-off.btn {
+    padding: 8px 0 8px 20px;
+}
+.tvtheme-control-wrapper .tvtheme-option .toggle-on.btn {
+    padding: 8px 20px 8px 0px;
+}
+.tvtheme-control-wrapper .tvtheme-control-reset:hover {
+    background-color: #222222;
+}
+.tvcmstheme-control .tvtheme-body-background-patten p.notice,
+.tvcmstheme-control .tvtheme-background-patten p.notice {
+    color: #666666;
+    font-size: 13px;
+    margin-bottom: 0;
+    margin-top: 6px;
+    font-weight: 400;
+}
+.lang-rtl .tvtheme-control-wrapper .tvtheme-color-box,
+.lang-rtl .tvtheme-control-wrapper .tvtheme-all-pattern {
+    /*float: right;*/
+}
+@media (max-width: 767px) {
+    .tvcmstheme-control,
+    .tvcmstheme-layout {
+        display: none;
+    }
+}
+.tvcmstheme-control .tvtheme-control-icon:after {
+    position: absolute;
+    content: "";
+    background-image: url(../img/download.png);
+    width: 50px;
+    height: 50px;
+    left: -30px;
+    top: -30px;
+    animation: cnew 1s infinite;
+    -webkit-animation: cnew 1s infinite;
+}
+@keyframes cnew {
+    0% {
+        transform: scale(.85);
+        -webkit-transform: scale(.85);
+        -o-transform: scale(.85);
+        -ms-transform: scale(.85);
+        -moz-transform: scale(.85);
+    }
+
+    20% {
+        transform: scale(1) -webkit-transform: scale(1);
+        -o-transform: scale(1);
+        -ms-transform: scale(1);
+        -moz-transform: scale(1);
+    }
+
+    40% {
+        transform: scale(.85) -webkit-transform: scale(.85);
+        -o-transform: scale(.85);
+        -ms-transform: scale(.85);
+        -moz-transform: scale(.85);
+    }
+
+    60% {
+        transform: scale(1) -webkit-transform: scale(1);
+        -o-transform: scale(1);
+        -ms-transform: scale(1);
+        -moz-transform: scale(1);
+    }
+
+    80% {
+        transform: scale(.85) -webkit-transform: scale(.85);
+        -o-transform: scale(.85);
+        -ms-transform: scale(.85);
+        -moz-transform: scale(.85);
+    }
+
+    100% {
+        transform: scale(.85) -webkit-transform: scale(.85);
+        -o-transform: scale(.85);
+        -ms-transform: scale(.85);
+        -moz-transform: scale(.85);
+    }
+}
+#TVCMSCUSTOMSETTING_LIHGT_MODE_INPUT,
+#TVCMSCUSTOMSETTING_DARK_MODE_INPUT {
+    display: none;
+    visibility: hidden;
+}
+/***********************END THEME_CONTOL*****************/
+.tvtheme-theme-mode-wrapper {
+    /*float: right;*/
+    text-align: center;
+}
+.tvtheme-theme-mode label {
+    position: relative;
+}
+.tvtheme-theme-mode-wrapper td {
+    padding: 0 15px;
+}
+.tvtheme-theme-mode img {
+    border: 1px solid #333232;
+    border-radius: 15px;
+    cursor: pointer;
+}
+.tvtheme-theme-mode img {
+    /*max-height: 95px;*/
+}
+.tvtheme-theme-mode .tvcheck-popup {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    margin: auto;
+    color: #ffffff;
+    text-align: center;
+    width: 26px;
+    height: 26px;
+    background: #38a500;
+    border-radius: 100%;
+    padding: 3px;
+    display: none;
+}
+.tvtheme-theme-mode .tvcheck-popup i {
+    font-size: 20px;
+}
+/*.tvtheme-control .box input[type=checkbox] {
+    height: 0;
+    width: 0;
+    visibility: hidden;
+    display: none;
+}
+.tvtheme-control .box label {
+    cursor: pointer;
+    text-indent: -9999px;
+    width: 70px;
+    height: 33px;
+    background: #bbbbbb;
+    display: block;
+    border-radius: 3px;
+    padding: 4px;
+    position: relative;
+}
+.tvtheme-control .box label:after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    right: auto;
+    width: 25px;
+    height: 25px;
+    background: #fff;
+    border-radius: 3px;
+    transition: all 0.2s cubic-bezier(0.33, 1.6, 0.66, 1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
+}
+.tvtheme-control .box input:checked+label {
+    background: #373737;
+}
+.tvtheme-control .box input:checked+label:after {
+    left: 95%;
+    -webkit-transform: translateX(-100%);
+    -moz-transform: translateX(-100%);
+    -ms-transform: translateX(-100%);
+    -o-transform: translateX(-100%);
+    transform: translateX(-100%);
+}
+.tvtheme-control .box label:active:after {
+    width: 45px;
+}*/
+/*.tvcmstheme-control .tvtheme-option{
+    border: none;
+    margin: 0 auto;
+}*/
+
+.tvtheme-box-layout-option[type="radio"]:checked,
+.tvtheme-box-layout-option[type="radio"]:not(:checked),
+.tvtheme-wide-layout-option[type="radio"]:checked,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked),
+.tvtheme-bg-default-option[type="radio"]:checked,
+.tvtheme-bg-default-option[type="radio"]:not(:checked),
+.tvtheme-bg-custom-option[type="radio"]:checked,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked) {
+    /*position: absolute;
+    left: -9999px;*/
+    display: none;
+}
+.tvtheme-box-layout-option[type="radio"]:checked+label,
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-wide-layout-option[type="radio"]:checked+label,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-default-option[type="radio"]:checked+label,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-custom-option[type="radio"]:checked+label,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label,
+.tvtheme-theme-mode-wrapper p label {
+    font-size: 14px;
+    color: #000000;
+}
+.tvtheme-box-layout-option[type="radio"]:checked+label,
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-wide-layout-option[type="radio"]:checked+label,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-default-option[type="radio"]:checked+label,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label,
+.tvtheme-bg-custom-option[type="radio"]:checked+label,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label {
+    position: relative;
+    padding-left: 32px;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+    line-height: 26px;
+    display: block;
+}
+.tvtheme-box-layout-option[type="radio"]:checked+label:before,
+.tvtheme-wide-layout-option[type="radio"]:checked+label:before,
+.tvtheme-bg-default-option[type="radio"]:checked+label:before,
+.tvtheme-bg-custom-option[type="radio"]:checked+label:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #000;
+    border-radius: 100%;
+    background: #000;
+}
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label:before,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label:before,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label:before,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #eeeeee;
+    border-radius: 100%;
+    background: #fff;
+}
+.tvtheme-box-layout-option[type="radio"]:checked+label:after,
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-wide-layout-option[type="radio"]:checked+label:after,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-bg-default-option[type="radio"]:checked+label:after,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-bg-custom-option[type="radio"]:checked+label:after,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label:after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #ffffff;
+    position: absolute;
+    top: 9px;
+    left: 9px;
+    border-radius: 100%;
+    -webkit-transition: all 0.2s ease;
+    transition: all 0.2s ease;
+}
+.tvtheme-box-layout-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-wide-layout-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-bg-default-option[type="radio"]:not(:checked)+label:after,
+.tvtheme-bg-custom-option[type="radio"]:not(:checked)+label:after {
+    opacity: 0;
+    -webkit-transform: scale(0);
+    transform: scale(0);
+}
+.tvtheme-box-layout-option[type="radio"]:checked+label:after,
+.tvtheme-wide-layout-option[type="radio"]:checked+label:after,
+.tvtheme-bg-default-option[type="radio"]:checked+label:after,
+.tvtheme-bg-custom-option[type="radio"]:checked+label:after {
+    opacity: 1;
+    -webkit-transform: scale(1);
+    transform: scale(1);
+}
+.tvtheme-control-wrapper .tvtheme-layout-name,
+.tvtheme-control-wrapper .tvtheme-menu-sticky-name {
+    padding-bottom: 15px;
+}
+.tvtheme-box-layout .box.tvtheme-option,
+.tvtheme-box-layout .wide.tvtheme-option,
+.tvtheme-background-layout .bg-default.tvtheme-option,
+.tvtheme-background-layout .bg-custom.tvtheme-option {
+    display: inline-block;
+    width: 50%;
+    padding: 0 15px;
+    /*margin-bottom: 15px;*/
+}
+
+.tvcmstheme-control .tvtheme-control-icon i,
+.tvcmstheme-layout .tvtheme-layout-icon i {
+    -webkit-animation-name: none;
+    animation: none;
+}
+.minicolors-theme-default.minicolors {
+    vertical-align: top;
+    width: 100%;
+    display: block;
+}
+
+.radio-toolbar {
+    margin: 10px -10px;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.radio-toolbar input[type="radio"] {
+    opacity: 0;
+    position: fixed;
+    width: 0;
+}
+
+.radio-toolbar label {
+    padding: 0 10px;
+    width: 50%;
+    margin-bottom: 15px;
+}
+
+.radio-toolbar label span svg.primary-color,
+.radio-toolbar label span svg.secondary-color {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    height: max-content;
+}
+.radio-toolbar label span svg.primary-color {
+    left: 0;
+}
+.radio-toolbar label span svg.secondary-color {
+    right: 0;
+}
+
+.radio-toolbar label span {
+    /*display: inline-block;*/
+    display: flex;
+    position: relative;
+    align-items: center;
+    width: 100%;
+    height: 45px;
+    overflow: hidden;
+    /*padding: 10px 20px;*/
+    /*font-size: 16px;*/
+    border-right: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+    border-radius: 3px;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.radio-toolbar label.theme-1 span {
+    /*background-color: #ffd741;*/
+}
+.radio-toolbar label.theme-2 span {
+    /*background-color: #5a9e74;*/
+}
+.radio-toolbar label.theme-3 span {
+    /*background-color: #fd6282;*/
+}
+.radio-toolbar label.theme-4 span {
+    /*background-color: #139fbd;*/
+}
+
+.radio-toolbar label:hover span {
+    /*background-color: #dfd;*/
+    border-color: #fff;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+    box-shadow: 0px 2px 3px 0px rgba(0, 0, 0, 0.2);
+}
+
+/*.radio-toolbar input[type="radio"]:focus+label span {
+    border: 2px dashed #444;
+}*/
+
+
+.radio-toolbar input[type="radio"]:checked+label span {
+    /*background-color: #bfb;*/
+    box-shadow: 4px 5px 3px 0px rgb(0 0 0 / 15%);
+    border-color: #fff;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.radio-toolbar label.theme-custom span {
+    width: 90%;
+    height: 40px;
+    text-align: center;
+    margin: 0 auto;
+    padding: 10px 20px 10px 40px;
+    font-size: 14px;
+    border: 1px solid transparent;
+    box-shadow: 0px 0px 5px 0px rgba(0, 0, 0, 0.2);
+}
+
+.radio-toolbar label.theme-custom:hover span {
+    border-color: #eeeeee;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+    box-shadow: 0px 2px 3px 0px rgba(0, 0, 0, 0.2);
+}
+
+.radio-toolbar label.theme-custom {
+    width: 100%;
+    color: #000;
+    letter-spacing: 0.4px;
+    text-align: center;
+    margin-bottom: 0;
+    position: relative;
+}
+
+.radio-toolbar input[type="radio"]:checked+label.theme-custom span {
+    box-shadow: 0px 2px 3px 0px rgba(0, 0, 0, 0.3);
+    border-color: #eeeeee;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.tvtheme-control-wrapper .tvall-theme-content:after {
+    content: '';
+    background-color: #eeeeee;
+    height: 1px;
+    width: 90%;
+    margin: 0 auto;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.tvtheme-control-wrapper .tvall-theme-content.tvselect-theme:after {
+    display: none;
+}
+
+.tvtheme-background-layout .theme-switcher {
+    /*margin-bottom: 15px;*/
+}
+.tvbody-bgcolor-wrapper {
+    width: 90%;
+    margin: 0 auto;
+    margin-top: 15px;
+}
+
+
+.theme-switcher {
+    width: 90%;
+    min-height: 46px;
+    background-color: #ffffff;
+    border: 1px solid #eeeeee;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    /*margin-top: 15px;*/
+}
+.theme-switcher .slider,
+.theme-switcher .slider {
+    display: block;
+    position: absolute;
+    z-index: 1;
+    width: calc((100% - 6px) / 2);
+    height: 34px;
+    top: 5px;
+    left: 5px;
+    transform: translatex(-110%);
+    bottom: 3px;
+    border-radius: 3px;
+    transition: 0.15s ease, transform 0.25s ease-out;
+    background-color: #ddd;
+    /*box-shadow: inset 0 1px 1px #ddd, 0 2px 3px #ccc;*/
+}
+.theme-switcher input {
+    display: none;
+}
+.tvtheme-box-layout .theme-switcher input:nth-of-type(1):checked~.slider,
+.tvtheme-background-layout .theme-switcher input:nth-of-type(1):checked~.slider,
+.tvtheme-menu-sticky .theme-switcher input:nth-of-type(1):checked~.slider {
+    transform: translateX(0);
+}
+
+.tvtheme-box-layout .theme-switcher input:nth-of-type(2):checked~.slider,
+.tvtheme-background-layout .theme-switcher input:nth-of-type(2):checked~.slider,
+.tvtheme-menu-sticky .theme-switcher input:nth-of-type(2):checked~.slider {
+    transform: translateX(97%);
+}
+
+.theme-switcher label {
+    position: relative;
+    z-index: 2;
+    width: calc(100% / 2);
+    color: #737374;
+    margin: 0;
+    cursor: pointer;
+}
+.theme-switcher label span {
+    font-size: 14px;
+    color: #000000;
+    padding: 8px 0;
+    border-radius: 6px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 400;
+}
+
+.tvtheme-control-wrapper .tvbody-bgcolor-theme-name,
+.tvselect-title-font-1 .tvtheme-title-color .tvtheme-layout-name {
+    width: 55%;
+    font-size: 12px;
+    display: inline-block;
+    padding: 12px 0;
+    color: #000;
+    font-weight: 400;
+}
+
+.tvselect-title-font-1 .tvtheme-title-color .tvtheme-layout-name {
+    width: 50%;
+}
+
+.tvtheme-title-color {
+    display: flex;
+    align-items: center;
+}
+
+/*.tvtheme-control-wrapper .tvtheme-background-layout .tvtheme-color-box,*/
+.tvselect-title-font-1 .tvtheme-color-box {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tvtheme-title-color {
+    width: 90%;
+    margin: 0 auto;
+    margin-top: 15px;
+}
+
+.box-block.open,
+.bg-block.open,
+.tvtheme-body-background-patten.open {
+    margin-top: 15px;
+}
+
+.box-block,
+.bg-block {
+    /*display: none;*/
+    position: relative;
+    z-index: 1;
+    transform: scale(1, 0);
+    transform-origin: top;
+    height: 0;
+    opacity: 0;
+    visibility: hidden;
+    -webkit-transition: all 0.30s;
+    -moz-transition: all 0.30s;
+    -ms-transition: all 0.30s;
+    -o-transition: all 0.30s;
+    transition: all 0.30s;
+    -moz-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.tvtheme-bgcolor-box,
+.tvtheme-all-pattern-wrapper,
+.tvtheme-body-background-patten,
+.tvbody-bgcolor-wrapper.tvtheme-body-bgcolor {
+    display: none;
+}
+
+.box-block.open,
+.bg-block.open {
+    /*display: block;*/
+    transform: scale(1, 1);
+    transform-origin: top;
+    height: auto;
+    visibility: visible;
+    opacity: 1;
+    -webkit-transition: all 0.30s;
+    -moz-transition: all 0.30s;
+    -ms-transition: all 0.30s;
+    -o-transition: all 0.30s;
+    transition: all 0.30s;
+    -moz-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.tvtheme-all-pattern-wrapper.open,
+.tvtheme-body-background-patten.open {
+    display: block;
+}
+.tvbody-bgcolor-wrapper.tvtheme-body-bgcolor.open,
+.tvtheme-bgcolor-box.open {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tvtheme-bgcolor-box svg,
+.tvbody-bgcolor-wrapper svg {
+    vertical-align: middle;
+}
+
+.tvtheme-theme-mode-wrapper p {
+    margin-bottom: 0;
+    margin-top: 10px;
+}
+
+.tvselect-theme-select .theme-custom i.tvcolor-dropdown {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 15px;
+    margin: auto;
+    height: max-content;
+    color: #000000;
+    font-size: 26px;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.tvselect-theme-select .theme-custom i.tvcolor-picker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 10px;
+    margin: auto;
+    height: max-content;
+    color: #000000;
+    font-size: 20px;
+}
+
+.radio-toolbar input[type="radio"]:checked+label.theme-custom span i.tvcolor-dropdown {
+    transform: rotate(180deg);
+    -webkit-transform: rotate(180deg);
+    -moz-transform: rotate(180deg);
+    -ms-transform: rotate(180deg);
+    -o-transform: rotate(180deg);
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+/***** Layout CSS *****/
+
+.tvselect-layout.tvall-theme-content .card-header {
+    padding: 0;
+    background-color: #ffffff;
+    box-shadow: 0px 0px 5px 0px rgb(0 0 0 / 20%);
+    border-radius: 3px;
+    border: none;
+    position: relative;
+}
+
+.tvselect-layout.tvall-theme-content .tvtheme-layout-btn {
+    background-color: #ffffff;
+    color: #000000;
+    border-radius: 3px;
+    padding: 15px 20px 15px 20px;
+    text-align: left;
+}
+
+.tvselect-layout.tvall-theme-content .card {
+    border: none;
+    border-radius: 3px;
+}
+
+.tvselect-layout.tvall-theme-content i.tvlayout-dropdown {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 15px;
+    margin: auto;
+    height: max-content;
+    transform: rotate(180deg);
+    color: #000;
+    font-size: 26px;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.tvselect-layout.tvall-theme-content .tvtheme-layout-btn.collapsed i.tvlayout-dropdown {
+    transform: rotate(0deg);
+}
+
+.tvselect-layout.tvall-theme-content .card-body {
+    padding: 10px 0;
+}
+
+.tvtheme-layout-radio {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.tvlayout-radio-img {
+    cursor: pointer;
+}
+
+.tvlayout-image {
+    margin: 15px 0 0;
+}
+.tvlayout-radio-img>input {
+    display: none;
+}
+.tvlayout-radio-img>.tvlayout-image {
+    cursor: pointer;
+    border: 3px solid #eeeeee;
+    border-radius: 3px;
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+.tvlayout-radio-img>input:checked+.tvlayout-image {
+    box-shadow: 0px 2px 3px 0px rgb(0 0 0 / 20%);
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.tvlayout-radio-img>input:hover+.tvlayout-image {
+    box-shadow: 0px 2px 3px 0px rgb(0 0 0 / 20%);
+    -webkit-transition: all 0.35s ease-in-out;
+    -moz-transition: all 0.35s ease-in-out;
+    -ms-transition: all 0.35s ease-in-out;
+    -o-transition: all 0.35s ease-in-out;
+    transition: all 0.35s ease-in-out;
+}
+
+.tvlayout-title {
+    font-size: 14px;
+    text-align: center;
+    margin: 0;
+    color: #000000;
+    padding-top: 5px;
+}
+
+.header-2 #tvcmsdesktop-account-button li.hidden-lg-up,
+.header-3 #tvcmsdesktop-account-button li.hidden-lg-up,
+.header-4 #tvcmsdesktop-account-button li.hidden-lg-up,
+.header-6 #tvcmsdesktop-account-button li.hidden-lg-up {
+    display: block !important;
+}
+
+.tvtheme-layout-radio .col-md-6:nth-child(odd) {
+    padding-left: 0;
+}
+.tvtheme-layout-radio .col-md-6:nth-child(even) {
+    padding-right: 0;
+}
+.radio-toolbar label span.tvtheme-label {
+    height: auto;
+    line-height: 0;
+    font-size: 0;
+}
+.tvtheme-label {
+    height: auto;
+    line-height: 0;
+    font-size: 0;
+}

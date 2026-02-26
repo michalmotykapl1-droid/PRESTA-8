@@ -1,0 +1,191 @@
+.tvcms-prod-popup .tvproduct-bought-info {
+    font-size: 0.9em; /* Dostosuj rozmiar czcionki */
+    font-weight: bold; /* Normalna waga czcionki */
+    color: #FB8C00; /* Szary kolor, aby był subtelny */
+    margin-bottom: 5px; /* Odstęp od nazwy produktu */
+    margin-left: 5px; /* Odstęp od nazwy produktu */
+
+    text-align: left; /* Wyśrodkowanie tekstu */
+    width: 100%; /* Upewnij się, że zajmuje pełną szerokość */
+    white-space: nowrap; /* Zapobiega zawijaniu się tekstu */
+}
+.tvcms-prod-popup {
+    margin-left: 0;
+    position: fixed;
+    z-index: 100;
+    left: 15px;
+    bottom: 15px;
+    opacity: 0;
+    font-size: 17px;
+    
+    /* Agresywne usunięcie wszelkich cieni i ramek */
+    box-shadow: none !important; /* WAŻNE: Dodajemy !important, aby nadpisać potencjalne inne style */
+    border: none !important;     /* WAŻNE: Dodajemy !important, aby nadpisać potencjalne inne style */
+    outline: none !important;    /* WAŻNE: Usuwamy outline, który może wyglądać jak ramka */
+
+    display: none; /* Będzie zmienione na flex przez .show */
+    max-width: 500px; /* Zwiększona szerokość dla większego obrazka i miejsca */
+    width: auto;
+    display: flex; /* Użyj flexboxa dla głównego popupu */
+    align-items: center; /* Wyśrodkuj elementy w pionie (obraz, tekst, cena) */
+    justify-content: space-between; /* Rozłóż elementy równomiernie */
+    padding: 15px 20px; /* Większy padding wewnętrzny popupu */
+    
+    border-radius: 5px; /* Delikatne zaokrąglenie rogów */
+    background-color: #fff; /* Białe tło */
+}
+.tvcms-prod-popup.show {
+    opacity: 1;
+    display: flex;
+}
+.tvcms-prod-popup .tvproduct-name {
+    margin-bottom: 5px; /* Odstęp między nazwą a gwiazdkami */
+	margin-left: 5px; /* Odstęp między nazwą a gwiazdkami */
+
+    font-size: 0,5em; /* Możesz dostosować rozmiar czcionki nazwy produktu */
+    font-weight: bold;
+ text-align: left;
+    color: #333; /* Ciemniejszy kolor dla nazwy produktu */
+}
+.tvcms-prod-popup .tvproduct-timer {
+    margin-bottom: 5px;
+}
+.tvcms-prod-popup .tvproduct-timer .tvproduct-timer-wrapper {
+    margin: 0;
+}
+.tvcms-prod-popup .tvproduct-wrapper .tvproduct-timer-wrapper .hours,
+.tvcms-prod-popup .tvproduct-wrapper .tvproduct-timer-wrapper .minutes,
+.tvcms-prod-popup .tvproduct-wrapper .tvproduct-timer-wrapper .days,
+.tvcms-prod-popup .tvproduct-wrapper .tvproduct-timer-wrapper .seconds {
+    font-size: 12px;
+}
+.tvcms-prod-popup .product-price-and-shipping {
+    font-size: 20px; /* Zwiększ rozmiar czcionki dla ceny */
+    font-weight: bold;
+    color: #FB8C00; /* Czarny kolor dla ceny (jak na obrazku) */
+    margin-left: 10px; /* Większy odstęp od lewej strony */
+    white-space: nowrap; /* Zapobiega zawijaniu się ceny */
+    flex-shrink: 0; /* Zapobiega kurczeniu się ceny */
+    text-align: center; /* Wyrównanie ceny do prawej (jeśli ma więcej niż jedną linię) */
+}
+.tvcms-prod-popup .product-price-and-shipping .price {
+    font-size: 1em; /* Użyj 'em' aby dziedziczyć z rodzica */
+    color: inherit; /* Dziedzicz kolor z rodzica */
+}
+.tvcms-prod-popup .product-price-and-shipping .regular-price {
+    font-size: 12px;
+    color: #999; /* Kolor dla ceny regularnej, jeśli jest widoczna */
+    text-decoration: line-through; /* Przekreślona cena regularna */
+}
+.tvcms-prod-popup .thumbnail-container {
+    display: flex; /* Użyj flexboxa do ewentualnego centrowania obrazu */
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; /* Zapobiega kurczeniu się obrazu */
+}
+.tvcms-prod-popup .thumbnail-container .product-container-img img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; /* Upewnij się, że obrazek jest widoczny w całości, bez obcinania */
+}
+.tvcms-prod-popup .thumbnail-container .product-container-img {
+    position: relative;
+    float: none;
+    width: 100px; /* Zwiększ szerokość obrazka */
+    height: 100px; /* Zwiększ wysokość obrazka, aby był kwadratowy */
+    border: none; /* Usuń ramkę obrazka */
+    line-height: 0;
+    margin: 0;
+    min-height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-flex: none;
+    flex: none;
+    overflow: hidden; /* Upewnij się, że obrazek nie wychodzi poza ramkę */
+}
+
+.tvcms-prod-popup .thumbnail-container .product-description {
+    padding: 0 10px 0 15px; /* Dostosuj padding dla lepszego wyglądu */
+    width: auto;
+    margin-top: 0;
+    flex-grow: 1;
+
+    flex-direction: column; /* Układ kolumnowy dla nazwy i gwiazdek */
+    align-items: left; /* Wyśrodkuj tekst nazwy i gwiazdki horyzontalnie */
+    text-align: left; /* Dodatkowo wyrównaj tekst do środka */
+
+}
+.tvcms-prod-popup .tvproduct-info-box-wrapper .star-rating {
+    display: none !important; /* Całkowicie ukrywa kontener gwiazdek */
+	
+}
+.tvcms-prod-popup .hook-displayReviewProductList {
+    display: none !important; /* Ukrywa cały hook, jeśli jest opakowany w div */
+}
+.tvcms-prod-popup .tvproduct-info-box-wrapper .hook-displayReviewProductList {
+    margin-top: 0;
+    margin-bottom: 5px; /* Odstęp gwiazdek od nazwy produktu */
+}
+.tvcms-prod-popup .tvproduct-info-box-wrapper {
+    padding: 0;
+}
+.tvcms-prod-popup .tvproduct-info-box-wrapper .star-rating .material-icons {
+    font-size: 18px; /* Rozmiar gwiazdek */
+    color: #CCCCCC; /* Jasnoszary kolor dla gwiazdek (jak na obrazku) */
+}
+.close-prod-popup {
+    position: absolute;
+    right: 8px; /* Odsuń przycisk zamknięcia od prawej krawędzi */
+    top: 1px; /* Odsuń przycisk zamknięcia od górnej krawędzi */
+    left: auto;
+    z-index: 10;
+}
+.close-prod-popup i {
+    font-size: 20px; /* Nieco większy rozmiar ikonki zamknięcia */
+    color: #666; /* Szary kolor ikonki zamknięcia */
+}
+.tvcms-prod-popup .thumbnail-container .date-ago {
+    font-size: 13px; /*  */
+    margin-top: 0; /* Dostosuj margin dla układu poziomego */
+}
+.tvcms-prod-popup .tvproduct-wrapper .tvproduct-info-box-wrapper {
+    padding: 0;
+}
+.tvcms-prod-popup .tvproduct-wrapper {
+    min-width: 110px;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    display: flex; /* Użyj flexboxa dla zawartości obrazka i opisu */
+    flex-grow: 1; /* KLUCZOWE: Pozwala temu kontenerowi rozpychać się */
+    flex-direction: row; /* Układ poziomy dla obrazka i opisu */
+    align-items: center; /* Wyśrodkowanie obrazka i bloku tekstu */
+}
+.tvcms-prod-popup .product-flags,
+.tvcms-prod-popup .tvproduct-hover-btn {
+    display: none;
+}
+
+.lang-rtl .tvcms-prod-popup {
+    left: auto;
+    right: 15px;
+}
+
+.tvprodpopup-close {
+    position: absolute;
+    top: -3px;
+    right: 0px;
+    padding: 1px;
+    z-index: 10;
+}
+
+.tvprodpopup-close i {
+    font-size: 18px;
+    color: #000;
+}
+
+.lang-rtl .tvprodpopup-close {
+    left: 5px;
+    right: auto;
+}

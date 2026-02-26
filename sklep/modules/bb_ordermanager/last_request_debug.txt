@@ -1,0 +1,1 @@
+DEBUG przeniesiony do katalogu tymczasowego serwera. Ustaw BB_OM_DEBUG=1 aby logować.

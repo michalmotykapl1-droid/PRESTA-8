@@ -1,0 +1,162 @@
+{* Ten szablon jest zaprojektowany jako samodzielny formularz HTML,
+   bez dziedziczenia z innych szablonów panelu administracyjnego
+   i bez ręcznego dołączania header.tpl, nav.tpl, footer.tpl.
+   Jest to obejście problemów z wyświetlaniem w Twoim środowisku. *}
+
+<div class="panel">
+    <h3>Ustawienia wyszukiwarki TVCMSSEARCH</h3>
+
+    {* Wyświetlanie potwierdzeń i błędów, jeśli są dostępne *}
+    {if isset($confirmation)}{$confirmation}{/if}
+    {if isset($errors) && $errors|@count > 0}
+        <div class="alert alert-danger">
+            {foreach from=$errors item='error'}
+                {$error}<br>
+            {/foreach}
+        </div>
+    {/if}
+
+    <form method="post" action="{$form_action_link|escape:'htmlall':'UTF-8'}" class="form-horizontal">
+    {* WAŻNE: Dodano pole tokena bezpieczeństwa, używając zmiennej przekazanej z kontrolera *}
+    <input type="hidden" name="token" value="{$admin_modules_token|escape:'htmlall':'UTF-8'}" />
+
+        {***** 1. USTAWIENIA WYGLĄDU *****}
+        <fieldset>
+            <legend><i class="icon-cogs"></i> Ustawienia wyglądu</legend>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="dropdown_theme">Motyw listy rozwijanej:</label>
+                <div class="col-lg-9">
+                    <select name="TVCMSSEARCH_DROPDOWN_THEME" id="dropdown_theme" class="form-control"> {* WAŻNE: name zgodny z kluczem konfiguracji *}
+                        <option value="classic" {if $fields.TVCMSSEARCH_DROPDOWN_THEME == 'classic'}selected{/if}>Klasyczny</option> {* WAŻNE: $fields.KEY zgodny z kluczem konfiguracji *}
+                        <option value="modern"  {if $fields.TVCMSSEARCH_DROPDOWN_THEME == 'modern'}selected{/if}>Nowoczesny</option> {* WAŻNE: $fields.KEY zgodny z kluczem konfiguracji *}
+                        <option value="finder"  {if $fields.TVCMSSEARCH_DROPDOWN_THEME == 'finder'}selected{/if}>Finder-like</option> {* WAŻNE: $fields.KEY zgodny z kluczem konfiguracji *}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="dropdown_align">Wyrównanie listy rozwijanej:</label>
+                <div class="col-lg-9">
+                    <select name="TVCMSSEARCH_DROPDOWN_ALIGN" id="dropdown_align" class="form-control"> {* WAŻNE: name zgodny z kluczem konfiguracji *}
+                        <option value="left"  {if $fields.TVCMSSEARCH_DROPDOWN_ALIGN == 'left'}selected{/if}>Do lewej</option> {* WAŻNE: $fields.KEY zgodny z kluczem konfiguracji *}
+                        <option value="right" {if $fields.TVCMSSEARCH_DROPDOWN_ALIGN == 'right'}selected{/if}>Do prawej</option> {* WAŻNE: $fields.KEY zgodny z kluczem konfiguracji *}
+                    </select>
+                </div>
+            </div>
+        </fieldset>
+
+        {***** 2. USTAWIENIA LISTY ROZWIJANEJ *****}
+        <fieldset class="panel mt-3">
+            <legend><i class="icon-list"></i> Ustawienia listy rozwijanej</legend>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3">Aktywuj natychmiastowe wyszukiwanie:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_INSTANT_SEARCH" id="instant_search_on" value="1" {if $fields.TVCMSSEARCH_INSTANT_SEARCH}checked="checked"{/if}>
+                        <label for="instant_search_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_INSTANT_SEARCH" id="instant_search_off" value="0" {if !$fields.TVCMSSEARCH_INSTANT_SEARCH}checked="checked"{/if}>
+                        <label for="instant_search_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="control-label col-lg-3">Pokaż ceny podczas natychmiastowego wyszukiwania:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_SHOW_PRICES" id="show_prices_on" value="1" {if $fields.TVCMSSEARCH_SHOW_PRICES}checked="checked"{/if}>
+                        <label for="show_prices_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_SHOW_PRICES" id="show_prices_off" value="0" {if !$fields.TVCMSSEARCH_SHOW_PRICES}checked="checked"{/if}>
+                        <label for="show_prices_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3">Pokaż zdjęcia produktów:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_SHOW_IMAGES" id="show_images_on" value="1" {if $fields.TVCMSSEARCH_SHOW_IMAGES}checked="checked"{/if}>
+                        <label for="show_images_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_SHOW_IMAGES" id="show_images_off" value="0" {if !$fields.TVCMSSEARCH_SHOW_IMAGES}checked="checked"{/if}>
+                        <label for="show_images_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="max_results">Maksymalna liczba wyników:</label>
+                <div class="col-lg-9">
+                    <input type="number" name="TVCMSSEARCH_MAX_RESULTS" id="max_results" value="{$fields.TVCMSSEARCH_MAX_RESULTS|intval}" class="form-control">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="control-label col-lg-3">Pokaż kategorie w liście rozwijanej:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_SHOW_CATEGORIES" id="show_categories_on" value="1" {if $fields.TVCMSSEARCH_SHOW_CATEGORIES}checked="checked"{/if}>
+                        <label for="show_categories_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_SHOW_CATEGORIES" id="show_categories_off" value="0" {if !$fields.TVCMSSEARCH_SHOW_CATEGORIES}checked="checked"{/if}>
+                        <label for="show_categories_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                </div>
+            </div>
+        </fieldset>
+
+        {***** 3. USTAWIENIA WYSZUKIWANIA *****}
+        <fieldset class="panel mt-3">
+            <legend><i class="icon-search"></i> Ustawienia wyszukiwania</legend>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3" for="fuzzy_level">Poziom wyszukiwania przybliżonego:</label>
+                <div class="col-lg-9">
+                    <select name="TVCMSSEARCH_FUZZY_LEVEL" id="fuzzy_level" class="form-control fixed-width-sm">
+                        {for $i=0 to 4}
+                            <option value="{$i}" {if $fields.TVCMSSEARCH_FUZZY_LEVEL == $i}selected{/if}>{$i}</option>
+                        {/for}
+                    </select>
+                    <p class="help-block">0 – brak, 4 – najwyższa trafność</p>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="control-label col-lg-3">Szukaj wewnątrz słowa:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_WITHIN_WORD" id="within_word_on" value="1" {if $fields.TVCMSSEARCH_WITHIN_WORD}checked="checked"{/if}>
+                        <label for="within_word_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_WITHIN_WORD" id="within_word_off" value="0" {if !$fields.TVCMSSEARCH_WITHIN_WORD}checked="checked"{/if}>
+                        <label for="within_word_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                    <p class="help-block">Dograne frazy w środku</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-lg-3">Pokazuj tylko produkty dostępne:</label>
+                <div class="col-lg-9">
+                    <span class="switch prestashop-switch fixed-width-lg">
+                        <input type="radio" name="TVCMSSEARCH_ONLY_AVAILABLE" id="only_available_on" value="1" {if $fields.TVCMSSEARCH_ONLY_AVAILABLE}checked="checked"{/if}>
+                        <label for="only_available_on">Tak</label>
+                        <input type="radio" name="TVCMSSEARCH_ONLY_AVAILABLE" id="only_available_off" value="0" {if !$fields.TVCMSSEARCH_ONLY_AVAILABLE}checked="checked"{/if}>
+                        <label for="only_available_off">Nie</label>
+                        <a class="slide-button btn"></a>
+                    </span>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="panel-footer">
+            <button type="submit" name="submitTVCmsSearchConfig" class="btn btn-primary">
+                <i class="process-icon-save"></i> Zapisz
+            </button>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>freshlabel</name>
+    <displayName><![CDATA[Etykieta Strefa Fresh]]></displayName>
+    <version><![CDATA[1.0.2]]></version>
+    <description><![CDATA[Dodaje funkcję sprawdzania produkt&oacute;w ze Strefy Fresh.]]></description>
+    <author><![CDATA[Tw&oacute;j Sklep]]></author>
+    <tab><![CDATA[front_office_features]]></tab>
+    <is_configurable>0</is_configurable>
+    <need_instance>0</need_instance>
+</module>

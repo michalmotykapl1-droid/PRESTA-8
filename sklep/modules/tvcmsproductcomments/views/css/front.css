@@ -1,0 +1,149 @@
+#id_new_comment_form {
+    display: flex;
+    flex-wrap: wrap;
+}
+#id_new_comment_form .title {
+    text-align: center;
+    font-size: 16px;
+    text-transform: capitalize;
+    color: #000;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 15px;
+    width: 100%;
+}
+.fancybox-overlay .fancybox-skin {
+    background-color: #fff
+}
+.tvproduct-review-box {
+    text-align: left;
+}
+#new_comment_form div.star {
+    display: inline-block;
+    float: left;
+    width: 14px;
+    height: 14px;
+    margin: 0 2px;
+    cursor: pointer;
+}
+.tvproduct-review-box .tvproduct-name {
+    margin-bottom: 15px;
+}
+#criterions_list {
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+}
+#criterions_list label {
+    margin: 0;
+    color: #000000;
+}
+#criterions_list .star_content {
+    margin: 0 20px 0 20px;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+#criterions_list li {
+    display: flex;
+    align-items: center;
+}
+.tvcustom-review-box {
+    text-align: left;
+    margin-bottom: 15px;
+}
+#criterions_list li .cancel {
+    order: 2;
+    position: absolute;
+    right: -50px;
+    background: none;
+}
+#criterions_list li .cancel a:after {
+    content: 'clear';
+    text-transform: capitalize;
+    font-size: 11px;
+    letter-spacing: .5px;
+}
+.tvcustom-review-box label {
+    display: block;
+    text-align: left;
+    font-size: 14px;
+    text-transform: capitalize;
+    margin-bottom: 5px;
+    color: #000;
+}
+.tvcustom-review-box input {
+    border: 1px solid #eee;
+    height: 32px;
+    width: 100%;
+    border-radius: 3px;
+}
+.tvcustom-review-box #review_content {
+    border: 1px solid #eee;
+    padding: 5px 10px;
+    width: 100%;
+    height: 60px;
+    border-radius: 3px;
+}
+.tvproduct-review-box sup,
+.fl.required {
+    color: #f00;
+}
+#new_comment_form_error li {
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #f10;
+}
+.tvall-product-star-icon .star {
+    display: inline-block;
+    vertical-align: middle;
+    line-height: 1
+}
+
+#new_comment_form .star,
+#new_comment_form .star.star_on {
+    background: url(../../../../modules/tvcmsproductcomments/views/img/star-no.png) no-repeat scroll 0 0 transparent;
+}
+#new_comment_form .star.star_hover,
+#new_comment_form .star.star_on {
+    background: url(../../../../modules/tvcmsproductcomments/views/img/star.png) no-repeat scroll 0 0 transparent;
+}
+#new_comment_form .star a,
+#tvcmsproductCommentsBlock .star a {
+    display: none;
+}
+
+.lang-rtl .tvproduct-review-box {
+    text-align: right;
+}
+.lang-rtl #criterions_list li .cancel {
+    left: -50px;
+    right: auto;
+}
+/* --- NOWY STYL LINKU OPINII --- */
+.tv-simple-review-link {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000000 !important; /* Czarny kolor */
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    padding: 10px 0 !important;
+    display: inline-block !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    float: right; /* Wyrównanie do prawej */
+}
+
+.tv-simple-review-link:hover {
+    color: #ea7404 !important; /* Pomarańczowy po najechaniu */
+    text-decoration: underline !important;
+    background-color: transparent !important;
+}
+
+/* Ukrycie starych elementów wewnątrz, jeśli jakieś zostały */
+.tv-simple-review-link span {
+    color: inherit !important;
+}

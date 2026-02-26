@@ -1,0 +1,38 @@
+/* Style dla panelu modułu Wyprzedaż */
+#wyprzedaz-app-container {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 15px;
+}
+.short-expiry {
+  background-color: #ffd6d6 !important;
+}
+/*
+ * Styl dla wierszy tabeli na podstawie daty ważności
+ */
+
+.table tr.danger {
+    background-color: #f2dede !important;
+}
+
+.table tr.warning {
+    background-color: #fcf8e3 !important;
+}
+/* Wyróżnianie wierszy duplikatów */
+.row-even {
+    background-color: #f8f8f8; /* Jasny szary, domyślny */
+}
+
+.row-odd {
+    background-color: #f1f9ff; /* Delikatny, niebieski odcień */
+}
+
+/* Dodane style dla przewijanych tabel */
+.table-scrollable-container {
+    max-height: 400px; /* Ustawienie maksymalnej wysokości kontenera */
+    overflow-y: auto; /* Włączenie pionowego paska przewijania, gdy zawartość przekracza wysokość */
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+}
